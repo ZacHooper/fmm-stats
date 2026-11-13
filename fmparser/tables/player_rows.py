@@ -12,11 +12,17 @@ ability stars do (3.5 stars 59-74, 2.5 stars 53, 0.5 stars 35, 16 Nov). It is de
 ability: presentation treats it as the site's Level %ile is treated (`[immersion]`); the
 parser reads it as stored.
 
+**youth_international_rating** (+22, u16) is set only on young players (born 18 Jul 2004 or
+later on these saves; `ffff`, read as None, otherwise): within nation and birth year it
+follows ability (median r 0.88 born 2007+, 0.77 born 2004-2006), it is updated in batches
+and drops at a birthday, and the eleven England U21 players of the Nation Squad screen on
+16 Nov rank in the top 60 of England's 2,430 young players by it (the higher ones in the
+senior squad): the score a youth international coach selects by. Up to 238.
+
 Not named: four u32 player-table indexes at +4 and two more inside +48, each column a random
-permutation of the players redrawn between saves (engine working state); +22, set only on
-players aged 21 or under (up to 238, updated in batches; ranks England's U21 squad near
-the top: a youth selection score, very probably); six u32 at +24, `ffffffff` on most
-players and 100 on the 7,389 of Truro's and nearby leagues. See `docs/parser/player_rows.md`.
+permutation of the players redrawn between saves (engine working state); six u32 at +24,
+`ffffffff` on most players and 100 on the 7,389 of Truro's and nearby leagues. See
+`docs/parser/player_rows.md`.
 
 **How it is found.** Where the Player Form lines end: a `00`, then the u32 count, then rows
 whose tids rise strictly, every one (`player_form.locate_player_form` checks the same run).
@@ -34,8 +40,8 @@ PLAYER_ROW = Record("player_row", 72, (
     Field(0,  4,  "tid", U32, note="ascending"),
     Field(4,  16, UNKNOWN, RAW, note="four player-table indexes, random, redrawn between saves"),
     Field(20, 2,  "league_ability", U16, note="current ability on the league's scale"),
-    Field(22, 2,  UNKNOWN, U16, note="players aged 21 or under only (up to 238): a youth "
-                                     "selection score?"),
+    Field(22, 2,  "youth_international_rating", U16,
+          note="players born 18 Jul 2004 or later only (up to 238); ffff otherwise"),
     Field(24, 24, UNKNOWN, RAW, note="six u32: ffffffff, or 100 on Truro's and nearby leagues"),
     Field(48, 24, UNKNOWN, RAW, note="two indexes, two of +24's values, the two indexes again"),
 ))
@@ -65,13 +71,20 @@ def player_rows_table_spans(mm: Any) -> List[Tuple[int, int]]:
     return [(loc[0] - 5, loc[0] + loc[1] * PLAYER_ROW.span)] if loc else []
 
 
+def _post(rec: Dict[str, Any], off: int) -> Dict[str, Any]:
+    out = dict(rec)
+    if out["youth_international_rating"] == 0xFFFF:
+        out["youth_international_rating"] = None
+    return out
+
+
 PLAYER_ROWS_TABLE = TableDef(name="player_rows", segments=(PLAYER_ROW,),
-                             locator=locate_player_rows)
+                             locator=locate_player_rows, post_process=_post)
 
 
 def scrape_player_rows(mm: Any) -> List[Dict[str, Any]]:
-    """Every row, in tid order: tid and league_ability. Raises `ValueError` when not
-    located."""
+    """Every row, in tid order: tid, league_ability, youth_international_rating (None for
+    players too old). Raises `ValueError` when not located."""
     loc = locate_player_rows(mm)
     if loc is None:
         raise ValueError("player_rows: not located (the Player Form lines in front were not)")

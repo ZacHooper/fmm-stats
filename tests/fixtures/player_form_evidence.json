@@ -87,5 +87,23 @@
       "29417": 2.5
     },
     "youth_intake_stars": 0.5
+  },
+  "england_u21": {
+    "note": "England U21 Nation Squad screen, 16 Nov 2026 (docs/parser/img/player_rows-fmm27-2.png): the eleven players on screen",
+    "nation_id": 139,
+    "tids": [
+      28423,
+      28822,
+      30591,
+      30689,
+      30952,
+      31452,
+      34146,
+      34358,
+      34933,
+      35074,
+      35729
+    ],
+    "top": 60
   }
 }

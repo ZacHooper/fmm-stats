@@ -33,7 +33,7 @@ Writes output/<label>/ (the label defaults to the save's file name without `.fms
     player_form.json             FMM27: the Player Form page, a line per squad player per
                                  competitive match
     player_rows.json             FMM27: per player (tid order) his ability on his league's
-                                 scale
+                                 scale and, if young, his youth international rating
     player_status.json           FMM27: per player (attribute-record order) the clubs
                                  interested in him, his morale and his form
     competition_team_counts.json each nation's team-count rules

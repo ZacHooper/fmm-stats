@@ -96,7 +96,9 @@ def main():
           f"rated lines agree with the match table: {agree} of {total}")
 
     print(" PLAYER ROWS: league_ability")
-    rows = {r["tid"]: r["league_ability"] for r in player_rows.scrape_player_rows(mm)}
+    full = player_rows.scrape_player_rows(mm)
+    rows = {r["tid"]: r["league_ability"] for r in full}
+    youth = {r["tid"]: r["youth_international_rating"] for r in full}
     check(len(rows) == player_rows.locate_player_rows(mm)[1], f"{len(rows):,} rows read")
     cr = fx["coach_report"]
     by_star = {}
@@ -121,6 +123,19 @@ def main():
     check(len(rs) > 50 and statistics.median(rs) > 0.9,
           f"within a league it tracks ability: median r {statistics.median(rs):.3f} "
           f"over {len(rs)} leagues")
+
+    print(" PLAYER ROWS: youth_international_rating")
+    eng = fx["england_u21"]
+    pool = sorted((v for t, v in youth.items() if v is not None
+                   and persons.get(t, {}).get("nationality_id") == eng["nation_id"]), reverse=True)
+    cut = pool[eng["top"] - 1]
+    check(all(youth[t] is not None and youth[t] >= cut for t in eng["tids"]),
+          f"England U21's eleven are in the top {eng['top']} of {len(pool):,} English "
+          f"young players by it")
+    olds = [t for t, p in persons.items() if p.get("dob") and p["dob"] < "2004-01-01"
+            and t in youth]
+    check(all(youth[t] is None for t in olds), f"None for all {len(olds):,} players born "
+                                               f"before 2004")
 
     fmm22 = find_save("frem-2026-06-11.fms")
     if fmm22:
