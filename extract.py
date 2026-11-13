@@ -30,6 +30,8 @@ Writes output/<label>/ (the label defaults to the save's file name without `.fms
     id_list.json                 an unread id list between the currencies and languages
     person_index.json            a short row per person: his loan slot, one unread pointer
     club_rows.json               a row per club, in tid order: its transfer budget
+    player_form.json             FMM27: the Player Form page, a line per squad player per
+                                 competitive match
     player_status.json           FMM27: per player (attribute-record order) the clubs
                                  interested in him, his morale and his form
     competition_team_counts.json each nation's team-count rules
@@ -277,6 +279,13 @@ def one(file: str, scrape: Callable[[Any], Any],
     return lambda mm: {file: (scrape(mm), indent)}
 
 
+def read_player_form(mm) -> Files:
+    """FMM27 only (FMM22's block after the club titles is not mapped): no file on FMM22."""
+    if T.save_format(mm) != T.FMM27:
+        return {}
+    return {"player_form.json": (T.scrape_player_form(mm), None)}
+
+
 def read_player_status(mm) -> Files:
     """FMM27 only: the FMM22 walk is not proved, so an FMM22 save writes no file. Block k is
     attribute record k, so each row carries that record's sid."""
@@ -356,6 +365,7 @@ def steps(no_archive: bool = False):
              one("club_seasons.json", T.scrape_club_seasons, 1)),
         Step("club_titles", registered("club_titles"),
              one("club_titles.json", T.scrape_club_titles, 1)),
+        Step("player_form", registered("player_form"), read_player_form),
         Step("player_lists", registered("player_lists", "player_list_trailers"),
              read_scrapbook),
         Step("archive", archive_span, read_archive(no_archive)),

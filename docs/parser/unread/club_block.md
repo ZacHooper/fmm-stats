@@ -33,7 +33,7 @@ Now its own page: [the block after the club titles](end_block.md), ten framed ta
   DC 3, DMC 5, MC 7, AMC 10, AMR 11, ST 12, as the training table spells them. Not the
   takers, the captains or the training focus (keepers, full-backs, Nunn and Jephcott are
   missing). Open.
-- **Per-player match lines of our matches**: their own page, [match_lines](match_lines.md).
+- **Per-player match lines of our matches**: read: [player_form](../player_form.md).
 - **Relationships** (the screens below) are not found yet: Kinsey-Wellings's Manager, Dean
   and Donnellan and Jephcott's Roberts, Harvey and Hasani do not sit together as tids
   anywhere obvious.

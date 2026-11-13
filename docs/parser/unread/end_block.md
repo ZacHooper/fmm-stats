@@ -15,7 +15,7 @@ drifts between saves, so find it by that table, never by its number.
 | 1 | 0 | `[u8 n][50 × 12 B]` | 1 used | the managed club and its first season | [end_pools](end_pools.md) |
 | 2 | 601 | `[u8 n][50 × 6 B]` | 0 used | empty on every save | [end_pools](end_pools.md) |
 | 3 | 902 | `[u8 n][50 × 7 B]` | 0 used | empty on every save | [end_pools](end_pools.md) |
-| 4 | 1,253 | `[u16 n][n × 26 B]` then `[u8 0]` | 0 / 0 / 27 / 548 | per-player lines of our competitive matches | [match_lines](match_lines.md) |
+| 4 | 1,253 | `[u16 n][n × 26 B]` then `[u8 0]` | 0 / 0 / 27 / 548 | **read**: the Player Form page | [player_form](../player_form.md) |
 | 5 | 15,504 | `[u32 n][n × 72 B]` | 36,343 / 36,345 | one row per player, by tid | [player_rows](player_rows.md) |
 | 6 | 2,632,348 | `[u32 n][n × 72 B]` | 1 | the same row shape, one person | [player_rows](player_rows.md) |
 | 7 | 2,632,424 | `[u32 cap][cap × 32 B]` | cap 2,841 / 5,682; 0–71 used | a slot pool sized by the coach count | [coach_slots](coach_slots.md) |
@@ -42,7 +42,7 @@ used one naming Frem (346) and 2021, then an `ff` run; after that the periods di
 
 ## Next
 
-1. Turn the FMM27 chain into a table module (`end_block` locator, nine record declarations,
+1. Table 4 is read ([player_form](../player_form.md)). Turn the rest of the FMM27 chain into a table module (`end_block` locator, nine record declarations,
    fields `UNKNOWN`), so the save map counts the 5.3 MB as read.
 2. Name fields table by table (each page's Next).
 3. Map FMM22's version.
