@@ -385,13 +385,14 @@ DDL = [
     # natural key: (season, phase, cid)
     # The whole competition table, every named slot (fmparser/tables/competitions.py).
     # `level` is the 0-indexed division tier: unlike ranking by reputation it places
-    # PARALLEL divisions on the same tier.
+    # PARALLEL divisions on the same tier. `is_women` is FMM27's flag on a women's
+    # competition; FMM22 has none (NULL).
     # natural key: (season, phase, cid)
     """CREATE TABLE IF NOT EXISTS raw.competitions (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL,
         cid INTEGER NOT NULL, uid BIGINT, name VARCHAR, short VARCHAR, code VARCHAR,
         type VARCHAR, type_id INTEGER, nation_id INTEGER, reputation INTEGER,
-        level INTEGER, parent_cid INTEGER
+        level INTEGER, parent_cid INTEGER, is_women BOOLEAN
     )""",
 
     # Each nation's team-count rules (fmparser/tables/rule_files.team_counts): how many
@@ -1077,11 +1078,13 @@ def load_core(con, d, season, phase):
     # --- competitions --------------------------------------------------------
     comps = _load_json(os.path.join(d, "competitions.json"))
     comp_cols = ["season", "phase", "cid", "uid", "name", "short", "code", "type",
-                 "type_id", "nation_id", "reputation", "level", "parent_cid"]
+                 "type_id", "nation_id", "reputation", "level", "parent_cid", "is_women"]
     comp_rows = [(season, phase, _int(v.get("cid")), _int(v.get("uid")), v.get("name"),
                   v.get("short"), v.get("code"), v.get("type"), _int(v.get("type_id")),
                   _int(v.get("nation_id")), _int(v.get("reputation")),
-                  _int(v.get("level")), _int(v.get("parent_cid"))) for v in comps.values()]
+                  _int(v.get("level")), _int(v.get("parent_cid")),
+                  None if v.get("is_women") is None else bool(v["is_women"]))
+                 for v in comps.values()]
     counts["competitions"] = _insert(con, "competitions", comp_cols, comp_rows)
     tc_path = os.path.join(d, "competition_team_counts.json")
     if os.path.exists(tc_path):
@@ -1536,6 +1539,8 @@ _MIGRATIONS = [
     "ALTER TABLE raw.competitions DROP COLUMN IF EXISTS num_teams",
     "ALTER TABLE raw.competitions DROP COLUMN IF EXISTS matches_in_save",
     "ALTER TABLE raw.competitions ADD COLUMN IF NOT EXISTS reputation INTEGER",
+    # 2026-11-13: FMM27's women's-competition flag, so a ladder keeps to one pyramid.
+    "ALTER TABLE raw.competitions ADD COLUMN IF NOT EXISTS is_women BOOLEAN",
     # 2026-10-01: extract hands over the contract grid and the training row's contract flag
     # and +39 byte as stored; the players' contract columns are int.player_snapshots'
     # (data-layers plan, step 7). The +39 column is added by _rename_training_unknown_39.

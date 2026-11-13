@@ -283,6 +283,8 @@ models:
         description: '{{ doc("tier_index") }}'
       - name: parent_cid
         description: '{{ doc("parent_cid") }}'
+      - name: is_women
+        description: '{{ doc("is_women") }}'
       - name: last_seen_date
         description: '{{ doc("last_seen_date") }}'
   - name: fact_competition_snapshot
