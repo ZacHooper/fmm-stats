@@ -174,6 +174,24 @@ models:
     data_tests:
       - rows_match_source: {arguments: {table: club_league_history}}
       - unique_combination: {arguments: {columns: [snapshot_date, club_tid, season, league_cid]}}
+  - name: stg_awards
+    description: >
+      The game's awards per snapshot: names and what each is for.
+    data_tests:
+      - rows_match_source: {arguments: {table: awards}}
+      - unique_combination: {arguments: {columns: [snapshot_date, award_id]}}
+  - name: stg_award_places
+    description: >
+      Every stored edition of every award per snapshot, its 1st to 3rd places.
+    data_tests:
+      - rows_match_source: {arguments: {table: award_places}}
+      - unique_combination: {arguments: {columns: [snapshot_date, award_id, edition_date, place]}}
+  - name: stg_award_team_places
+    description: >
+      Every stored team of the period per snapshot, its 11 players.
+    data_tests:
+      - rows_match_source: {arguments: {table: award_team_places}}
+      - unique_combination: {arguments: {columns: [snapshot_date, award_id, edition_date, slot]}}
   - name: stg_club_records
     description: >
       Club History's Team Records, every written slot; a record stored twice stays twice.

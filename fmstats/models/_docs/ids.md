@@ -80,8 +80,10 @@ second set.
 {% enddocs %}
 
 {% docs award_id %}
-An award the save records, from `var('awards')`: `world_best_xi` (a season's World Best XI pool)
-or `world_best_xi_all_time` (the All-Time pool).
+An award: one of the game's awards by its id in the save's awards table, as text (`'0'` World
+Footballer of the Year, `'210'` Premier League Top Goalscorer), or a World Best XI pool from
+the scrapbook (`var('awards')`): `world_best_xi` (a season's pool) or `world_best_xi_all_time`
+(the All-Time pool).
 {% enddocs %}
 
 {% docs event_type_code %}

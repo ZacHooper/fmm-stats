@@ -291,6 +291,47 @@ function careerTable(career) {
   ])]);
 }
 
+const PLACE = ["", "1st", "2nd", "3rd"];
+
+/**
+ * His honours: a tally by award ("Team of the Week ×5", "Player of the Month: 1st ×1, 2nd ×1"),
+ * then every place and pick, newest first. `rows` are squad.json's honours (honour_fields).
+ * Weekly and monthly awards keep only the current season in a save, so the store holds the
+ * ones some snapshot caught.
+ */
+function honoursBlock(rows) {
+  const tally = new Map();
+  for (const h of rows) {
+    const t = tally.get(h.award) || { award: h.award, short: h.short_name, n: 0, places: [0, 0, 0, 0] };
+    t.n += 1;
+    t.places[h.place || 0] += 1;
+    tally.set(h.award, t);
+  }
+  const chips = [...tally.values()].sort((x, y) => y.n - x.n || x.award.localeCompare(y.award))
+    .map((t) => {
+      const parts = [1, 2, 3].filter((k) => t.places[k]).map((k) => `${PLACE[k]} ×${t.places[k]}`);
+      const text = parts.length ? `${t.short}: ${parts.join(", ")}` : `${t.short} ×${t.n}`;
+      return el("span.pill.flat", { text, title: t.award });
+    });
+  return el("div", {}, [
+    el("div.prow", {}, chips),
+    el("div.scroll.fit", {}, [el("table", {}, [
+      el("thead", {}, [el("tr", {}, ["When", "Award", "Place", "Club", "Rating"]
+        .map((h, i) => el(`th${i === 4 ? ".num" : ""}`, { text: h })))]),
+      el("tbody", {}, rows.map((h) => el("tr", {}, [
+        el("td", { text: h.period_label ?? DASH }),
+        el("td", { text: h.short_name || h.award, title: h.award }),
+        el("td", {}, [h.place ? pill(PLACE[h.place], h.place === 1 ? "good" : "flat")
+          : el("span.dim", { text: "picked" })]),
+        el("td", {}, [clubName(h.club_tid, D.S)]),
+        el("td.num", { text: h.rating == null ? DASH : num(h.rating, 2) }),
+      ]))),
+    ])]),
+    el("p.note", { text: "Award places (1st to 3rd) and teams of the period. A weekly or monthly "
+      + "award keeps only the current season in the save, so these are the ones a snapshot caught." }),
+  ]);
+}
+
 /**
  * The profile sheet: a fixed top — who he is, then his attributes, which is what the sheet is
  * opened for — and everything else in tabs below, one open at a time. The tab and the
@@ -383,6 +424,9 @@ export function openProfile(tid, { role = null } = {}) {
   const growth = shown ? D.growth(tid, shown.role) : null;
   const attrTraj = D.attrTrajectory(tid);
   const career = D.S.squad?.career_history?.[String(tid)] || [];
+  const honourFields = D.S.squad?.honour_fields || [];
+  const honours = (D.S.squad?.honours?.[String(tid)] || [])
+    .map((r) => Object.fromEntries(honourFields.map((f, i) => [f, r[i]])));
   // Attribute-level forecast at 24 (the attribute grid's "will his X come" answer) and, for the
   // growth sparkline, the SAME per-attribute lookup rated at each horizon still ahead of him —
   // the p25/p75 attribute band rated through the role gives an (approximate — it ignores
@@ -506,6 +550,7 @@ export function openProfile(tid, { role = null } = {}) {
   const TABS = [
     ["fit", "Fit", () => fitTab()],
     ["stats", "Stats", () => statsTab()],
+    honours.length ? ["honours", `Honours (${honours.length})`, () => honoursBlock(honours)] : null,
     ours && !loanedIn ? ["loan", "Loan", () => loanOutlook(p, shown?.pos)] : null,
     ["bio", "Bio", () => bioTab()],
   ].filter(Boolean);

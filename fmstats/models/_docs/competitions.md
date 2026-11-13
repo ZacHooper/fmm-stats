@@ -16,7 +16,8 @@ Superliga), a nation's three letters.
 {% enddocs %}
 
 {% docs short_name %}
-The competition's short name, as stored (often the same as its name).
+The short name, as stored: a competition's (often the same as its name), or an award's as the
+award screens list it under its competition or nation ('Top Goalscorer').
 {% enddocs %}
 
 {% docs parent_cid %}

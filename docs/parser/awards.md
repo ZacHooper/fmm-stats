@@ -104,4 +104,5 @@ on a Top Goalscorer `score` is goals. A voted award's score is not shown on scre
 ## Output
 
 `output/<label>/awards.json`: a list in id order, each award as stored, with `entries` a
-list of three. Not loaded yet.
+list of three. Loaded as `raw.awards` without the entries (the latest edition, which
+[award history](award_history.md) also holds); `mart.dim_award` names every award.

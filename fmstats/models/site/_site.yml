@@ -363,6 +363,42 @@ models:
       - name: rating
         description: 'The game''s average rating for the season (see fact_player_season.rating).
           {{ doc("average_rating") }}'
+  - name: site_player_honours
+    description: >
+      Each player's honours: every award place (1st to 3rd) and team-of-the-period pick the
+      store has seen, with the period it is for and his club then. Manager awards left out.
+    data_tests:
+      - unique_combination: {arguments: {columns: [person_id, award_id, edition_date]}}
+    columns:
+      - name: person_id
+        description: '{{ doc("person_id") }}'
+      - name: award_id
+        description: '{{ doc("award_id") }}'
+      - name: award_name
+        description: 'The award''s name in full. {{ doc("name") }}'
+      - name: short_name
+        description: '{{ doc("short_name") }}'
+      - name: award_type
+        description: '{{ doc("award_type") }}'
+      - name: award_period
+        description: '{{ doc("award_period") }}'
+      - name: season
+        description: 'An annual award''s edition year; the career season of the edition''s date
+          on a weekly or monthly award. {{ doc("season") }}'
+      - name: edition_date
+        description: '{{ doc("edition_date") }}'
+      - name: period_label
+        description: '{{ doc("period_label") }}'
+      - name: place
+        description: 'NULL on a team-of-the-period pick. {{ doc("place") }}'
+      - name: club_tid
+        description: 'His club when he was picked; NULL for none. {{ doc("club_tid") }}'
+      - name: club
+        description: '{{ doc("club") }}'
+      - name: score
+        description: 'NULL on a team pick. {{ doc("score") }}'
+      - name: selection_rating
+        description: 'NULL on an award place. {{ doc("selection_rating") }}'
   - name: site_matches
     description: The managed team's matches with detail, from its side.
     data_tests:

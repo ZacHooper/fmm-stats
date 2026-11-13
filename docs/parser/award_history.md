@@ -36,8 +36,10 @@ a newgen can take later), his club then (`ffffffff` for none), and the score (vo
 on a Top Goalscorer). The u32 before the score is 0 on every FMM27 place and small on many
 FMM22 ones. An unfilled place is all `ff`.
 
-The date is day 0 of the year on an annual award, and the month's last day on a monthly one
-(151, 273, 304 …), so a Player of the Month has one edition a month.
+The date is day 0 of the year (1 January) on an annual award, and on a monthly one the 1st of
+the month after the one it is for (days 151, 273, 304 … of the year: 1 June, 1 October,
+1 November), so a Player of the Month has one edition a month. A Team of the Week's date is a
+Tuesday (every one on truro-2026-11-16).
 
 ## Evidence
 
@@ -52,12 +54,14 @@ Mbappé 34, as on the International Awards screen:
 
 ## Quirks
 
-> **Lead:** the National League South Player of the Month screen lists September Tom Tweedy
-> and August Rakish Bingham (img/awards-fmm27-4.jpg). A save from that day would pin a
-> monthly edition to bytes.
+**A monthly edition is dated the month after.** The National League South Player of the
+Month screen lists September Tom Tweedy (1st), Omar Bogle (2nd) and August Rakish Bingham
+(img/awards-fmm27-4.jpg). On truro-2026-11-16 that award's 1 October edition is Tweedy,
+Bogle, Oxlade-Chamberlain and its 1 September edition is Bingham.
 
 ## Output
 
 `output/<label>/award_history.json`: `[{award_id, date, places: [3 × {person_tid,
-first_name_id, last_name_id, common_name_id, club_tid, score}]}]` in stored order. Not
-loaded yet.
+first_name_id, last_name_id, common_name_id, club_tid, score}]}]` in stored order. Loaded
+as `raw.award_places`, one row per place; `mart.fact_award_place` keeps every edition any
+snapshot held.

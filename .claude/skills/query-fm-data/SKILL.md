@@ -48,7 +48,9 @@ ORDER BY tot.goals DESC LIMIT 5;
     `fact_team_match` (each match once per side: score, result, formation, team stats),
     `fact_player_snapshot` (attributes + valuation + `positions` with Level %iles, per
     snapshot), `fact_player_season` (career-history lines, every club), `fact_transfer`,
-    `fact_contract`, `fact_loan_spell`, `fact_injury_spell`, `fact_player_award`,
+    `fact_contract`, `fact_loan_spell`, `fact_injury_spell`, `fact_player_award` (World Best
+    XI pools), `fact_award_place` (every award's 1st-3rd, join `dim_award`),
+    `fact_award_team_place` (Teams of the Week/Year and other teams of the period),
     `fact_staff_snapshot` (managers' formations and Style), `fact_staff_spell`,
     `fact_team_snapshot` (league, reputation), `fact_nation_snapshot`,
     `fact_competition_outcome`, `fact_participation`.

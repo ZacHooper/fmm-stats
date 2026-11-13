@@ -195,7 +195,9 @@ The youngest age allowed on a matchday squad; NULL where the rule set names none
 {% enddocs %}
 
 {% docs entry_name %}
-The player's full name as the scrapbook entry stores it.
+The person's name as the entry stores it: a scrapbook entry's full name, or the name ids an
+award edition wrote when he placed. A tid can pass to a newgen later; this name stays the
+winner's.
 {% enddocs %}
 
 {% docs is_final %}

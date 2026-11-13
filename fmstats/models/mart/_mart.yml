@@ -1511,14 +1511,103 @@ models:
       - name: sendings_off
         description: '{{ doc("sendings_off") }}'
   - name: dim_award
-    description: The awards the save records (var('awards')).
+    description: >
+      Every award: the game's awards (by their id in the save's awards table) and the World
+      Best XI pools the scrapbook records.
     data_tests:
       - unique_combination: {arguments: {columns: [award_id]}}
     columns:
       - name: award_id
         description: '{{ doc("award_id") }}'
       - name: name
-        description: 'The award''s name. {{ doc("name") }}'
+        description: 'The award''s name in full (''Premier League Top Goalscorer''). {{ doc("name") }}'
+      - name: short_name
+        description: '{{ doc("short_name") }}'
+      - name: award_type
+        description: '{{ doc("award_type") }}'
+      - name: award_period
+        description: '{{ doc("award_period") }}'
+      - name: cid
+        description: 'The competition the award is for; NULL for a nation-wide or wider award.
+          {{ doc("cid") }}'
+      - name: nation_id
+        description: 'The nation the award is for; NULL for a continental or worldwide award.
+          {{ doc("nation_id") }}'
+      - name: continent_id
+        description: 'The continent the award is for; NULL for a worldwide award.
+          {{ doc("continent_id") }}'
+  - name: fact_award_place
+    description: >
+      Every award edition the store has seen, its 1st to 3rd places: the person, his club then and the score. A weekly or monthly edition is kept after the game drops it.
+    data_tests:
+      - unique_combination: {arguments: {columns: [award_id, edition_date, place]}}
+      - relationship_combination:
+          arguments:
+            columns: [award_id]
+            to: ref('dim_award')
+            to_columns: [award_id]
+      - relationship_combination:
+          arguments:
+            columns: [person_id]
+            to: ref('dim_person')
+            to_columns: [person_id]
+    columns:
+      - name: award_id
+        description: '{{ doc("award_id") }}'
+      - name: season
+        description: 'An annual award''s edition year (the season its screen shows); the
+          career season of the edition''s date on a weekly or monthly award. {{ doc("season") }}'
+      - name: edition_date
+        description: '{{ doc("edition_date") }}'
+      - name: place
+        description: '{{ doc("place") }}'
+      - name: person_id
+        description: 'The person with the entry''s tid and the same name ids on some snapshot;
+          NULL for one no snapshot holds. {{ doc("person_id") }}'
+      - name: person_tid
+        description: 'The tid the edition was written for. {{ doc("tid") }}'
+      - name: entry_name
+        description: '{{ doc("entry_name") }}'
+      - name: club_tid
+        description: 'His club when he was picked; NULL for none. {{ doc("club_tid") }}'
+      - name: score
+        description: '{{ doc("score") }}'
+  - name: fact_award_team_place
+    description: >
+      Every team of the period the store has seen (Team of the Week, Team of the Year, Dream Team ...): its 11 players, each with his club then and the rating that earned the place.
+    data_tests:
+      - unique_combination: {arguments: {columns: [award_id, edition_date, team_place]}}
+      - relationship_combination:
+          arguments:
+            columns: [award_id]
+            to: ref('dim_award')
+            to_columns: [award_id]
+      - relationship_combination:
+          arguments:
+            columns: [person_id]
+            to: ref('dim_person')
+            to_columns: [person_id]
+    columns:
+      - name: award_id
+        description: '{{ doc("award_id") }}'
+      - name: season
+        description: 'An annual award''s edition year (the season its screen shows); the
+          career season of the edition''s date on a weekly or monthly award. {{ doc("season") }}'
+      - name: edition_date
+        description: '{{ doc("edition_date") }}'
+      - name: team_place
+        description: '{{ doc("team_place") }}'
+      - name: person_id
+        description: 'The person with the entry''s tid and the same name ids on some snapshot;
+          NULL for one no snapshot holds. {{ doc("person_id") }}'
+      - name: person_tid
+        description: 'The tid the edition was written for. {{ doc("tid") }}'
+      - name: entry_name
+        description: '{{ doc("entry_name") }}'
+      - name: club_tid
+        description: 'His club when he was picked; NULL for none. {{ doc("club_tid") }}'
+      - name: selection_rating
+        description: '{{ doc("selection_rating") }}'
   - name: fact_player_award
     description: >
       Each player's place in a World Best XI pool, with the scrapbook entry that earned it.

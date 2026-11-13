@@ -35,4 +35,6 @@ players whose slots were reused. No screen yet.
 ## Output
 
 `output/<label>/team_history.json`: `[{award_id, date, players: [11 × {person_tid,
-first_name_id, last_name_id, common_name_id, club_tid, rating}]}]`. Not loaded yet.
+first_name_id, last_name_id, common_name_id, club_tid, rating}]}]`. Loaded as
+`raw.award_team_places`, one row per player; `mart.fact_award_team_place` keeps every team any
+snapshot held.

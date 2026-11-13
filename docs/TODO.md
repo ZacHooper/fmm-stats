@@ -152,8 +152,12 @@ Phase 1 read seven tables on both games ([awards](parser/awards.md), [unions](pa
   ([what is known](parser/unread/person_chain.md)). Then name a field of the
   [staff rows](parser/staff_rows.md) (managers' points and games?) and the
   [club rows](parser/club_rows.md) (a nation-shared f32 and ranking-like u32s).
-- **Load the awards** into `raw` and a mart of award winners. Each entry stores the winner's
-  name ids as they were, which settles the tid-reuse problem in #14 for these awards.
+- **Honours on the site, beyond the player sheet**: `mart.fact_award_place` and
+  `fact_award_team_place` are loaded and the profile has an Honours tab (our squad only,
+  `squad.json`). Still to show: a club honours board on History (our players' and the
+  manager's awards by season), honours on a recruitment target's or opponent's sheet, and the
+  award bytes +6/+7/+15 named in the parser (today `int.awards` reads type and period from
+  the award's name).
 - **Needs a save from a screen's day** (none possible on 24-26 Oct): pin the award and
   knowledge screens to bytes; find the xG and the clubs' season stats (#10a). A save before and after a
   scout report confirms `knowledge` moves. The derby bytes at +8 and +9 have no screen, so
@@ -166,12 +170,13 @@ Phase 2 read two tables and found what the other two regions hold:
 - **[Last transfers](parser/last_transfers.md)** (the plan's "per-player block"): each
   player's latest transfer, fee and buying club, kept across seasons. **Load it**: a fee and
   a destination for every move in the world, which the band (emptied every July) can't give.
-- **Phase 3: [award history](parser/award_history.md) and [team history](parser/team_history.md)**
-  (the plan's "training → our matches" region): every year of an annual award and of a
-  season team, and the current season's weekly and monthly awards and Teams of the Week,
-  both games. **Load them**:
-  with [awards](parser/awards.md) they give a season's honours for every league, and each
-  entry's stored name ids settle the tid-reuse problem in #14.
+- **[Tactic history](parser/tactic_history.md) before it is loaded**: Truro holds 31 records
+  after fewer than 31 matches, past the cap of 30 the doc reads from Frem, and on Frem the
+  last record is not the formation the matches use. Find what adds a record (saves either
+  side of one role change), name the `flag` and the middle byte of each role, pin the FMM27
+  full-back, DM and AM codes on a Tactics screen, and read the 60-byte head and 14-byte
+  entries. Then load it: the current setup's roles could drive Fit, and the log a tactics
+  timeline.
 - **Unread regions with leads**: each has a page in
   [`parser/unread/`](parser/unread/README.md) with its offsets on both games, the bytes seen,
   what was tried and the next step: the [per-person chain](parser/unread/person_chain.md)

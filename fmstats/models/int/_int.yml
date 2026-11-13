@@ -318,6 +318,30 @@ models:
         data_tests:
           - accepted_values:
               arguments: {values: [renewed, transferred, expired, released, retired]}
+  - name: int_awards
+    description: >
+      Every award, as its latest snapshot has it, with its type and how often it is decided.
+    data_tests:
+      - unique_combination: {arguments: {columns: [award_id]}}
+    columns:
+      - name: award_type
+        data_tests:
+          - accepted_values: {arguments: {values: [player, manager, team]}}
+      - name: period
+        data_tests:
+          - accepted_values: {arguments: {values: [week, month, season]}}
+  - name: int_award_places
+    description: >
+      Every award edition the store has seen, its 1st to 3rd places, each from the newest
+      snapshot holding the edition.
+    data_tests:
+      - unique_combination: {arguments: {columns: [award_id, edition_date, place]}}
+  - name: int_award_team_places
+    description: >
+      Every team of the period the store has seen, its 11 players, each from the newest
+      snapshot holding the team.
+    data_tests:
+      - unique_combination: {arguments: {columns: [award_id, edition_date, slot]}}
   - name: int_transfers
     description: >
       Every permanent move between clubs a player's career history shows, every graduation

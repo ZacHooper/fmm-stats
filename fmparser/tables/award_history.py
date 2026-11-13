@@ -11,7 +11,9 @@ straight after the training table:
       [award_id u32][day u16][year u16]    the award (an awards row) and the edition's date
       3 x 28 B                             1st, 2nd, 3rd
 
-An annual award's date is day 0 of its year; a monthly award's is the month's last day.
+An annual award's date is day 0 of its year (1 January); a monthly award's is the 1st of the
+month after the one it is for (September's Player of the Month is dated 1 October); a weekly
+award's is a Tuesday.
 Each placed entry stores the person's three name ids as they were, as the awards table
 does, because his tid is a slot. An unfilled place is all `ff`.
 
@@ -29,8 +31,8 @@ __all__ = ["AWARD_EDITION", "AWARD_PLACE", "AWARD_HISTORY_TABLE", "locate_award_
 
 AWARD_EDITION = Record("award_edition", 8, (
     Field(0, 4, "award_id", U32, note="an awards row's id"),
-    Field(4, 4, "date", DATE, note="day 0 of the year for an annual award; a month's last "
-                                   "day for a monthly one"),
+    Field(4, 4, "date", DATE, note="1 January for an annual award; the 1st of the "
+                                   "month after for a monthly one"),
 ), is_head=True)
 
 AWARD_PLACE = Record("award_place", 28, (
