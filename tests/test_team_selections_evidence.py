@@ -10,6 +10,9 @@ Evidence for `team_selections` and `formations`, on truro-2026-11-16.
     and the screen's five captains;
   - the 21 formation names, and the 4-4-2 Diamond's eleven position codes, which Truro's
     saved 4-1-2-1-2 carries too;
+  - four teams' Tactics - Formation screens (Truro, Maidenhead 4-2-4, Tonbridge 3-4-3,
+    Dorking 5-1-2-2): each XI in stored order, every starter at the lane the formation's
+    code i puts him in (row bit + lane bit, lanes right to left);
   - the locator refuses the pool when a place holds a number no tid can be;
   - both tables locate on every sample save, FMM22 too, with a fixed slot count per career.
 
@@ -41,6 +44,17 @@ def check(cond, what):
         failures.append(what)
 
 
+ROWS = {0x01: "GK", 0x04: "D", 0x08: "DM", 0x10: "M", 0x20: "AM", 0x40: "ST"}
+LANES = {0x800: "R", 0x400: "RC", 0x200: "C", 0x100: "LC", 0x080: "L"}
+
+
+def lane(code):
+    """A position code as the row and the lane, right to left: 0x0404 -> 'DRC'. Goalkeeper
+    alone; a lone centre striker or midfielder reads 'C'."""
+    row = ROWS[code & 0x7F]
+    return row if row == "GK" else row + LANES[code & 0xF80]
+
+
 def main():
     fx = json.load(open(FIXTURE, encoding="utf-8"))
     path = find_save(fx["save"])
@@ -68,6 +82,18 @@ def main():
     check(diamond["positions"] == fx["diamond_positions"], "4-4-2 Diamond's eleven codes")
     check(FM.locate_formations(mm)[0] + 21 * FM.STRIDE + 2 == base,
           "the slot count follows the last formation")
+
+    print(" LINEUPS")
+    by_name = {f["name"]: f["positions"] for f in fms}
+    sel = {r["team_tid"]: r["places"] for r in TS.scrape_team_selections(mm)}
+    for tid, team in fx["lineups"].items():
+        if tid == "note":
+            continue
+        codes = by_name[team["formation"]]
+        check(sel[int(tid)][:11] == [t for t, _, _ in team["xi"]],
+              f"{team['team']}: the XI in the screen's order")
+        check([lane(c) for c in codes] == [ln for _, ln, _ in team["xi"]],
+              f"{team['team']} ({team['formation']}): every starter where the screen puts him")
 
     print(" REFUSES")
     buf = bytearray(mm)

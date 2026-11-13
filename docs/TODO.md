@@ -546,9 +546,11 @@ against a youth player's in-game history screen before reading these as ratings;
 current XI in formation slot order, five substitutes and (FMM27) the captains. Load it as a
 `raw` table and a mart of team, place, player, and the position the place stands at (the
 team's formation, [formations](parser/formations.md); for an opponent, the manager's
-`formation_preferred` until a team's current tactic is found). Then the scout-opponent
-skill's XI comes from the game's own team sheet instead of "best N per unit". The inside
-lanes of the position codes need one lineup screenshot first (the formations doc's Next).
+`formation_preferred`: on 16 Nov three opponents' screens showed exactly that). Then the
+scout-opponent skill's XI comes from the game's own team sheet instead of "best N per unit",
+with every player's lane (right to left: R, RC, C, LC, L; pinned on four screens). The match
+table's position codes carry the same lanes, which `pitch_position` folds into the game's
+labels (DC, MC): a `lane` alongside would show a back three's wide centre-backs.
 
 ### 18. Rebuild the weight-set method on team results
 ([`agent-context/role-weight-methods.md`](agent-context/role-weight-methods.md), "What the match

@@ -36,27 +36,47 @@ A row bit in bits 0-6 and one lane bit in bits 7-11:
 
 | row bit | row | | lane bit | lane |
 |---|---|---|---|---|
-| 0x01 | goalkeeper | | 0x800 | right flank (pinned below) |
-| 0x04 | defence | | 0x400 | inside right? |
-| 0x08 | defensive midfield / wing-back | | 0x200 | centre |
-| 0x10 | midfield | | 0x100 | inside left? |
-| 0x20 | attacking midfield | | 0x080 | left flank (pinned below) |
+| 0x01 | goalkeeper | | 0x800 | right flank |
+| 0x04 | defence | | 0x400 | inside right |
+| 0x08 | defensive midfield; its flanks are the wing-backs (the screen's WBR/WBL) | | 0x200 | centre |
+| 0x10 | midfield | | 0x100 | inside left |
+| 0x20 | attacking midfield | | 0x080 | left flank |
 | 0x40 | attack | | | |
 
 So 4-4-2 is GK `0001`, back four `0804 0084 0404 0104`, midfield `0810 0090 0410 0110`,
 strikers `0440 0140`; a back three is `0404 0204 0104`, wing-backs `0808 0088`.
 
-**Which side is which is pinned only for the flanks.** In Truro's
-[team selection](team_selections.md), Love-Holmes (a right-back) stands in the `0804` slot of
-their 4-1-2-1-2 and Law (a left-back) in `0084`. The inside lanes (`0400`, `0100`) are read
-by symmetry, not yet against a screen.
+**A wide centre-back is the inside lane on the defence row**: a back three is inside right
+`0404`, centre `0204`, inside left `0104`, and a back four's pair is `0404` and `0104`. The
+game has no separate code or label for it: its squad list calls all of them DC, as it calls
+every inner midfielder MC and every striker FC. `primitives.pitch_position`, which reads the
+match table's copies of these codes, emits those labels; the lane survives in the bytes.
 
 ## Evidence
 
 truro-2026-11-16: the 21 names, and the 4-4-2 Diamond's eleven codes, which Truro's saved
-4-1-2-1-2 carries code for code (`tests/test_team_selections_evidence.py`).
+4-1-2-1-2 carries code for code. The lanes come from four Tactics – Formation screens taken
+that day: each team's [selection](team_selections.md), placed at its formation's codes, puts
+every one of 44 starters where the screen shows him (Truro in the Diamond, Maidenhead 4-2-4,
+Tonbridge 3-4-3, Dorking 5-1-2-2: below). `tests/test_team_selections_evidence.py`, which
+fails with the inside lanes swapped.
+
+| team | formation | placed by the codes (right to left) |
+|---|---|---|
+| Truro City | 4-4-2 Diamond | Love-Holmes DR, Harrison DRC, Kinsey-Wellings DLC, Law DL; Nunn MRC, En-Neyah MLC; Greenslade STRC, Bogle STLC |
+| Maidenhead United | 4-2-4 | Odeniran DRC, Clerima DLC; Robinson MRC, Welch MLC; Nkrumah AMR, Coley AML; Umerah STRC, Fraser STLC |
+| Tonbridge Angels | 3-4-3 | Darko-Wilson DRC, Beeden DC, Thompson DLC; Tanga MR, Martin MRC, Corne MLC, Miller ML; Baker, Babajide, Gould |
+| Dorking Wanderers | 5-1-2-2 | Ble DRC, Sayers DC, Crace DLC; Philpott DMR (WBR), Olise DML (WBL); Taylor MRC, Payton MLC; Rogalski STRC, Rutherford STLC |
+
+![Truro, Tactics - Formation, 16 Nov 2026](img/team_selections-fmm27-1.png)
+![Maidenhead United, Tactics - Formation](img/team_selections-fmm27-2.png)
+![Tonbridge Angels, Tactics - Formation](img/team_selections-fmm27-3.png)
+![Dorking Wanderers, Tactics - Formation](img/team_selections-fmm27-4.png)
+
+The screens also show each player's role (NCB, DFB, W, TF, P, WM, BBM, AP …) and a team
+style ("Route One", "Wing Play", "Low Block"). Neither is in the formation or the team
+selection; the managed club's roles are in its saved tactics, other teams' are not found.
 
 ## Next
 
-Screenshot a team's lineup on the pitch for a formation with a back three and one with
-inside-left/right players, to pin the inside lanes; then name the positions in the loader.
+Name the 1,204-byte tail (the phase grids); find where a team's roles and style are stored.

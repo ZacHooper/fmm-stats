@@ -32,23 +32,27 @@ is this table's empty slots.
 | 0–10 | the starting XI in the tactic's slot order: place i stands at the formation's position code i ([formations](formations.md)) |
 | 11–15 | the five substitutes |
 | 16–19 | four more: empty for Truro, set on most teams' slots; not named |
-| 20–25 | the captains: the captain on the pitch, then the Captain screen's five in order |
+| 20–25 | the captains. Truro: the captain on the pitch, then the Captain screen's five in order. Other teams fill only 21 and 22 (Maidenhead: Robinson, N'Guessan), by the look of it captain and vice-captain |
 
 **FMM22's 147**: filled slots hold 14, 18 or 20 tids at the front (226, 132 and 85 slots on
 frem-2026-06-11), a few a single tid further in. Not checked against a screen.
 
 The u8 in front: 14 on Truro's slot; 0, 2, 6, 8, 15, 16, 17 across others. Not named.
 
-The slot does not say which formation the team plays. The opposing manager's preferred
-formation is in [staff](staff.md) (`formation_preferred`, an index into the formations);
-whether a team's current tactic is stored elsewhere is open.
+The slot does not say which formation the team plays. On 16 Nov each opponent's screen
+showed its manager's preferred formation ([staff](staff.md) `formation_preferred`, an index
+into the formations): Maidenhead 4-2-4, Tonbridge 3-4-3, Dorking 5-1-2-2. So place i of an
+opponent stands at code i of its manager's preferred formation, and of the managed club at
+its saved tactic's.
 
 ## Evidence
 
 truro-2026-11-16, Truro's slot against the Tactics – Captain screen: the eleven starters and
 five substitutes in the screen's order, the four empty places, then Bogle (on the pitch) and
-the five captains in order. Placed at their tactic's codes, the full-backs stand on the right
-side (Love-Holmes, a right-back, at `0804`; Law, a left-back, at `0084`). 1,321 of the 1,362
+the five captains in order. And four Tactics – Formation screens taken that day (Truro,
+Maidenhead, Tonbridge, Dorking): each XI is stored in the screen squad list's order, and
+placed at the formation's codes every starter stands where the pitch shows him
+([formations](formations.md) has the table and the screens). 1,321 of the 1,362
 filled slots that day hold only players in team k's squad array ([clubs](clubs.md)), the rest
 a player who has since left (1,331 of 1,375 on frem-2026-06-11).
 `tests/test_team_selections_evidence.py` pins the slot's bytes.
@@ -65,7 +69,7 @@ career.
 
 ## Next
 
-1. A team's lineup screen on the day of a save: confirm the order for another club, the
-   inside lanes, and what places 16–19 hold.
+1. Places 16–19 (Maidenhead's hold Dundas and Achuba): a screen that lists more than the
+   XI and substitutes.
 2. FMM22's 147 places against a Frem screen.
 3. Load it: each opponent's likely XI by position for scouting (TODO).

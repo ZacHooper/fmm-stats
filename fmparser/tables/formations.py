@@ -15,10 +15,12 @@ order (4-4-2 first, FMM27 3-4-3 first).
 
 **A position code** is a row bit in the low 7 bits (0x01 goalkeeper, 0x04 defence, 0x08
 defensive midfield, 0x10 midfield, 0x20 attacking midfield, 0x40 attack) and one lane bit
-in bits 7-11, five lanes across the pitch: 4-4-2's back four is `0804`, `0084`, `0404`,
-`0104`, a back three `0404`, `0204`, `0104`. Which lane bit is which side is pinned only
-for the full-backs (bit 11 is the right: Truro's right-back stands in the `0804` slot of
-their 4-1-2-1-2), so the parser emits the codes as stored.
+in bits 7-11, five lanes across the pitch from right to left: 0x800 right, 0x400 inside
+right, 0x200 centre, 0x100 inside left, 0x080 left. 4-4-2's back four is `0804` (DR), `0084`
+(DL), `0404`, `0104`; a back three `0404`, `0204`, `0104`. Pinned on four teams' Tactics –
+Formation screens (`tests/test_team_selections_evidence.py`). The game labels every inner
+lane C (all three centre-backs "DC"), which is what `primitives.pitch_position` emits for the
+match table's copies of these codes; the parser emits the codes as stored.
 
 **How it is found.** The first `76 b9 f4 07` in the save, then records for as long as each
 opens with it; the team selections' count follows the last one.
