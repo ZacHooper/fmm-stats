@@ -30,21 +30,25 @@ The rows run tid 401 to 44,958 and are 2.6 MB, the block's biggest table.
 - **The u16 at +20** correlates with nothing read so far (ability, reputation, age, morale,
   caps, height all |r| < 0.05) and is not the Club Squad screen's condition.
 
-## Examples (truro-2026-11-16)
+## Examples (truro-2026-11-16): whole rows
 
-| player | tid | +20 | +22 | +48 (two indexes) |
+| bytes | Ben Starkie | Omar Bogle | Maxwell Kinsey-Wellings | Lewis Colwell |
 |---|---|---|---|---|
-| Ben Starkie | 4353 | 61 | `ffff` | 12777, 26491 |
-| Omar Bogle | 6588 | 74 | `ffff` | 15075, 20135 |
-| Luke Jephcott | 8820 | 67 | `ffff` | 17305, 24063 / 24146 |
-| Harvey Greenslade | 25700 | 59 | `ffff` | 19204 (himself), 27654 / 27765 |
-| Maxwell Kinsey-Wellings | 29417 | 53 | **87** | 6393, 29581 |
-| Lewis Colwell (transfer-listed) | 31086 | 39 | **20** | 11642 / 11772, 33871 |
+| +0 tid | 4353 | 6588 | 29417 | 31086 |
+| +4 four indexes | 12789, 27004, 35446, 26491 | 15085, 20934, 33148, 21144 | 6421, 30424, 6393, 29581 | 11642, 34137, 11772, 33983 |
+| +20 u16 | 61 | 74 | 53 | 39 |
+| +22 u16 | `ffff` | `ffff` | **87** | **20** |
+| +24 six u32 | 100 × 6 | 100 × 6 | 100 × 6 | 100 × 6 |
+| +48 six u32 | 12777, 26491, 100, 100, 12777, 26491 | 15075, 20135, 100, 100, 15075, 20135 | 6393, 29581, 100, 100, 6393, 29581 | 11642, 33871, 100, 100, 11772, 33871 |
 
-(Indexes are player-table rows: 19204 is Greenslade's own row.)
+Kinsey-Wellings, raw: `e9 72 00 00 | 15 19 00 00 d8 76 00 00 f9 18 00 00 8d 73 00 00 | 35 00 |
+57 00 | 64 00 00 00 × 6 | f9 18 00 00 8d 73 00 00 64 00 00 00 64 00 00 00 f9 18 00 00 8d 73 00 00`.
 
-Kinsey-Wellings and Colwell are the only two of these with a number at +22; Colwell is
-listed for transfer and has two interested clubs, Kinsey-Wellings neither.
+The +48 indexes are drawn from the four at +4 (Kinsey-Wellings's are his third and fourth,
+Colwell's his first and third) or sit close to them, so +48 is part of the same working
+state. Greenslade's +48 holds his own row (19204). The fields that look like player data
+are +20 and +22. (A "Seckie" was asked for; no Truro player has that name, so Ben Starkie
+stands in.)
 
 ## Tried
 
