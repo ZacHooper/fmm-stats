@@ -1,5 +1,5 @@
 {# Ids and keys: what each id names, its range and where NULL comes from. One block per
-   canonical column name (docs/plans/2026-11-07-docs-overhaul.html, column definitions). #}
+   canonical column name (fmstats/AGENTS.md, column naming convention). #}
 
 {% docs person_id %}
 A person, across every snapshot: `'<tid>-<dob>'` (macros/person_id.sql). The game hands a

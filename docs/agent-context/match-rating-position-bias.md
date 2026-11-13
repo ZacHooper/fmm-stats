@@ -205,6 +205,5 @@ slots, and the `DMC` baseline comes from shapes with a genuine single holder.
 **Rule for briefings and selection:** judge a DM on a role-relative bar (6.5 solid, 6.7+ playing
 well), his passes completed and mistakes, and the manager's own read — never against a 7.0 bar, and
 never drop him from a screening assignment because his rating split looks poor. That exact error
-cost the first half of the 2027-05-22 FCK home game (see the scout-opponent skill). The build that
-makes this the default everywhere is planned in
-[`docs/plans/2026-09-23-match-rating-normalisation.md`](../plans/2026-09-23-match-rating-normalisation.md).
+cost the first half of the 2027-05-22 FCK home game (see the scout-opponent skill). `rating_adj`
+(`mart.fact_player_match`) is the cross-position lens.

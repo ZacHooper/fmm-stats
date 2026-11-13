@@ -10,8 +10,8 @@ scored against, and the fallback for any attribute the seed does not cover.
 The coefficients below were fitted once (numpy least-squares grid-search) on the 28
 Bucaspor players — the only set with BOTH the raw record bytes and the displayed
 values. They are frozen here so estimation is a cheap pure-Python dot product with no
-training step. See docs/ATTRIBUTE_DECODING.md
-for the write-up. Held-out accuracy: ~63% exact, ~93% within +/-1.
+training step. See docs/ca-weighting.md and
+docs/attribute-model.md for the write-up. Held-out accuracy: ~63% exact, ~93% within +/-1.
 
 AERIAL IS NOT HERE, and that is deliberate. It is a composite of two PLAIN 1-20 bytes
 (Heading + Jumping), so it has a closed form and needs no CA: `attributes.aerial()`,

@@ -26,8 +26,6 @@ jobs:
         run: uv run python scripts/check_dbt_docs.py --empty-store
       - name: Worker syntax
         run: node --check site-worker/index.js
-      # Every repo path and relative link in the docs must resolve. Non-blocking until the docs
-      # overhaul's phase 7 (docs/plans/2026-11-07-docs-overhaul.html) clears the backlog.
+      # Every repo path and relative link in the docs must resolve.
       - name: Docs references
-        continue-on-error: true
         run: uv run python scripts/check_docs.py --summary

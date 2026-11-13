@@ -87,7 +87,7 @@ show the raw average beside it.*
 **[WHY]** The game's rating is position-biased: a DM rates ~0.47 below a central midfielder and a
 forward ~0.47 above one for the same performance, so a raw ranking is partly "who plays furthest
 forward". `rating_adj` restates each start on one scale, in the game's units. Raw stays the right
-number WITHIN a position. See `docs/plans/2026-09-23-match-rating-normalisation.md`.
+number WITHIN a position. See `docs/agent-context/match-rating-position-bias.md`.
 
 **8. Tell the story, not just the totals**
 **[BAD]** *"W15 D7 L10, 2nd."*

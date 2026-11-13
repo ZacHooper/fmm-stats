@@ -52,4 +52,3 @@ A method only weights attributes for rating; it sets none of the levers above. S
 [[fmm-tactic-blueprints]] for which settings to actually pick.
 
 Which settings to choose, and what has been tried: [[fmm-tactic-blueprints]].
-Relates to [[etl-duckdb-dashboard]] (attributes come from v_player_attributes).
