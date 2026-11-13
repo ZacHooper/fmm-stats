@@ -86,7 +86,7 @@ from `mistakes` on 4 later.
 | +16 | `intercept` | | +53 | `tackW` |
 | +19 | `subOn`, `ff` = not | | +57 | `yellow` |
 | +20 | `sentOff`, `ff` = not | | +66 | `xg_x100`, u16: expected goals × 100 |
-| +21 | `subOff`, `ff` = not | | | |
+| +21 | `subOff`, `ff` = not | | +68 | `xa_x100`, u16: expected assists × 100 |
 | +22 | `subOn_time`, u32: when the substitute came on; `ffffffff` on a starter | | | |
 | +26 | `mistakes` | | | |
 | +27 | `mistGoal`, mistakes leading to a goal | | | |
@@ -244,6 +244,14 @@ the declared count, no row before row 0 and none after the last.
 | offsides 8 / 3, corners 8 / 4 | +68 `08` / `03`, +4 `08` / `04` | `offsides`, `corners` |
 | Shots 17 / 7, on target 7 / 5, Tackles Won 6 / 9, yellow 1 / 2 | the slots | sums of `shotA`, `shotO`, `tackW`, `yellow` |
 | xG 2.18 / 0.27 | slot +66, e.g. Bogle `68 00` | `xg_x100`: Truro's slots sum to 217, Maidenhead's to 27 |
+
+**xA.** Slot +68 is expected assists × 100: the xG of the shots the player set up, the
+Player Statistics screen's xA (whose xDiff is assists − xA). On truro-2026-11-16 a side's
+slots sum to at most its xG on all 66 sides (within rounding, usually 85–100% of it: the
+rest is shots nobody set up), and the National League South totals at 16 Nov sit just below
+the 2 Dec screen: Greenslade 4.03 → 4.44, Tweedy 3.83 → 5.18, Roberts 2.94 → 4.61, Bell
+2.91 → 3.44. Not yet matched to a screen of the same day. The events carry no passer for a
+clear-cut chance: a `2f` event names only the player who had it.
 
 No f32 in the body reads 2.18 or 0.27, and no team field holds 218 or 27: the screen's team
 xG is the slots' sum, and Truro's 2.18 against 2.17 is the screen summing values the slots

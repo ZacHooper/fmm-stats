@@ -41,6 +41,7 @@ select
     matches.mistakes,
     matches.yellows,
     matches.xg,
+    matches.xa,
     matches.goals_conceded,
     matches.clear_cut_chances,
     matches.clear_cut_scored

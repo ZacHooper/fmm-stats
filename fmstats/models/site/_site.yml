@@ -607,6 +607,8 @@ models:
         description: '{{ doc("yellows") }}'
       - name: xg
         description: '{{ doc("xg") }}'
+      - name: xa
+        description: '{{ doc("xa") }}'
       - name: goals_conceded
         description: '{{ doc("goals_conceded") }}'
       - name: clear_cut_chances
@@ -682,6 +684,8 @@ models:
         description: '{{ doc("yellows") }}'
       - name: xg
         description: '{{ doc("xg") }}'
+      - name: xa
+        description: '{{ doc("xa") }}'
       - name: goals_conceded
         description: '{{ doc("goals_conceded") }}'
       - name: clear_cut_chances

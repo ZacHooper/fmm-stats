@@ -65,7 +65,7 @@ _TH_KEYS = ["corners", "clear_cut_chances", "offsides"]
 _TH_KEYS_FMM27 = ["fouls", "manager_tid"]      # manager_tid: a u32, so BIGINT
 # the fields only FMM27's player slot stores (PLAYER_SLOT_FMM27); NULL on an FMM22 match.
 # subOn_time is a u32 (0xffffffff on a starter), so its column is BIGINT.
-_XI_FMM27 = ["conceded", "subOn_time", "xg_x100"]
+_XI_FMM27 = ["conceded", "subOn_time", "xg_x100", "xa_x100"]
 
 # The unnamed 1-20 attribute bytes, taken from the parser rather than retyped, so the
 # store cannot drift from the record. See fmparser/tables/player_attributes.py HIDDEN_OFFSETS and
@@ -527,8 +527,9 @@ DDL = [
         -- the minute the player was sent off; 255 when he was not
         sentOff INTEGER,
         -- FMM27 only (NULL on FMM22): a goalkeeper's goals against, when a substitute came
-        -- on (0xffffffff on a starter; about 250 units a minute) and expected goals x 100
-        conceded INTEGER, subOn_time BIGINT, xg_x100 INTEGER,
+        -- on (0xffffffff on a starter; about 250 units a minute), expected goals x 100
+        -- and expected assists x 100
+        conceded INTEGER, subOn_time BIGINT, xg_x100 INTEGER, xa_x100 INTEGER,
         -- a STARTER's full-time position ('DR','DMC','AML',...), from his side's team
         -- head: both sides. NULL for substitutes.
         position VARCHAR
@@ -1653,6 +1654,8 @@ _MIGRATIONS = [
     "ALTER TABLE raw.match_player_stats ADD COLUMN IF NOT EXISTS conceded INTEGER",
     "ALTER TABLE raw.match_player_stats ADD COLUMN IF NOT EXISTS subOn_time BIGINT",
     "ALTER TABLE raw.match_player_stats ADD COLUMN IF NOT EXISTS xg_x100 INTEGER",
+    # 2026-11-13: and expected assists, the slot's +68
+    "ALTER TABLE raw.match_player_stats ADD COLUMN IF NOT EXISTS xa_x100 INTEGER",
     # 2026-11-11: the game each save came from; a store loaded before is all FMM22
     "ALTER TABLE raw.extracts ADD COLUMN IF NOT EXISTS save_format VARCHAR",
     "UPDATE raw.extracts SET save_format = 'fmm22' WHERE save_format IS NULL",

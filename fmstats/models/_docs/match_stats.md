@@ -190,6 +190,12 @@ an FMM22 match, which stores none.
 Synonyms: `opp_xg` → `opponent_xg`.
 {% enddocs %}
 
+{% docs xa %}
+Expected assists: the xG of the shots the player set up, as the game's Player Statistics
+screen shows it (whose xDiff is assists − xA). A side's xA is at most its xG; the rest is
+shots nobody set up. FMM27 only: NULL on an FMM22 match, which stores none.
+{% enddocs %}
+
 {% docs goals_conceded %}
 The goals a goalkeeper let in while on the pitch, as his match line stores them (0 for an
 outfield player). FMM27 only: NULL on an FMM22 match.
