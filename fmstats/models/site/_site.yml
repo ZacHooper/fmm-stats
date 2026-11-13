@@ -94,11 +94,13 @@ models:
       - name: is_listed
         description: '{{ doc("is_listed") }}'
   - name: site_leagues
-    description: Every league on every snapshot, with skill_idx and the comparison ladder.
+    description: Every league on every snapshot, with skill_idx, our pyramid and the comparison ladder.
     data_tests:
       - unique_combination: {arguments: {columns: [snapshot_date, cid]}}
       - unique_combination: {arguments: {columns: [snapshot_date, ladder_rank]},
                              config: {where: "ladder_rank is not null"}}
+      - unique_combination: {arguments: {columns: [snapshot_date, pyramid_rank]},
+                             config: {where: "pyramid_rank is not null"}}
     columns:
       - name: snapshot_date
         description: '{{ doc("snapshot_date") }}'
@@ -106,6 +108,8 @@ models:
         description: 'The league. {{ doc("cid") }}'
       - name: name
         description: 'The league''s name. {{ doc("name") }}'
+      - name: short_name
+        description: '{{ doc("short_name") }}'
       - name: nation
         description: '{{ doc("nation") }}'
       - name: type
@@ -120,6 +124,10 @@ models:
         description: '{{ doc("skill_index") }}'
       - name: rated
         description: '{{ doc("n_rated") }}'
+      - name: pyramid_rank
+        description: '{{ doc("pyramid_rank") }}'
+      - name: pyramid_level
+        description: '{{ doc("pyramid_level") }}'
       - name: ladder_rank
         description: '{{ doc("ladder_rank") }}'
   - name: site_players
@@ -981,8 +989,10 @@ models:
         description: '{{ doc("team_tid") }}'
       - name: league_cid
         description: '{{ doc("league_cid") }}'
-      - name: ladder_rank
-        description: 'The club''s division''s place on the ladder. {{ doc("ladder_rank") }}'
+      - name: pyramid_rank
+        description: 'The club''s division''s place in our pyramid. {{ doc("pyramid_rank") }}'
+      - name: pyramid_level
+        description: '{{ doc("pyramid_level") }}'
       - name: formation
         description: 'The club''s manager''s preferred formation where var(''formation_slots'')
           lists it; NULL otherwise (it plays var(''fallback_formation'')). {{ doc("formation") }}'
@@ -1011,8 +1021,10 @@ models:
         description: 'His familiarity there. {{ doc("familiarity") }}'
       - name: league_cid
         description: '{{ doc("league_cid") }}'
-      - name: ladder_rank
-        description: 'The division''s place on the loan ladder. {{ doc("ladder_rank") }}'
+      - name: pyramid_rank
+        description: 'The division''s place in our pyramid. {{ doc("pyramid_rank") }}'
+      - name: pyramid_level
+        description: '{{ doc("pyramid_level") }}'
       - name: lvl
         description: '{{ doc("level") }}'
       - name: n

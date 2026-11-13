@@ -12,5 +12,6 @@ select
     nation_id,
     level,
     parent_cid,
+    is_women,
     last_seen_date
 from ({{ latest(ref('stg_competitions'), 'cid') }})
