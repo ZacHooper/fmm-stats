@@ -154,7 +154,7 @@ Phase 1 read seven tables on both games ([awards](parser/awards.md), [unions](pa
 - **Load the awards** into `raw` and a mart of award winners. Each entry stores the winner's
   name ids as they were, which settles the tid-reuse problem in #14 for these awards.
 - **Needs a save from a screen's day** (none possible on 24-26 Oct): pin the award and
-  knowledge screens to bytes; find the xG and season stats (#10a). A save before and after a
+  knowledge screens to bytes; find the xG and the clubs' season stats (#10a). A save before and after a
   scout report confirms `knowledge` moves. The derby bytes at +8 and +9 have no screen, so
   only save diffs across a derby match can name them.
 Phase 2 read two tables and found what the other two regions hold:
@@ -178,7 +178,7 @@ Phase 2 read two tables and found what the other two regions hold:
   [after the last transfers](parser/unread/after_last_transfers.md) (FMM27's match-slot table
   is probably here), [competition record books](parser/unread/record_books.md),
   [scheduled events](parser/unread/scheduled_events.md),
-  [named records](parser/unread/named_records.md),
+  [after the season stats](parser/player_season_stats.md#what-follows-unread),
   [season-year blocks](parser/unread/season_blocks.md), the
   [user's club block](parser/unread/club_block.md) (set pieces / captain?),
   [before our matches](parser/unread/before_matches.md) and the
@@ -401,12 +401,13 @@ Bytes the parser reads but cannot name yet.
   halves of the FourCCs at +70/+74); the competition rules header (+8..19, +26..29 an f32,
   +30..47).
 
-### 10a. Every club's and player's current-season stats, xG included
-The game shows season stats for clubs and players we never played, so the save holds them
-per club and per player, in a region not yet identified. We have nothing like it:
-`mart.player_seasons` and our xG come from our own match reports, so they cover only games
-we played in. Use: xG in every league table and xG top-scorer lists for every league, plus
-proper league records (cards, player of the match), not just the games we watched.
+### 10a. Every club's current-season stats, and xG
+**The players' half is read**: [player_season_stats](parser/player_season_stats.md), the
+Player History "This Season" panel for every player in the world, both games (apps, goals,
+assists, cards, PoM, rating total; league / cup / continental / non-competitive /
+international). **Load it** (parser only so far): league records and top-scorer lists for
+every league, not just the games we watched. Still missing: xG (not in those rows) and the
+clubs' season stats. Use: xG in every league table and xG top-scorer lists.
 
 What the screens show:
 - **FMM27, Team and Player Statistics** (league screen, xG / xDiff / Goals;
@@ -414,10 +415,6 @@ What the screens show:
   Truro xG 25.67 / 29 goals, Dagenham & Redbridge 16.51 / 23, Totton 17.00 / 22; Harvey
   Greenslade 5.03 / 8, Omar Bogle 6.42 / 5, Tayo Singerr (Totton) 1.49 / 5. xDiff is goals
   less xG (29 − 25.67 = +3.33), so only xG and goals need finding.
-- **FMM22, Player History "This Season"**: Non Competitive / League / Cup / Continental /
-  International, each with Pld, Gls, Ast, Yel, Red, PoM and average rating, for any player.
-  Frederik Karlsen on 26 Sep 2027 read Non Competitive 2 apps / 1 ast / 7.50, League 4 apps
-  / 1 yel / 7.00, Continental 2 apps / 7.50.
 
 To find it: a save from the SAME in-game day as the screenshots (the 24 Oct ones have no
 save; take new screenshots on the day of the next save). Search near each tid for the goals

@@ -75,7 +75,8 @@ notes. The status column names the `core` table that reads it
 | 40,141,778 | 40,656,146 | 0.51 MB | **[surname id-table](names.md)** — 32,148 slots, 28,625 used | game database | Shape C | `SURNAMES_TABLE` |
 | 40,656,158 | 40,962,206 | 0.31 MB | **[first-name id-table](names.md)** — 19,128 slots, 15,367 used | game database | Shape C | `FIRST_NAMES_TABLE` |
 | 40,962,218 | 41,113,898 | **0.15 MB** | **[nickname id-table](names.md)** — 9,480 × 16 B | game database | Shape C | `NICKNAMES_TABLE` |
-| 41,113,898 | 42,630,105 | 1.52 MB | **UNIDENTIFIED** ([what is known](unread/named_records.md)), 82% zero — mostly padding | — | — | — |
+| 41,113,898 | 42,545,168 | 1.43 MB | **[player season stats](player_season_stats.md)**: the Player History screen's This Season panel, six blocks (league, cup, continental, …) of a 9 B row per player-attribute record | **resets at the season's end**, nation by nation | Shape C (a grid by player) | `PLAYER_SEASON_STATS_TABLE` |
+| 42,545,168 | 42,630,105 | 85 KB | **UNIDENTIFIED** ([what is known](player_season_stats.md#what-follows-unread)) | — | — | — |
 | 42,630,093 | 46,876,865 | 4.25 MB | **[career-history pool](history.md)** — `[count u32]` + 265,423 records × 16 B (`[stats][club, fee, next]`, one season line each), pointer forest | **reserved space**: filled as players play seasons | Shape B | `HISTORY_TABLE` |
 | 46,876,865 | 48,166,114 | 1.29 MB | **[club-records](club_records.md)** — `[count u16]` (1,057 clubs Frem, 1,060 Bucaspor), then per club `[tid u16][n u8][n × 212 B league history][Team/Player Records, overall + this season: 4 × 12 slots of 21 / 22 B]` | **grows** 212 B per new league a club plays in | Shape A, record blocks C | `CLUB_RECORDS_TABLE` |
 | 48,166,114 | 48,353,064 | 0.19 MB | **UNIDENTIFIED** ([what is known](unread/record_books.md)) — `[count u32]` = 162 on every save and variable-length rows carrying 21-byte record-shaped matches, then 24-byte filler rows (TODO, "The unclaimed regions of the career half"); the same size on every save of a career | — | — | — |
@@ -314,48 +315,49 @@ What is open in the members is in TODO, "Archive members and framing not yet rea
 
 ### FMM27
 
-`truro-2026-07-25` (69,883,057 bytes) stores the same archive **without length prefixes**:
-168 members as bare zstd frames from 69,357,132, the 13 constant bytes ending right before
-member 0, and a 9-byte directory header (`02 01 'fmf.' 08 00 00`, no size) at 69,881,010
+`truro-2026-11-16` (72,985,749 bytes) stores the same archive **without length prefixes**:
+168 members as bare zstd frames from 71,769,958, the 13 constant bytes ending right before
+member 0, and a 9-byte directory header (`02 01 'fmf.' 08 00 00`, no size) at 72,983,552
 whose frame runs to EOF. The directory is FMM22's, its offsets counting from member 0's
-first byte and `stored` the frames' own size: the 168 entries tile the 523,878 bytes up to
-the header. `fix_man` is 1,219,757 bytes unpacked (499 friendlies, 95-byte records:
-[fixtures](fixtures.md)); the comp members have a 53-byte header ([comp_rules](comp_rules.md));
+first byte and `stored` the frames' own size: the 168 entries tile the 1,213,594 bytes up to
+the header (523,878 on `truro-2026-07-25`). `fix_man` is 1,574,746 bytes unpacked (8,934
+fixtures, 95-byte records: [fixtures](fixtures.md); 499 friendlies on 25 Jul); the comp members have a 53-byte header ([comp_rules](comp_rules.md));
 `comp_man` does not read with FMM22's declarations (the audit's PAD check fails on its stage
 grid). `tests/test_career_fmm27_evidence.py` checks the extent and every member's size.
 
 The reference half keeps FMM22's order. Between the cities and the currencies on
-`truro-2026-07-25`: [awards](awards.md) from 16,106,644 (1,123), [unions](unions.md) (6),
+`truro-2026-11-16`: [awards](awards.md) from 16,219,300 (1,123), [unions](unions.md) (6),
 [derbies](derbies.md) (1,681) and [regions](regions.md) (2,532), whose walk ends on the
 currencies' frame. Then the [id list](id_list.md) (924 × 7 B) to the languages, and the
-[per-person rows](person_index.md) from 16,468,667: 44,960 × 15 B, ending on the staff count
+[per-person rows](person_index.md) from 16,581,323: 44,960 × 15 B, ending on the staff count
 (6,212). The chain goes on as on FMM22: [staff rows](staff_rows.md) (6,212 × 8 B), then
 [club rows](club_rows.md) (9,830 × 132 B, plus 68 B on the clubs that carry the extra block),
 ending on the player-attribute count (36,344): [player_status](player_status.md), one block
-per player (interested clubs, morale, form; 4.34 MB on truro-2026-08-08), then a u16-counted
+per player (interested clubs, morale, form; 4.41 MB on truro-2026-11-16), then a u16-counted
 list of 1,706 four-byte slots and ~13.6 KB unread before the rule files
 ([what is known](unread/person_chain.md)).
 
-The career half on `truro-2026-07-25`, in file order:
+The career half on `truro-2026-11-16` (33 matches into the season), in file order:
 
 | from | table | notes |
 |---|---|---|
-| 29,539,097 | [contract grid](contracts.md) | 83 B, capacity 81,465, 44,960 used; four `ff` bytes added to the frame |
-| 36,300,713 | [loans](loans.md) | 6,637 × 25 B slots, 2,513 loans; then ~1.48 MB unread to the transfer band |
-| ~37.95M | transfer band | 143 B rows |
-| 38,044,512 | [last transfers](last_transfers.md) | 36,344 × 30 B, none filled yet on this save |
-| 40,459,247 | [name id-tables](names.md) | surnames, first names, nicknames; FMM22's locators |
-| 43,991,857 | [history](history.md) | 452,090 rows declared |
-| 51,225,299 | [club_records](club_records.md) | 1,087 clubs |
-| 52,553,450 | [player progress](player_progress.md) | 62,400 × 70 B; template year 2025 |
-| 57,955,530 | [training](training.md) | count 44,960, 61 B rows |
-| 60,698,094 | [award history](award_history.md), [team history](team_history.md) | 1,124 editions, 0 teams; then ~43 KB unread to our matches |
-| 60,844,241 | [our matches](matches.md) | one row; 70 B player slots, not read yet |
-| 60,850,122 | [person stamps](person_stamps.md) | `[01][01][44,959]`, 4 B per person, straight after our matches |
-| 61,030,325 | [tactic history](tactic_history.md), [club seasons](club_seasons.md), [club titles](club_titles.md) | 5 tactic-history records, the 50-slot season pool (one season so far), then a `00`, 550 `ff` and the 32-slot titles pool (none yet) |
-| 61,033,908 | **unread** ([the block after the club titles](unread/end_block.md)) | ten framed tables, each walked to the next: three 50-slot pools, the [player form](player_form.md) lines (read), [a 72-byte row per player](player_ability_scales.md) (36,343; read), a one-row list, a coach-sized slot pool, a row per physio, a row per scout, the [player achievements](player_achievements.md) (read) (100,000 slots), then one `00` |
-| 66,236,284 | [player lists](player_lists.md) | 132 lists, 192 B tails |
-| 69,357,106 | the archive | bare frames, to EOF |
+| 29,755,739 | [contract grid](contracts.md) | 83 B, capacity 81,465, 44,960 used; four `ff` bytes added to the frame |
+| 36,517,355 | [loans](loans.md) | 6,637 × 25 B slots, 4,706 loans; then ~1.45 MB unread to the transfer band |
+| 38,133,604 | transfer band | `[u32 65,000][u32 13,449][2 B]`, 143 B rows: 1.92 MB |
+| 40,056,821 | [last transfers](last_transfers.md) | 36,344 × 30 B, 793 filled |
+| 42,470,066 | [name id-tables](names.md) | surnames, first names, nicknames; FMM22's locators |
+| 43,869,578 | [player season stats](player_season_stats.md) | six blocks × 36,344 × 9 B, 92,461 rows with data; then 197 KB unread |
+| 46,029,092 | [history](history.md) | 452,090 rows declared |
+| 53,262,534 | [club_records](club_records.md) | 1,087 clubs |
+| 54,590,685 | [player progress](player_progress.md) | 62,400 × 70 B, 539 used; template year 2025 |
+| 59,992,765 | [training](training.md) | count 44,960, 61 B rows |
+| 62,735,329 | [award history](award_history.md), [team history](team_history.md) | 1,232 editions, 280 teams; then ~5 KB unread to our matches |
+| 62,942,258 | [our matches](matches.md) | 33 rows; 70 B player slots |
+| 63,137,047 | [person stamps](person_stamps.md) | `[01][01][44,959]`, 4 B per person, straight after our matches |
+| 63,319,022 | [tactic history](tactic_history.md), [club seasons](club_seasons.md), [club titles](club_titles.md) | 31 tactic-history records, the 50-slot season pool (one season so far), then a `00`, 550 `ff` and the 32-slot titles pool (none yet) |
+| 63,322,627 | **unread** ([the block after the club titles](unread/end_block.md)) | ten framed tables, each walked to the next: three 50-slot pools, the [player form](player_form.md) lines (read), [a 72-byte row per player](player_ability_scales.md) (36,345; read), a one-row list, a coach-sized slot pool, a row per physio, a row per scout, the [player achievements](player_achievements.md) (read) (100,000 slots, 887 used), then one `00` |
+| 68,630,307 | [player lists](player_lists.md) | 132 lists, 192 B tails |
+| 71,769,932 | the archive | bare frames, to EOF |
 
 History and club_records locate with FMM22's locators and the audit raises nothing on them,
 but no FMM27 screen has checked them yet. `match_slots` is not located on FMM27.

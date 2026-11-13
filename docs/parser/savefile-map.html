@@ -338,11 +338,11 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
 </template>
 
 <template data-v="fmm27" data-slot="drift">
-  <p>Truro has three saves, all in one summer window, so FMM27's drift is measured over 17 in-game days, not five seasons. The pattern is FMM22's already: the reference half barely moves, and everything after the contract grid shifts with the transfer band.</p>
+  <p>Truro has four saves, 22 Jul to 16 Nov 2026, so FMM27's drift is measured over 117 in-game days of one season, not five seasons. The pattern is FMM22's: the reference half moves by KB, and everything after the contract grid shifts with the transfer band.</p>
   <div class="drift">
-    <div><div class="eyebrow">rule files end, 22 Jul → 8 Aug</div><div class="big">+38 KB</div><div class="mono" style="color:var(--muted)">27,104,496 → 27,142,672</div></div>
-    <div class="warn"><div class="eyebrow">surname id-table start, same 17 days</div><div class="big">+897 KB</div><div class="mono" style="color:var(--muted)">40,358,771 → 41,255,436</div></div>
-    <div class="warn"><div class="eyebrow">transfer band, same 17 days</div><div class="big">35 → 5,871 rows</div><div class="mono" style="color:var(--muted)">+834,548 B: nearly all of the surnames' shift</div></div>
+    <div><div class="eyebrow">rule files end, 22 Jul → 16 Nov</div><div class="big">+227 KB</div><div class="mono" style="color:var(--muted)">27,104,496 → 27,331,049</div></div>
+    <div class="warn"><div class="eyebrow">surname id-table start, same 117 days</div><div class="big">+2.11 MB</div><div class="mono" style="color:var(--muted)">40,358,771 → 42,470,054</div></div>
+    <div class="warn"><div class="eyebrow">transfer band, same 117 days</div><div class="big">35 → 13,449 rows</div><div class="mono" style="color:var(--muted)">+1,918,202 B: 91% of the surnames' shift</div></div>
   </div>
   <p>Locate reference-half tables by their declared count, career-half structures by their own invariant. Never by a remembered offset, and never by an FMM22 offset: the career half sits up to 7 MB later on FMM27.</p>
 </template>
@@ -350,7 +350,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
 <template data-v="fmm27" data-slot="classnote">
   <div class="callout open">
     <span class="k">Open on FMM27</span>
-    <p>Which reserved pools fill and which grow can only be told across a season. Truro's saves span 17 days of one pre-season, so every "reserved" and "grows" label on FMM27 is carried over from the FMM22 table it matches.</p>
+    <p>Which reserved pools fill and which grow can only be told across a season. Truro's saves span 22 Jul to 16 Nov of one season, so every "reserved" and "grows" label on FMM27 is carried over from the FMM22 table it matches.</p>
   </div>
 </template>
 
@@ -367,11 +367,11 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
 </template>
 
 <template data-v="fmm27" data-slot="band">
-  <p style="font-size:14px;color:var(--muted)">On FMM27 the header and the row-index invariant hold on all three Truro saves (35, 668 and 5,871 rows). The field map below was read on FMM22 and has not been checked against an FMM27 transfer screen.</p>
+  <p style="font-size:14px;color:var(--muted)">On FMM27 the header and the row-index invariant hold on all four Truro saves (35, 668, 5,871 and 13,449 rows). The field map below was read on FMM22 and has not been checked against an FMM27 transfer screen.</p>
 </template>
 
 <template data-v="fmm27" data-slot="archintro">
-  <p>The save still ends in a zstd archive, but FMM27 stores it <b>without length prefixes</b>: 168 members as bare zstd frames from 69,357,132, then a 9-byte directory header (<code>02 01 'fmf.' 08 00 00</code>) at 69,881,010 whose frame runs to EOF. The directory's offsets count from member 0's first byte, and its 168 entries tile the 523,878 bytes up to the header. Decompressed sizes on <code>truro-2026-07-25</code>, 4.57 MB in all from 0.52 MB stored:</p>
+  <p>The save still ends in a zstd archive, but FMM27 stores it <b>without length prefixes</b>: 168 members as bare zstd frames from 71,769,958, then a 9-byte directory header (<code>02 01 'fmf.' 08 00 00</code>) at 72,983,552 whose frame runs to EOF. The directory's offsets count from member 0's first byte, and its 168 entries tile the 1,213,594 bytes up to the header. Decompressed sizes on <code>truro-2026-11-16</code>, 6.60 MB in all from 1.21 MB stored (4.57 MB from 0.52 MB on 25 Jul):</p>
 </template>
 
 <template data-v="fmm27" data-slot="repro">
@@ -450,95 +450,96 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
   // Region rows: [start, end, class, name, doc, how, parser, note, sub, changedInFmm27]
   var V = {
     fmm27: {
-      title: "FMM27 save file map", save: "truro-2026-07-25.fms", total: 69883057,
-      lede: "Every table a Football Manager Mobile 2027 <code>.fms</code> save holds, in file order, start to end. Extents are each table's own walk on one Truro save; the gaps between are measured, not guessed. Use the offsets to know what sits next to what, never to seek: locate a table by its own frame or invariant. Rows marked <span class=\"tag chg\">changed</span> read differently from FMM22.",
-      zones: [[0, 27105957, "near-static · tens of KB between saves", ""], [36300713, 69883057, "career half · drifts with the band", "career"]],
+      title: "FMM27 save file map", save: "truro-2026-11-16.fms", total: 72985749,
+      lede: "Every table a Football Manager Mobile 2027 <code>.fms</code> save holds, in file order, start to end. Extents are each table's own walk on Truro's latest save (16 Nov 2026, 33 matches into the season); the gaps between are measured, not guessed. Use the offsets to know what sits next to what, never to seek: locate a table by its own frame or invariant. Rows marked <span class=\"tag chg\">changed</span> read differently from FMM22.",
+      zones: [[0, 27331049, "near-static · 227 KB over four months", ""], [36517355, 72985749, "career half · drifts with the band", "career"]],
       R: [
         [0, 230, "database", "Save header", "save_header.md", "start of file", "SAVE_HEADER", "Length-prefixed club name and short name, build strings (27.0.0+2495469, fmm27-rel-staging), the in-game date and write time. No manager name: the title is the club name.", false, true],
         [230, 782, "unknown", "Unnamed u32 run", null, "", "", "552 B of u32s ending in the browse count. Not read.", false, false],
         [782, 751974, "database", "Browse name table", "names.md", "chained records", "walk_browse_bounds", "[u32 67,422] then 67,422 [len u32][utf-8] names. The number in front is an exact count; FMM22's was a 60,000 capacity.", false, true],
-        [751974, 5549883, "database", "PERSON table", "person_info.md", "count in front", "PERSON_INFO_TABLE", "Declares 44,960. the FMM26 People record (as read by the community fmm-editor tool): a counted list of other nationalities, i16 caps and goals, so every later head field shifts. tid == slot index.", false, true],
-        [5549883, 8530559, "database", "Player attributes", "player_attributes.md", "count in front", "PLAYER_ATTRIBUTES_TABLE", "36,344 rows: FMM22's 78 B, then a u32-counted list of 19 B unavailabilities (bans, ineligibility, injuries). The old 78 B read drifted from record 361.", false, true],
-        [8530559, 8772839, "database", "Staff attributes", "staff.md", "fixed grid", "STAFF_TABLE", "6,212 × 39 B. Layout unchanged; new locator.", false, false],
-        [8772839, 8889845, "database", "Chained small tables", "staff_roles.md", "count in front + fixed grid", "COACHES/SCOUTS/PHYSIOS, OFFICIALS, ROUNDS", "Staff roles (2,841 coaches, 772 scouts, 1,157 physios, 7 B each, with specialism and aptitude), 671 × 99 B match officials, 288 round/leg names (ff-terminated).", false, true],
-        [8889842, 14540346, "database", "Club + national team table", "clubs.md", "count in front", "CLUB_TABLE", "9,830 records, tid == slot index. Five club names, is_women, men's and women's national teams. Truro is tid 3125; 139 is England.", false, true],
-        [14540346, 14738182, "database", "Competitions", "competitions.md", "count in front", "COMP_TABLE", "1,706 declared, cid == slot index; ff-terminated strings.", false, true],
-        [14738182, 14778320, "database", "Nations", "nations.md", "count in front", "NATIONS_TABLE", "251 declared, as on FMM22. New FMM27 fields.", false, true],
-        [14778569, 15951682, "database", "Stadiums", "stadiums.md", "count in front", "STADIUMS_TABLE", "12,509 records, three names each (name, sponsor-free name, a third ending ff) and 3 more bytes.", false, true],
-        [15951682, 16106632, "database", "Cities", "cities.md", "count in front", "CITIES_TABLE", "7,747 records.", false, false],
-        [16106632, 16306251, "database", "Awards", "awards.md", "count in front", "AWARDS_TABLE", "1,123 awards (FMM22: 807): names, continent, nation, competition, the last date, and the latest edition's three entries (person, club, year, score, the winner's name ids). New: read 12 Nov.", false, true],
-        [16306251, 16306476, "database", "Nation unions", "unions.md", "count in front", "UNIONS_TABLE", "6: European Union, EEA, the African, Caribbean and Pacific States, Overseas Territories Act, Turkic States, EFTA. New: read 12 Nov.", false, false],
-        [16306476, 16385333, "database", "Derbies", "derbies.md", "count in front", "DERBIES_TABLE", "1,681 named rivalries, each two club tids: Merseyside is Everton v Liverpool. New: read 12 Nov.", false, false],
-        [16385333, 16454072, "database", "Regions", "regions.md", "count in front", "REGIONS_TABLE", "2,532 regions (South-East, London, …), each with its nation; what a city's region_id points at. New: read 12 Nov.", false, false],
-        [16454072, 16458461, "database", "Currencies", "currencies.md", "count in front", "CURRENCIES_TABLE", "173 records.", false, false],
-        [16458461, 16464939, "database", "Id list", "id_list.md", "count in front", "ID_LIST_TABLE", "924 × 7 B (FMM22: 888), ids ascending with gaps; ends on the languages' frame. What the ids name is open. New: read 12 Nov.", false, false],
-        [16464939, 16468663, "database", "Languages", "languages.md", "count in front", "LANGUAGES_TABLE", "126 records.", false, false],
-        [16468663, 17143067, "database", "Per-person rows", "person_index.md", "count in front", "PERSON_INDEX_TABLE", "[count = 44,960], no 0xFF frame, then 15 B per person (FMM22: 14 B), two row numbers into tables not read yet. Ends exactly on the staff count (6,212). New: read 12 Nov.", false, true],
-        [17143067, 17192765, "database", "Staff rows", "staff_rows.md", "count in front", "STAFF_ROWS_TABLE", "[count u16 = 6,212], no 0xFF frame, then 8 B per staff member (same on FMM22); no field named yet. Ends exactly on the club count. New: read 12 Nov.", false, false],
-        [17192765, 18564311, "database", "Club rows", "club_rows.md", "count in front", "CLUB_ROWS_TABLE", "[count u16 = 9,830], then 132 B per club (FMM22: 51 B), its first u32 the transfer budget (Truro £10,000), then matches played this season and the last six results ([for][against], oldest first), plus a 68 B block on 1,088 clubs. Ends exactly on the player-attribute count (36,344). New: read 12 Nov.", false, false],
-        [18564311, 22894635, "database", "Player status", "player_status.md", "count in front", "PLAYER_STATUS_TABLE", "[count u32 = 36,344], one block per player: the clubs interested in him, his morale (1-20) and his last five ratings, checked against the squad and contract screens. Every block ends on a 1 Jan 2000 date. New: read 12 Nov.", false, false],
-        [22894635, 22915052, "unknown", "Unidentified", "unread/person_chain.md", "", "", "20 KB: [u16 1,706] then 1,706 empty 4-byte slots, then 13.6 KB before the rule files.", false, false],
-        [22915052, 27105957, "database", "Rule files (tagged data dictionary)", "rule_files.md", "count in front", "RULE_FILES_TABLE", "782 count-framed rule files (FMM22: 667). PLgn for SubF, continents' files; new tags left unread.", false, true],
-        [27105957, 29539118, "filler", "Filler", "unread/season_blocks.md", "", "", "79% 0xFF, 8% 00. 2.43 MB, down from FMM22's 9.15 MB. Not all padding: on 16 Nov a stretch here lists the matchday squad (the Tactics – Captain screen's 16) and the five captains.", false, false],
-        [29539118, 36300713, "reserved", "Contract grid", "contracts.md", "fixed grid", "CONTRACT_TABLE", "83 B records, capacity 81,465 (FMM22: 59,632), 44,960 used. Four ff bytes added to the frame.", false, true],
-        [36300713, 36466644, "reserved", "Loans", "loans.md", "back-links", "LOANS_TABLE", "6,637 slots × 25 B (FMM22: 6,243), 2,513 loans: player, loan club, start, end, a percentage, an option. Every player on loan points at his slot from the per-person rows. New: read 12 Nov.", false, false],
-        [36466644, 37948978, "unknown", "Unidentified", "unread/after_loans.md", "", "", "1.48 MB after the loans. 00 44% / ff 18% / other 38%.", false, false],
-        [37948978, 38044512, "seasonal", "Seasonal transfer band", "#h-band", "count in front", "", "[u32 65,000][u32 count = 668][2 B], then 668 × 143 B rows. 35 rows on 22 Jul, 5,871 on 8 Aug.", false, false],
-        [38044512, 39134836, "grows", "Last transfers", "last_transfers.md", "count + one date", "LAST_TRANSFERS_TABLE", "36,344 × 30 B, one per player: his latest transfer (fee, buying club), kept across seasons. None filled on this save; 428 on 8 Aug. New: read 12 Nov.", false, false],
-        [39134836, 40459235, "unknown", "Unidentified", "unread/after_last_transfers.md", "", "", "1.32 MB before the name id-tables. 00 38% / ff 33% / other 30%. On FMM22 the match-slot table sits about here. On 16 Nov it holds the managed club's season goals per player ([tid][goals u16], 17 entries) and a second list, assists by the look of it.", false, false],
-        [40459235, 41217695, "database", "Surname id-table", "names.md", "fixed grid", "SURNAMES_TABLE", "FMM22's locator.", false, false],
-        [41217694, 41696123, "database", "First-name id-table", "names.md", "fixed grid", "FIRST_NAMES_TABLE", "FMM22's locator.", false, false],
-        [41696122, 41858759, "database", "Nickname id-table", "names.md", "fixed grid", "NICKNAMES_TABLE", "FMM22's locator.", false, false],
-        [41858759, 43991853, "unknown", "Unidentified", "unread/named_records.md", "", "", "96% zero, mostly padding.", false, false],
-        [43991853, 51225297, "reserved", "Career-history pool", "history.md", "linked list", "HISTORY_TABLE", "[count u32] + 452,090 × 16 B (FMM22 Frem: 265,423). The forest check passes; no screen has checked it yet.", false, true],
-        [51225297, 52350344, "grows", "Club records", "club_records.md", "count in front", "CLUB_RECORDS_TABLE", "1,087 clubs. FMM22's locator; the audit raises nothing, no screen check yet.", false, false],
-        [52350344, 52553436, "unknown", "Unidentified", "unread/record_books.md", "", "", "00 26% / ff 67%. FMM22 has its 162-count record table here.", false, false],
-        [52553436, 56921450, "reserved", "Player progress", "player_progress.md", "fixed grid", "PLAYER_PROGRESS_TABLE", "62,400 rows × 70 B, the same pool as FMM22. Template year 2025.", false, false],
-        [56921450, 57955530, "filler", "Zero run, 1.03 MB", "unread/progress_padding.md", "", "", "100% zero (FMM22: 758,222 B of 00 and ff in the same place).", false, false],
-        [57955530, 60698094, "database", "Training", "training.md", "count in front", "TRAINING_TABLE", "[count u32 = 44,960][44,960 × 61 B], row k = person tid k. Focus-role codes differ from FMM22's from Inside Forward on; two new roles (Wide Centre-Back, Inverted Full-Back).", false, true],
-        [60698094, 60801510, "grows", "Award & team history", "award_history.md", "count in front", "AWARD_HISTORY_TABLE, TEAM_HISTORY_TABLE", "1,124 award editions × 92 B (1st to 3rd: every year of an annual award, this season of a weekly or monthly one), then the team history (no teams yet on this save). New: read 12 Nov.", false, false],
-        [60801510, 60844241, "unknown", "Unidentified", "unread/before_matches.md", "", "", "43 KB before our matches.", false, false],
-        [60844241, 60850122, "seasonal", "Our matches", "matches.md", "count in front", "MATCHES_TABLE_FMM27", "One match (a friendly). Rows of 5,676 + 17n B: 70 B player slots with each player's xG, and each side's manager in the team head.", false, true],
-        [60850122, 61029964, "database", "Person stamps", "person_stamps.md", "count in front", "PERSON_STAMPS_TABLE", "[01][01][count = 44,959] (persons less one), then [level u8][day u16][year offset u8] per person. Level 3 on every player of the managed club. New: read 12 Nov.", false, false],
-        [61029964, 61031276, "database", "Tactic history & club seasons", "tactic_history.md", "count in front", "TACTIC_HISTORY_TABLE, CLUB_SEASONS_TABLE", "5 tactic setups the game recorded for the user (a role per position; a formation name or uber tactic), then the managed club's season record in a 50-slot pool. New: read 12 Nov.", false, false],
-        [61031276, 61033908, "grows", "Club titles", "club_titles.md", "count in front", "CLUB_TITLES_TABLE", "32 slots × 65 B: each competition the managed club has won. None yet.", false, false],
-        [61033908, 61035161, "unknown", "Three 50-slot pools", "unread/end_pools.md", "", "", "[u8 n][50 × 12 B] (one used: Truro, 2026), then [u8 0][50 × 6 B] and [u8 0][50 × 7 B], empty. New: framed 13 Nov.", false, false],
-        [61035161, 61035164, "grows", "Player form", "player_form.md", "count in front", "PLAYER_FORM_TABLE", "[u16 n][n × 26 B]: the Player Form page, a line per squad player per competitive match (none yet on 25 Jul; 548 by 16 Nov): rating, goals, assists, morale, player of the match, cards, subs. New: read 13 Nov.", false, false],
-        [61035164, 63651864, "database", "Player ability scales", "player_ability_scales.md", "count in front", "PLAYER_ABILITY_SCALES_TABLE", "[u32 36,343][72 B per player, by tid]: his ability on his league's scale (the Coach Report's stars follow it), a young-player value, and random working state. New: read 13 Nov.", false, false],
-        [63651864, 63651940, "unknown", "One-row list", "player_ability_scales.md", "", "", "[u32 1][72 B]: the same row shape, one person. New: framed 13 Nov.", false, false],
-        [63651940, 63742856, "unknown", "Coach-sized slot pool", "unread/coach_slots.md", "", "", "[u32 cap = coaches (2,841) or twice][cap × 32 B], up to 71 used. New: framed 13 Nov.", false, false],
-        [63742856, 63754431, "unknown", "A row per physio", "unread/physio_rows.md", "", "", "[u16 1,157][row k = physio k, 10 B], all empty so far. New: framed 13 Nov.", false, false],
-        [63754431, 63836279, "unknown", "A row per scout", "unread/scout_rows.md", "", "", "787 × 104 B, 772 with data (= the scouts). New: framed 13 Nov.", false, false],
-        [63836279, 66236284, "reserved", "Player achievements", "player_achievements.md", "count in front", "PLAYER_ACHIEVEMENTS_TABLE", "[u32 100,000][100,000 × 24 B]: the Player Achievements screen, a row per achievement (player, kind, competition, club, award): cup wins, Manager Sacked, monthly awards. 1 used on 25 Jul, 887 by 16 Nov. New: read 13 Nov.", false, false],
-        [66236284, 69209346, "reserved", "Player lists", "player_lists.md", "chained records", "PLAYER_LISTS_TABLE", "132 lists with 192 B tails (FMM22: 66). The second 66 are all unused so far, probably women's.", false, true],
-        [69209346, 69357132, "unknown", "Scheduled events (unread)", "unread/scheduled_events.md", "", "", "Opens with a date one day past the save. On FMM22 this is the game's scheduled events (type 9: a transfer going through that day); FMM27 stores it differently, with a long run of u16 0, 1, 2 … On 16 Nov the set-piece takers sit here: ten-slot tid lists in the Takers screen's order (penalties, corners, free kicks, two more).", false, false],
-        [69357132, 69883057, "grows", "sicomps archive", "#h-arch", "archive member", "archive.locate", "168 bare zstd frames and a directory, 4.57 MB decompressed. No length prefixes.", false, true]
+        [751974, 5556389, "database", "PERSON table", "person_info.md", "count in front", "PERSON_INFO_TABLE", "Declares 44,960. the FMM26 People record (as read by the community fmm-editor tool): a counted list of other nationalities, i16 caps and goals, so every later head field shifts. tid == slot index.", false, true],
+        [5556389, 8536742, "database", "Player attributes", "player_attributes.md", "count in front", "PLAYER_ATTRIBUTES_TABLE", "36,344 rows: FMM22's 78 B, then a u32-counted list of 19 B unavailabilities (bans, ineligibility, injuries). The old 78 B read drifted from record 361.", false, true],
+        [8536742, 8779022, "database", "Staff attributes", "staff.md", "fixed grid", "STAFF_TABLE", "6,212 × 39 B. Layout unchanged; new locator.", false, false],
+        [8779022, 8896028, "database", "Chained small tables", "staff_roles.md", "count in front + fixed grid", "COACHES/SCOUTS/PHYSIOS, OFFICIALS, ROUNDS", "Staff roles (2,841 coaches, 772 scouts, 1,157 physios, 7 B each, with specialism and aptitude), 671 × 99 B match officials, 288 round/leg names (ff-terminated).", false, true],
+        [8896025, 14649674, "database", "Club + national team table", "clubs.md", "count in front", "CLUB_TABLE", "9,830 records, tid == slot index. Five club names, is_women, men's and women's national teams. Truro is tid 3125; 139 is England. 109 KB bigger than on 25 Jul: the rows grow as the season is played.", false, true],
+        [14649674, 14847510, "database", "Competitions", "competitions.md", "count in front", "COMP_TABLE", "1,706 declared, cid == slot index; ff-terminated strings.", false, true],
+        [14847510, 14890976, "database", "Nations", "nations.md", "count in front", "NATIONS_TABLE", "251 declared, as on FMM22. New FMM27 fields. 3.3 KB bigger than on 25 Jul.", false, true],
+        [14891225, 16064338, "database", "Stadiums", "stadiums.md", "count in front", "STADIUMS_TABLE", "12,509 records, three names each (name, sponsor-free name, a third ending ff) and 3 more bytes.", false, true],
+        [16064338, 16219288, "database", "Cities", "cities.md", "count in front", "CITIES_TABLE", "7,747 records.", false, false],
+        [16219288, 16418907, "database", "Awards", "awards.md", "count in front", "AWARDS_TABLE", "1,123 awards (FMM22: 807): names, continent, nation, competition, the last date, and the latest edition's three entries (person, club, year, score, the winner's name ids). New: read 12 Nov.", false, true],
+        [16418907, 16419132, "database", "Nation unions", "unions.md", "count in front", "UNIONS_TABLE", "6: European Union, EEA, the African, Caribbean and Pacific States, Overseas Territories Act, Turkic States, EFTA. New: read 12 Nov.", false, false],
+        [16419132, 16497989, "database", "Derbies", "derbies.md", "count in front", "DERBIES_TABLE", "1,681 named rivalries, each two club tids: Merseyside is Everton v Liverpool. New: read 12 Nov.", false, false],
+        [16497989, 16566728, "database", "Regions", "regions.md", "count in front", "REGIONS_TABLE", "2,532 regions (South-East, London, …), each with its nation; what a city's region_id points at. New: read 12 Nov.", false, false],
+        [16566728, 16571117, "database", "Currencies", "currencies.md", "count in front", "CURRENCIES_TABLE", "173 records.", false, false],
+        [16571117, 16577595, "database", "Id list", "id_list.md", "count in front", "ID_LIST_TABLE", "924 × 7 B (FMM22: 888), ids ascending with gaps; ends on the languages' frame. What the ids name is open. New: read 12 Nov.", false, false],
+        [16577595, 16581319, "database", "Languages", "languages.md", "count in front", "LANGUAGES_TABLE", "126 records.", false, false],
+        [16581319, 17255723, "database", "Per-person rows", "person_index.md", "count in front", "PERSON_INDEX_TABLE", "[count = 44,960], no 0xFF frame, then 15 B per person (FMM22: 14 B), two row numbers into tables not read yet. Ends exactly on the staff count (6,212). New: read 12 Nov.", false, true],
+        [17255723, 17305421, "database", "Staff rows", "staff_rows.md", "count in front", "STAFF_ROWS_TABLE", "[count u16 = 6,212], no 0xFF frame, then 8 B per staff member (same on FMM22); no field named yet. Ends exactly on the club count. New: read 12 Nov.", false, false],
+        [17305421, 18712531, "database", "Club rows", "club_rows.md", "count in front", "CLUB_ROWS_TABLE", "[count u16 = 9,830], then 132 B per club (FMM22: 51 B), its first u32 the transfer budget (Truro £10,000), then matches played this season and the last six results ([for][against], oldest first), plus a 68 B block on some clubs (1,088 on 25 Jul; the table is 523 × 68 B bigger by 16 Nov). Ends exactly on the player-attribute count (36,344). New: read 12 Nov.", false, false],
+        [18712531, 23119727, "database", "Player status", "player_status.md", "count in front", "PLAYER_STATUS_TABLE", "[count u32 = 36,344], one block per player: the clubs interested in him, his morale (1-20) and his last five ratings, checked against the squad and contract screens. Every block ends on a 1 Jan 2000 date. New: read 12 Nov.", false, false],
+        [23119727, 23140144, "unknown", "Unidentified", "unread/person_chain.md", "", "", "20 KB: [u16 1,706] then 1,706 empty 4-byte slots, then 13.6 KB before the rule files. Unchanged in size since 25 Jul.", false, false],
+        [23140144, 27331049, "database", "Rule files (tagged data dictionary)", "rule_files.md", "count in front", "RULE_FILES_TABLE", "782 count-framed rule files (FMM22: 667). PLgn for SubF, continents' files; new tags left unread.", false, true],
+        [27331049, 29755760, "filler", "Filler", "unread/season_blocks.md", "", "", "78% 0xFF, 8% 00. 2.42 MB, down from FMM22's 9.15 MB. Not all padding: on 16 Nov a stretch here lists the matchday squad (the Tactics – Captain screen's 16) and the five captains.", false, false],
+        [29755760, 36517355, "reserved", "Contract grid", "contracts.md", "fixed grid", "CONTRACT_TABLE", "83 B records, capacity 81,465 (FMM22: 59,632), 44,960 used. Four ff bytes added to the frame.", false, true],
+        [36517355, 36683286, "reserved", "Loans", "loans.md", "back-links", "LOANS_TABLE", "6,637 slots × 25 B (FMM22: 6,243), 4,706 loans (2,513 on 25 Jul): player, loan club, start, end, a percentage, an option. Every player on loan points at his slot from the per-person rows. New: read 12 Nov.", false, false],
+        [36683286, 38133604, "unknown", "Unidentified", "unread/after_loans.md", "", "", "1.45 MB after the loans. 00 43% / ff 19% / other 38%.", false, false],
+        [38133604, 40056821, "seasonal", "Seasonal transfer band", "#h-band", "count in front", "", "[u32 65,000][u32 count = 13,449][2 B], then 13,449 × 143 B rows: 1.92 MB, the career half's biggest mover. 35 rows on 22 Jul, 668 on 25 Jul, 5,871 on 8 Aug.", false, false],
+        [40056821, 41147145, "grows", "Last transfers", "last_transfers.md", "count + one date", "LAST_TRANSFERS_TABLE", "36,344 × 30 B, one per player: his latest transfer (fee, buying club), kept across seasons. 793 filled (none on 25 Jul, 428 on 8 Aug). New: read 12 Nov.", false, false],
+        [41147145, 42470054, "unknown", "Unidentified", "unread/after_last_transfers.md", "", "", "1.32 MB before the name id-tables. 00 34% / ff 29% / other 37%. On FMM22 the match-slot table sits about here. On 16 Nov it holds the managed club's season goals per player ([tid][goals u16], 17 entries) and a second list, assists by the look of it.", false, false],
+        [42470054, 43228514, "database", "Surname id-table", "names.md", "fixed grid", "SURNAMES_TABLE", "FMM22's locator.", false, false],
+        [43228513, 43706942, "database", "First-name id-table", "names.md", "fixed grid", "FIRST_NAMES_TABLE", "FMM22's locator.", false, false],
+        [43706941, 43869578, "database", "Nickname id-table", "names.md", "fixed grid", "NICKNAMES_TABLE", "FMM22's locator.", false, false],
+        [43869578, 45832154, "seasonal", "Player season stats", "player_season_stats.md", "fixed grid", "PLAYER_SEASON_STATS_TABLE", "Six blocks (club season, league, cup, continental, non-competitive, international) of one 9 B row per player-attribute record: apps, goals, assists, conceded, rating total, yellows, reds, PoM. The Player History screen's This Season panel, every player in the world: 92,461 rows with data (10,021 on 25 Jul). Clears at the season's end. New: read 13 Nov.", false, false],
+        [45832154, 46029088, "unknown", "Unidentified", "player_season_stats.md#what-follows-unread", "", "", "197 KB after the season stats: 1,020 inline-named records (people the database does not ship), then counts of 3,125 and 10,000.", false, false],
+        [46029088, 53262532, "reserved", "Career-history pool", "history.md", "linked list", "HISTORY_TABLE", "[count u32] + 452,090 × 16 B (FMM22 Frem: 265,423). The forest check passes; no screen has checked it yet.", false, true],
+        [53262532, 54387579, "grows", "Club records", "club_records.md", "count in front", "CLUB_RECORDS_TABLE", "[u16 1,087] clubs, 12,778 record entries (532 on 25 Jul). FMM22's locator; the audit raises nothing, no screen check yet.", false, false],
+        [54387579, 54590671, "unknown", "Unidentified", "unread/record_books.md", "", "", "00 26% / ff 67%. FMM22 has its 162-count record table here.", false, false],
+        [54590671, 58958685, "reserved", "Player progress", "player_progress.md", "fixed grid", "PLAYER_PROGRESS_TABLE", "62,400 rows × 70 B, the same pool as FMM22, 539 used (25 on 25 Jul). Template year 2025.", false, false],
+        [58958685, 59992765, "filler", "Zero run, 1.03 MB", "unread/progress_padding.md", "", "", "100% zero (FMM22: 758,222 B of 00 and ff in the same place).", false, false],
+        [59992765, 62735329, "database", "Training", "training.md", "count in front", "TRAINING_TABLE", "[count u32 = 44,960][44,960 × 61 B], row k = person tid k. Focus-role codes differ from FMM22's from Inside Forward on; two new roles (Wide Centre-Back, Inverted Full-Back).", false, true],
+        [62735329, 62937161, "grows", "Award & team history", "award_history.md", "count in front", "AWARD_HISTORY_TABLE, TEAM_HISTORY_TABLE", "1,232 award editions × 92 B (1st to 3rd: every year of an annual award, this season of a weekly or monthly one), then the team history: 280 teams (none on 25 Jul). New: read 12 Nov.", false, false],
+        [62937161, 62942258, "unknown", "Unidentified", "unread/before_matches.md", "", "", "5 KB before our matches (43 KB on 25 Jul).", false, false],
+        [62942258, 63137047, "seasonal", "Our matches", "matches.md", "count in front", "MATCHES_TABLE_FMM27", "33 matches (one, a friendly, on 25 Jul). Rows of 5,676 + 17n B: 70 B player slots with each player's xG, and each side's manager in the team head.", false, true],
+        [63137047, 63316889, "database", "Person stamps", "person_stamps.md", "count in front", "PERSON_STAMPS_TABLE", "[01][01][count = 44,959] (persons less one), then [level u8][day u16][year offset u8] per person. Level 3 on every player of the managed club. New: read 12 Nov.", false, false],
+        [63316889, 63319995, "database", "Tactic history & club seasons", "tactic_history.md", "count in front", "TACTIC_HISTORY_TABLE, CLUB_SEASONS_TABLE", "31 tactic setups the game recorded for the user (a role per position; a formation name or uber tactic), then the managed club's season record in a 50-slot pool. New: read 12 Nov.", false, false],
+        [63319995, 63322627, "grows", "Club titles", "club_titles.md", "count in front", "CLUB_TITLES_TABLE", "32 slots × 65 B: each competition the managed club has won. None yet.", false, false],
+        [63322627, 63323880, "unknown", "Three 50-slot pools", "unread/end_pools.md", "", "", "[u8 n][50 × 12 B] (one used: Truro, 2026), then [u8 0][50 × 6 B] and [u8 0][50 × 7 B], empty. New: framed 13 Nov.", false, false],
+        [63323880, 63338131, "grows", "Player form", "player_form.md", "count in front", "PLAYER_FORM_TABLE", "[u16 n][n × 26 B]: the Player Form page, a line per squad player per competitive match (548 on this save; none on 25 Jul): rating, goals, assists, morale, player of the match, cards, subs. New: read 13 Nov.", false, false],
+        [63338131, 65954975, "database", "Player ability scales", "player_ability_scales.md", "count in front", "PLAYER_ABILITY_SCALES_TABLE", "[u32 36,345][72 B per player, by tid]: his ability on his league's scale (the Coach Report's stars follow it), a young-player value, and random working state. New: read 13 Nov.", false, false],
+        [65954975, 65955051, "unknown", "One-row list", "player_ability_scales.md", "", "", "[u32 1][72 B]: the same row shape, one person. New: framed 13 Nov.", false, false],
+        [65955051, 66136879, "unknown", "Coach-sized slot pool", "unread/coach_slots.md", "", "", "[u32 cap = 5,682, twice the coaches (2,841); 2,841 on 25 Jul][cap × 32 B], 71 used. New: framed 13 Nov.", false, false],
+        [66136879, 66148454, "unknown", "A row per physio", "unread/physio_rows.md", "", "", "[u16 1,157][row k = physio k, 10 B], all empty so far. New: framed 13 Nov.", false, false],
+        [66148454, 66230302, "unknown", "A row per scout", "unread/scout_rows.md", "", "", "787 × 104 B, 772 with data (= the scouts). New: framed 13 Nov.", false, false],
+        [66230302, 68630307, "reserved", "Player achievements", "player_achievements.md", "count in front", "PLAYER_ACHIEVEMENTS_TABLE", "[u32 100,000][100,000 × 24 B]: the Player Achievements screen, a row per achievement (player, kind, competition, club, award): cup wins, Manager Sacked, monthly awards. 887 used (1 on 25 Jul). New: read 13 Nov.", false, false],
+        [68630307, 71609017, "reserved", "Player lists", "player_lists.md", "chained records", "PLAYER_LISTS_TABLE", "132 lists with 192 B tails (FMM22: 66). The second 66 are all unused so far, probably women's.", false, true],
+        [71609017, 71769958, "unknown", "Scheduled events (unread)", "unread/scheduled_events.md", "", "", "Opens with a date one day past the save. On FMM22 this is the game's scheduled events (type 9: a transfer going through that day); FMM27 stores it differently, with a long run of u16 0, 1, 2 … On 16 Nov the set-piece takers sit here: ten-slot tid lists in the Takers screen's order (penalties, corners, free kicks, two more).", false, false],
+        [71769958, 72985749, "grows", "sicomps archive", "#h-arch", "archive member", "archive.locate", "168 bare zstd frames and a directory, 6.60 MB decompressed (4.57 MB on 25 Jul). No length prefixes.", false, true]
       ],
       gaps: [
-        ["36.47–37.95 MB", 1.48, 1.48, "after the loans, in front of the transfer band"],
-        ["39.13–40.46 MB", 1.32, 0.69, "after the last transfers, before the surname id-table"],
-        ["27.11–29.54 MB", 2.43, 0.34, "79% 0xFF, after the rule files"],
-        ["41.86–43.99 MB", 2.13, 0.17, "96% zero, mostly padding"],
-        ["69.21–69.36 MB", 0.15, 0.15, "before the archive; opens with a date"],
-        ["60.80–60.84 MB", 0.04, 0.04, "between the team history and our matches"],
-        ["22.89–22.92 MB", 0.02, 0.02, "between the player status and the rule files"],
-        ["63.65–63.84 MB", 0.18, 0.01, "coach slots, physio and scout rows: framed, nearly empty on this save"],
-        ["52.35–52.55 MB", 0.20, 0, "67% 0xFF"],
-        ["56.92–57.96 MB", 1.03, 0, "all zero"]
+        ["36.68–38.13 MB", 1.45, 1.45, "after the loans, in front of the transfer band"],
+        ["41.15–42.47 MB", 1.32, 0.82, "after the last transfers, before the surname id-table"],
+        ["27.33–29.76 MB", 2.42, 0.40, "78% 0xFF, after the rule files"],
+        ["45.83–46.03 MB", 0.20, 0.19, "inline-named records, after the season stats"],
+        ["71.61–71.77 MB", 0.16, 0.16, "before the archive; opens with a date"],
+        ["54.39–54.59 MB", 0.20, 0.12, "55% 0xFF, between the club records and player progress"],
+        ["62.94 MB", 0.01, 0.01, "between the team history and our matches"],
+        ["65.95–66.23 MB", 0.28, 0.01, "coach slots, physio and scout rows: framed, nearly empty"],
+        ["23.12–23.14 MB", 0.02, 0.00, "between the player status and the rule files"],
+        ["58.96–59.99 MB", 1.03, 0, "all zero"]
       ],
       arch: [
-        ["comp_<uid> × 156", 2906035, "each competition's stages and rounds; a 53-byte header (comp_rules)"],
-        ["fix_man", 1219757, "the world results list: 95 B fixtures, with season, referee, stage and matchday"],
-        ["comp_man", 213959, "comp_stages, comp_honours: does not read with FMM22's declarations"],
-        ["stadium", 80417, "unexamined"],
-        ["rule_group", 68644, "engine log lines"],
+        ["comp_<uid> × 156", 4586055, "each competition's stages and rounds; a 53-byte header (comp_rules). 2.91 MB on 25 Jul"],
+        ["fix_man", 1574746, "the world results list: 95 B fixtures, with season, referee, stage and matchday"],
+        ["comp_man", 214179, "comp_stages, comp_honours: does not read with FMM22's declarations"],
+        ["stadium", 80118, "unexamined"],
+        ["rule_group", 68892, "engine log lines"],
         ["reserves", 38965, "unexamined (FMM22: 1,500 B)"],
-        ["comp_hosts", 24010, "unexamined"],
-        ["friend_man", 9166, "friendlies; unexamined"],
-        ["rgman", 6959, "unexamined"],
-        ["discipline", 592, "unexamined"],
-        ["squad_man", 169, "unexamined"],
-        ["national_teams", 20, "unexamined"],
+        ["comp_hosts", 24590, "unexamined"],
+        ["rgman", 10631, "unexamined"],
+        ["discipline", 1890, "unexamined"],
+        ["friend_man", 1636, "friendlies; unexamined (9,166 B on 25 Jul)"],
+        ["national_teams", 72, "unexamined"],
+        ["squad_man", 17, "unexamined"],
         ["fifa_rankings", 16, "unexamined"]
       ]
     },
@@ -583,7 +584,8 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
         [40141778, 40656146, "database", "Surname id-table", "names.md", "fixed grid", "SURNAMES_TABLE", "32,148 slots, 28,625 used."],
         [40656158, 40962206, "database", "First-name id-table", "names.md", "fixed grid", "FIRST_NAMES_TABLE", "19,128 slots, 15,367 used."],
         [40962218, 41113898, "database", "Nickname id-table", "names.md", "fixed grid", "NICKNAMES_TABLE", "9,480 × 16 B."],
-        [41113898, 42630093, "unknown", "Unidentified", "unread/named_records.md", "", "", "82% zero, mostly padding."],
+        [41113898, 42545168, "seasonal", "Player season stats", "player_season_stats.md", "fixed grid", "PLAYER_SEASON_STATS_TABLE", "Six blocks of a 9 B row per player-attribute record (26,505): the Player History screen's This Season panel, league / cup / continental / non-competitive / international and the season line. 65,874 rows with data. New: read 13 Nov on FMM27, the same here."],
+        [42545168, 42630093, "unknown", "Unidentified", "player_season_stats.md#what-follows-unread", "", "", "85 KB after the season stats: rows of two u32 and a u16 nation id."],
         [42630093, 46876865, "reserved", "Career-history pool", "history.md", "linked list", "HISTORY_TABLE", "[count u32] + 265,423 records × 16 B ([stats][club, fee, next], one season line each): a pointer forest. The count is a capacity fixed at career creation."],
         [46876865, 48166114, "grows", "Club records", "club_records.md", "count in front", "CLUB_RECORDS_TABLE", "[count u16] (1,057 clubs Frem), then per club [tid u16][n u8][n × 212 B league history][Team/Player Records]. Grows 212 B per new league a club plays in."],
         [48166114, 48353064, "unknown", "Unidentified", "unread/record_books.md", "", "", "[count u32] = 162 on every save, variable-length rows carrying 21-byte record-shaped matches, then 24-byte filler rows. The same size on every save of a career."],
@@ -611,7 +613,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
         ["39.20–40.04 MB", 0.84, 0.53, "after the last transfers; real bytes not re-measured"],
         ["15.08–16.75 MB", 1.67, 0.48, "after the club rows: one variable-length block per player; real bytes not re-measured"],
         ["20.02–29.17 MB", 9.15, 0.3, "94% 0xFF: padding, not a target"],
-        ["41.11–42.63 MB", 1.52, 0.27, "82% zero, mostly padding"],
+        ["42.55–42.63 MB", 0.08, 0.08, "after the season stats: two u32 and a nation id per row"],
 
         ["52.72–53.48 MB", 0.76, 0, "all 00 and ff"]
       ],

@@ -16,7 +16,7 @@ the [save file map](../savefile-map.md); the order the regions are worked is the
 | rule files → contract grid | 9.15 MB | 2.43 MB | FMM22 padding; FMM27 a slot pool, then season-year blocks | [season_blocks](season_blocks.md) |
 | loans → transfer band | 1.16 MB | 1.50 MB | not known | [after_loans](after_loans.md) |
 | last transfers → surnames | 0.94 MB | 1.32 MB | FMM22 holds the match-slot table here; FMM27's not found | [after_last_transfers](after_last_transfers.md) |
-| nicknames → history | 1.52 MB | 2.14 MB | small numbers, then (FMM27) 1,020 inline-named records | [named_records](named_records.md) |
+| after the season stats → history | 85 KB | 197 KB | (FMM27) 1,020 inline-named records; (FMM22) rows of two u32 and a nation id | [player_season_stats](../player_season_stats.md#what-follows-unread) |
 | club records → player progress | 0.19 MB | 0.20 MB | each competition's record book | [record_books](record_books.md) |
 | player progress → training | 0.76 MB | 1.03 MB | padding, to prove | [progress_padding](progress_padding.md) |
 | team history → our matches | 2 KB | 2–43 KB | not known | [before_matches](before_matches.md) |

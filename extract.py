@@ -36,6 +36,9 @@ Writes output/<label>/ (the label defaults to the save's file name without `.fms
                                  scale and, if young, his youth international rating
     player_achievements.json     the Player Achievements screen, a row per
                                  achievement (finals won and lost, Manager Sacked, awards)
+    player_season_stats.json     the Player History screen's This Season panel: per player
+                                 and kind of competition, apps, goals, assists, cards, PoM
+                                 and the rating total
     player_status.json           FMM27: per player (attribute-record order) the clubs
                                  interested in him, his morale and his form
     competition_team_counts.json each nation's team-count rules
@@ -359,6 +362,8 @@ def steps(no_archive: bool = False):
              one("last_transfers.json", T.scrape_last_transfers)),
         Step("name id-tables", registered("surnames", "first_names", "nicknames"),
              one("name_ids.json", NM.scrape_name_ids)),
+        Step("player_season_stats", registered("player_season_stats"),
+             one("player_season_stats.json", T.scrape_player_season_stats, None)),
         Step("history", registered("history"), read_history),
         Step("club_records", registered("club_records"), read_club_records),
         Step("player_progress", registered("player_progress"), read_player_progress),
