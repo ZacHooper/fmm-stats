@@ -17,8 +17,8 @@ in team k's squad array (`clubs`), the rest one who has since left.
 
      0-10   the starting XI, in the tactic's slot order (slot 0 the keeper; the slots'
             positions are the formation's codes, `formations`)
-    11-15   the five substitutes
-    16-19   four more places: empty for Truro, set on most other teams' slots
+    11-19   the substitutes, S1 first: up to nine (Maidenhead's seven are places 11-17;
+            Truro names five; 438 of 690 full team sheets on 16 Nov use all nine)
     20-25   the captains: the captain on the pitch, then the screen's five in order
 
 **FMM22's 147**: filled slots hold 14, 18 or 20 tids at the front, a few a single tid

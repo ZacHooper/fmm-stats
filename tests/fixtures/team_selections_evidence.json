@@ -99,7 +99,7 @@
   "slot_head_hex": "0e9e200000e090000075220000e5240000e97200001e210000df910000e6220000d173000064640000bc190000fe1c0000f57400005a6300006f79000074220000",
   "slot_head_note": "the u8 and the first 16 places, as stored",
   "lineups": {
-    "note": "Tactics - Formation screens, 16 Nov 2026 (docs/parser/img/team_selections-fmm27-1..4.png): each starter's place, the formation the screen shows, and where he stands on the pitch (row + lane, right to left: R, RC, C, LC, L)",
+    "note": "Tactics - Formation screens, 16 Nov 2026 (docs/parser/img/team_selections-fmm27-1..4.png): each starter's place, the formation the screen shows, and where he stands on the pitch (row + lane, right to left: R, RC, C, LC, L); Maidenhead's bench S1-S7 from team_selections-fmm27-5.png",
     "3125": {
       "team": "Truro City",
       "formation": "4-4-2 Diamond",
@@ -219,6 +219,43 @@
           42968,
           "STLC",
           "Fraser"
+        ]
+      ],
+      "bench": [
+        [
+          10217,
+          "S1",
+          "van Stappershoef"
+        ],
+        [
+          8322,
+          "S2",
+          "Onariase"
+        ],
+        [
+          27872,
+          "S3",
+          "Johnson"
+        ],
+        [
+          42598,
+          "S4",
+          "Pendlebury"
+        ],
+        [
+          8730,
+          "S5",
+          "N'Guessan"
+        ],
+        [
+          36526,
+          "S6",
+          "Dundas"
+        ],
+        [
+          22113,
+          "S7",
+          "Achuba"
         ]
       ]
     },

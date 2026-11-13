@@ -11,7 +11,7 @@ Evidence for `team_selections` and `formations`, on truro-2026-11-16.
   - the 21 formation names, and the 4-4-2 Diamond's eleven position codes, which Truro's
     saved 4-1-2-1-2 carries too;
   - four teams' Tactics - Formation screens (Truro, Maidenhead 4-2-4, Tonbridge 3-4-3,
-    Dorking 5-1-2-2): each XI in stored order, every starter at the lane the formation's
+    Dorking 5-1-2-2): each XI in stored order, Maidenhead's seven substitutes in places 11-17, every starter at the lane the formation's
     code i puts him in (row bit + lane bit, lanes right to left);
   - the locator refuses the pool when a place holds a number no tid can be;
   - both tables locate on every sample save, FMM22 too, with a fixed slot count per career.
@@ -72,7 +72,7 @@ def main():
     check(row["unknown_0"] == fx["unknown_0"], "the u8 in front")
     check(p[:11] == fx["starting"], "places 0-10: the XI in the screen's order")
     check(p[11:16] == fx["substitutes"], "places 11-15: the five substitutes")
-    check(p[16:20] == [None] * 4, "places 16-19: empty")
+    check(p[16:20] == [None] * 4, "places 16-19: empty (Truro names five substitutes)")
     check(p[20:26] == fx["captains"], "places 20-25: the captains")
 
     print(" FORMATIONS")
@@ -94,6 +94,10 @@ def main():
               f"{team['team']}: the XI in the screen's order")
         check([lane(c) for c in codes] == [ln for _, ln, _ in team["xi"]],
               f"{team['team']} ({team['formation']}): every starter where the screen puts him")
+        if "bench" in team:
+            bench = [t for t, _, _ in team["bench"]]
+            check(sel[int(tid)][11:20] == bench + [None] * (9 - len(bench)),
+                  f"{team['team']}: places 11-19, the bench S1-S{len(bench)} in order")
 
     print(" REFUSES")
     buf = bytearray(mm)

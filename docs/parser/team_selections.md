@@ -30,8 +30,7 @@ is this table's empty slots.
 | places | what |
 |---|---|
 | 0–10 | the starting XI in the tactic's slot order: place i stands at the formation's position code i ([formations](formations.md)) |
-| 11–15 | the five substitutes |
-| 16–19 | four more: empty for Truro, set on most teams' slots; not named |
+| 11–19 | the substitutes, S1 first, up to nine: Maidenhead's seven (van Stappershoef … Achuba) are places 11–17; Truro names five. Of 690 full team sheets on 16 Nov, 438 use all nine, 148 seven; 66 leave a gap before a later substitute |
 | 20–25 | the captains. Truro: the captain on the pitch, then the Captain screen's five in order. Other teams fill only 21 and 22 (Maidenhead: Robinson, N'Guessan), by the look of it captain and vice-captain |
 
 **FMM22's 147**: filled slots hold 14, 18 or 20 tids at the front (226, 132 and 85 slots on
@@ -48,16 +47,18 @@ its saved tactic's.
 ## Evidence
 
 truro-2026-11-16, Truro's slot against the Tactics – Captain screen: the eleven starters and
-five substitutes in the screen's order, the four empty places, then Bogle (on the pitch) and
+five substitutes in the screen's order, the four empty bench places, then Bogle (on the pitch) and
 the five captains in order. And four Tactics – Formation screens taken that day (Truro,
 Maidenhead, Tonbridge, Dorking): each XI is stored in the screen squad list's order, and
-placed at the formation's codes every starter stands where the pitch shows him
+placed at the formation's codes every starter stands where the pitch shows him. Maidenhead's
+bench screen lists S1–S7 in places 11–17
 ([formations](formations.md) has the table and the screens). 1,321 of the 1,362
 filled slots that day hold only players in team k's squad array ([clubs](clubs.md)), the rest
 a player who has since left (1,331 of 1,375 on frem-2026-06-11).
 `tests/test_team_selections_evidence.py` pins the slot's bytes.
 
 ![Tactics - Captain, 16 Nov 2026](img/captains-fmm27-1.png)
+![Maidenhead United's bench, S1-S7](img/team_selections-fmm27-5.png)
 
 ## How it is found
 
@@ -69,7 +70,5 @@ career.
 
 ## Next
 
-1. Places 16–19 (Maidenhead's hold Dundas and Achuba): a screen that lists more than the
-   XI and substitutes.
-2. FMM22's 147 places against a Frem screen.
-3. Load it: each opponent's likely XI by position for scouting (TODO).
+1. FMM22's 147 places against a Frem screen.
+2. Load it: each opponent's likely XI by position for scouting (TODO).
