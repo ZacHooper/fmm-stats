@@ -26,7 +26,8 @@ from tests.harness import find_save, skip  # noqa: E402
 from fmparser.save import Save  # noqa: E402
 import statistics  # noqa: E402
 
-from fmparser.tables import clubs as CL, player_form, player_rows, tables_for  # noqa: E402
+from fmparser.tables import (clubs as CL, player_ability_scales, player_form,  # noqa: E402
+                             tables_for)
 from fmparser.tables.person_info import scrape_person_info  # noqa: E402
 from fmparser.tables.player_attributes import scrape_player_attributes  # noqa: E402
 from fmparser.tables import matches as MT  # noqa: E402
@@ -96,10 +97,11 @@ def main():
           f"rated lines agree with the match table: {agree} of {total}")
 
     print(" PLAYER ROWS: league_ability")
-    full = player_rows.scrape_player_rows(mm)
+    full = player_ability_scales.scrape_player_ability_scales(mm)
     rows = {r["tid"]: r["league_ability"] for r in full}
     youth = {r["tid"]: r["youth_international_rating"] for r in full}
-    check(len(rows) == player_rows.locate_player_rows(mm)[1], f"{len(rows):,} rows read")
+    check(len(rows) == player_ability_scales.locate_player_ability_scales(mm)[1],
+          f"{len(rows):,} rows read")
     cr = fx["coach_report"]
     by_star = {}
     for tid, star in cr["stars"].items():
@@ -140,7 +142,7 @@ def main():
     fmm22 = find_save("frem-2026-06-11.fms")
     if fmm22:
         check(player_form.locate_player_form(Save(fmm22).mm) is None
-              and player_rows.locate_player_rows(Save(fmm22).mm) is None,
+              and player_ability_scales.locate_player_ability_scales(Save(fmm22).mm) is None,
               "frem-2026-06-11 (FMM22): neither located")
 
     print(f"\n{'FAIL' if failures else 'PASS'}: {len(failures)} failure(s)")

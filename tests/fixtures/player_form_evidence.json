@@ -76,7 +76,7 @@
     ]
   },
   "coach_report": {
-    "note": "Club Squad - Coach Report, 16 Nov 2026 (docs/parser/img/player_rows-fmm27-1.webp): ability stars of the players still at Truro",
+    "note": "Club Squad - Coach Report, 16 Nov 2026 (docs/parser/img/player_ability_scales-fmm27-1.webp): ability stars of the players still at Truro",
     "stars": {
       "25434": 3.5,
       "25700": 3.5,
@@ -89,7 +89,7 @@
     "youth_intake_stars": 0.5
   },
   "england_u21": {
-    "note": "England U21 Nation Squad screen, 16 Nov 2026 (docs/parser/img/player_rows-fmm27-2.png): the eleven players on screen",
+    "note": "England U21 Nation Squad screen, 16 Nov 2026 (docs/parser/img/player_ability_scales-fmm27-2.png): the eleven players on screen",
     "nation_id": 139,
     "tids": [
       28423,

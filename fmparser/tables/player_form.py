@@ -25,7 +25,7 @@ Roberts on the bench, reading 12.
 
 **How it is found.** From the club titles' end, the three pools (each count <= 50), then the
 u16 count; the walk must land on a `00` and a u32 N whose N 72-byte rows have strictly
-ascending tids (`docs/parser/unread/player_rows.md`), every save. Every line's tid must be a
+ascending tids (`docs/parser/unread/player_ability_scales.md`), every save. Every line's tid must be a
 person.
 """
 import struct

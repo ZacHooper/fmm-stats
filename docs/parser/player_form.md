@@ -59,7 +59,7 @@ stamps) and hold less: a summary of what it already reads in full.
 
 `locate_player_form`: from the [club titles](club_titles.md)' end, three 50-slot pools
 (each count ≤ 50), then the u16 count; the walk must land on a `00` and a u32 N whose N
-72-byte rows have strictly ascending tids ([player rows](player_rows.md)), and every
+72-byte rows have strictly ascending tids ([player rows](player_ability_scales.md)), and every
 line's tid must be a person. On truro-2026-07-22 and -07-25 the table is located and empty.
 
 ## Evidence

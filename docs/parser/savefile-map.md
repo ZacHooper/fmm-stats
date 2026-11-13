@@ -353,7 +353,7 @@ The career half on `truro-2026-07-25`, in file order:
 | 60,844,241 | [our matches](matches.md) | one row; 70 B player slots, not read yet |
 | 60,850,122 | [person stamps](person_stamps.md) | `[01][01][44,959]`, 4 B per person, straight after our matches |
 | 61,030,325 | [tactic history](tactic_history.md), [club seasons](club_seasons.md), [club titles](club_titles.md) | 5 tactic-history records, the 50-slot season pool (one season so far), then a `00`, 550 `ff` and the 32-slot titles pool (none yet) |
-| 61,033,908 | **unread** ([the block after the club titles](unread/end_block.md)) | ten framed tables, each walked to the next: three 50-slot pools, the [player form](player_form.md) lines (read), [a 72-byte row per player](player_rows.md) (36,343; read), a one-row list, a coach-sized slot pool, a row per physio, a row per scout, a 100,000-slot pool, then one `00` |
+| 61,033,908 | **unread** ([the block after the club titles](unread/end_block.md)) | ten framed tables, each walked to the next: three 50-slot pools, the [player form](player_form.md) lines (read), [a 72-byte row per player](player_ability_scales.md) (36,343; read), a one-row list, a coach-sized slot pool, a row per physio, a row per scout, a 100,000-slot pool, then one `00` |
 | 66,236,284 | [player lists](player_lists.md) | 132 lists, 192 B tails |
 | 69,357,106 | the archive | bare frames, to EOF |
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""`player_rows` — one 72-byte row per player, by tid, straight after the Player Form lines
-(`player_form.py`). FMM27 only so far.
+"""`player_ability_scales` — each player's ability on two scales, his league's and (if young)
+his youth age group's, from one 72-byte row per player by tid, straight after the Player
+Form lines (`player_form.py`). FMM27 only so far.
 
     [u8 0][u32 n][n x 72 B]          n = 36,343 (Jul-Aug) / 36,345 (16 Nov) on Truro
 
@@ -22,7 +23,7 @@ senior squad): the score a youth international coach selects by. Up to 238.
 Not named: four u32 player-table indexes at +4 and two more inside +48, each column a random
 permutation of the players redrawn between saves (engine working state); six u32 at +24,
 `ffffffff` on most players and 100 on the 7,389 of Truro's and nearby leagues. See
-`docs/parser/player_rows.md`.
+`docs/parser/player_ability_scales.md`.
 
 **How it is found.** Where the Player Form lines end: a `00`, then the u32 count, then rows
 whose tids rise strictly, every one (`player_form.locate_player_form` checks the same run).
@@ -33,10 +34,11 @@ from typing import Any, Dict, List, Optional, Tuple
 from ..core import Field, Record, TableDef, RAW, U16, U32, UNKNOWN
 from ..save import cache_key as _cache_key
 
-__all__ = ["PLAYER_ROW", "PLAYER_ROWS_TABLE", "locate_player_rows", "player_rows_table_spans",
-           "scrape_player_rows"]
+__all__ = ["PLAYER_ABILITY_SCALE", "PLAYER_ABILITY_SCALES_TABLE", "locate_player_ability_scales",
+           "player_ability_scales_table_spans",
+           "scrape_player_ability_scales"]
 
-PLAYER_ROW = Record("player_row", 72, (
+PLAYER_ABILITY_SCALE = Record("player_ability_scale", 72, (
     Field(0,  4,  "tid", U32, note="ascending"),
     Field(4,  16, UNKNOWN, RAW, note="four player-table indexes, random, redrawn between saves"),
     Field(20, 2,  "league_ability", U16, note="current ability on the league's scale"),
@@ -49,7 +51,7 @@ PLAYER_ROW = Record("player_row", 72, (
 _CACHE: Dict[Any, Optional[Tuple[int, int]]] = {}
 
 
-def locate_player_rows(mm: Any) -> Optional[Tuple[int, int]]:
+def locate_player_ability_scales(mm: Any) -> Optional[Tuple[int, int]]:
     """(row 0, count), or None: behind the Player Form lines, which are located only when
     this run's tids rise strictly."""
     key = _cache_key(mm)
@@ -65,10 +67,10 @@ def locate_player_rows(mm: Any) -> Optional[Tuple[int, int]]:
     return res
 
 
-def player_rows_table_spans(mm: Any) -> List[Tuple[int, int]]:
+def player_ability_scales_table_spans(mm: Any) -> List[Tuple[int, int]]:
     """The rows, the `00` and the u32 count in front included."""
-    loc = locate_player_rows(mm)
-    return [(loc[0] - 5, loc[0] + loc[1] * PLAYER_ROW.span)] if loc else []
+    loc = locate_player_ability_scales(mm)
+    return [(loc[0] - 5, loc[0] + loc[1] * PLAYER_ABILITY_SCALE.span)] if loc else []
 
 
 def _post(rec: Dict[str, Any], off: int) -> Dict[str, Any]:
@@ -78,17 +80,19 @@ def _post(rec: Dict[str, Any], off: int) -> Dict[str, Any]:
     return out
 
 
-PLAYER_ROWS_TABLE = TableDef(name="player_rows", segments=(PLAYER_ROW,),
-                             locator=locate_player_rows, post_process=_post)
+PLAYER_ABILITY_SCALES_TABLE = TableDef(name="player_ability_scales",
+                                       segments=(PLAYER_ABILITY_SCALE,),
+                                       locator=locate_player_ability_scales, post_process=_post)
 
 
-def scrape_player_rows(mm: Any) -> List[Dict[str, Any]]:
+def scrape_player_ability_scales(mm: Any) -> List[Dict[str, Any]]:
     """Every row, in tid order: tid, league_ability, youth_international_rating (None for
     players too old). Raises `ValueError` when not located."""
-    loc = locate_player_rows(mm)
+    loc = locate_player_ability_scales(mm)
     if loc is None:
-        raise ValueError("player_rows: not located (the Player Form lines in front were not)")
-    rows = PLAYER_ROWS_TABLE.scrape(mm)
+        raise ValueError("player_ability_scales: not located (the Player Form lines in front "
+                         "were not)")
+    rows = PLAYER_ABILITY_SCALES_TABLE.scrape(mm)
     if len(rows) != loc[1]:
-        raise ValueError(f"player_rows: read {len(rows)} of {loc[1]} rows")
+        raise ValueError(f"player_ability_scales: read {len(rows)} of {loc[1]} rows")
     return rows

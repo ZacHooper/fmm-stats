@@ -1,8 +1,9 @@
-# player_rows  ([`fmparser/tables/player_rows.py`](../../fmparser/tables/player_rows.py))
+# player_ability_scales  ([`fmparser/tables/player_ability_scales.py`](../../fmparser/tables/player_ability_scales.py))
 
-**One 72-byte row per player**: his ability on his league's scale (`league_ability`), a
-youth international rating for young players, and engine working state. FMM27 only;
-`extract.py` writes `player_rows.json` (tid, league_ability, youth_international_rating). Tables 5 and 6 of [the block after the club titles](unread/end_block.md),
+**Each player's ability on two scales**: his league's (`league_ability`, the star rating) and,
+if young, his youth age group's (`youth_international_rating`), read from one 72-byte row per
+player that also holds engine working state. FMM27 only; `extract.py` writes
+`player_ability_scales.json`. Tables 5 and 6 of [the block after the club titles](unread/end_block.md),
 straight after the [player form](player_form.md) lines. FMM27, at block offset 15,504 on
 truro-2026-11-16: `[u32 n][n × 72 B]`, ascending by tid; then table 6, `[u32 1][1 × 72 B]`,
 the same shape for one more person.
@@ -93,7 +94,7 @@ exactly by `league_ability`: 3.5 stars at 59, 61, 65, 71 and 74; 2.5 stars at 53
 Josiah Aboh, the mid-season youth intake, half a star at 35. Potential stars do not order by
 +22 (Nunn 83 shows 4 stars, Kinsey-Wellings 87 shows 3.5).
 
-![Truro City, Club Squad - Coach Report, 16 Nov 2026](img/player_rows-fmm27-1.webp)
+![Truro City, Club Squad - Coach Report, 16 Nov 2026](img/player_ability_scales-fmm27-1.webp)
 
 **+22, `youth_international_rating`.** Within a birth year it follows ability for players born
 2007 or later (r = 0.89–0.92 per year, on 8 Aug and 16 Nov alike) and not for those born
@@ -110,8 +111,8 @@ are in the senior squad, Myles Lewis-Skelly (233) probably too: the best go up, 
 coach picks from the rest. Named `youth_international_rating` on this evidence; values run to 238 (118 is only the
 top in Truro's league), `ffff` (read as None) for anyone born before mid-2004.
 
-![England U21 squad, 16 Nov 2026](img/player_rows-fmm27-2.png)
-![England senior squad, 16 Nov 2026](img/player_rows-fmm27-3.png)
+![England U21 squad, 16 Nov 2026](img/player_ability_scales-fmm27-2.png)
+![England senior squad, 16 Nov 2026](img/player_ability_scales-fmm27-3.png)
 
 **+22 over four saves.** Unchanged for every young player from 22 to 25 Jul; 70% unchanged
 from 25 Jul to 8 Aug; nearly all changed by 16 Nov, up and down. Not tied to the club having
@@ -122,7 +123,7 @@ not yet found. Aboh, the youth intake, has two of +24's six slots and +56/+60 em
 
 ## How it is found
 
-`locate_player_rows`: where the Player Form lines end, a `00`, the u32 count, then the rows;
+`locate_player_ability_scales`: where the Player Form lines end, a `00`, the u32 count, then the rows;
 the form table is located only when every row's tid rises. Evidence in
 [`tests/test_player_form_evidence.py`](../../tests/test_player_form_evidence.py): the Coach
 Report's star order and the within-league check (median r > 0.9).
