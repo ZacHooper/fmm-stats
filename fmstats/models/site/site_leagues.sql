@@ -8,9 +8,17 @@
 -- var('site_skill_min_players') players are rated (`rated`). An index, so no
 -- ability number leaves the view.
 --
--- ladder_rank: the comparison ladder a squad player is judged against: 0 is
--- the league of the team we manage, then each league of its nation with a
--- lower reputation, highest first. NULL outside the ladder.
+-- Our pyramid: the leagues of the managed team's nation of the same kind as its
+-- own (a league, not a reserve league; men's or women's as ours is). Within it:
+--
+-- pyramid_rank: 0 the top flight, then down the tiers, our own league first on
+-- its tier, then the parallel divisions by reputation, highest first.
+-- pyramid_level: the league's tier less ours, so negative above us, 0 on our
+-- tier and positive below.
+-- ladder_rank: the comparison ladder a squad player is judged against: 0 is our
+-- league, then each league on a lower tier of the pyramid in pyramid order.
+--
+-- All three NULL outside the pyramid.
 with members as (
     select
         snapshot_date,
@@ -60,6 +68,7 @@ leagues as (
         competitions.type,
         competition_snapshots.reputation,
         competitions.level + 1 as tier,
+        competitions.is_women,
         members.member_count
     from members
     inner join {{ ref('dim_competition') }} as competitions
@@ -77,7 +86,9 @@ ours as (
         leagues.snapshot_date,
         leagues.cid,
         leagues.nation_id,
-        leagues.reputation
+        leagues.type,
+        leagues.is_women,
+        leagues.tier
     from leagues
     inner join {{ ref('int_team_leagues') }} as team_leagues
         on
@@ -87,17 +98,20 @@ ours as (
         on team_leagues.team_tid = career.managed_club_tid
 ),
 
-ladder as (
+pyramid as (
     select
         leagues.snapshot_date,
         leagues.cid,
+        leagues.cid = ours.cid as is_ours,
+        leagues.tier - ours.tier as pyramid_level,
         row_number() over (
             partition by leagues.snapshot_date
             order by
+                leagues.tier asc,
                 leagues.cid = ours.cid desc,
                 leagues.reputation desc,
                 leagues.cid asc
-        ) - 1 as ladder_rank
+        ) - 1 as pyramid_rank
     from leagues
     inner join ours
         on leagues.snapshot_date = ours.snapshot_date
@@ -105,8 +119,21 @@ ladder as (
         leagues.cid = ours.cid
         or (
             leagues.nation_id is not distinct from ours.nation_id
-            and leagues.reputation < ours.reputation
+            and leagues.type = ours.type
+            and leagues.is_women = ours.is_women
+            and leagues.tier is not null
         )
+),
+
+ladder as (
+    select
+        snapshot_date,
+        cid,
+        row_number() over (
+            partition by snapshot_date order by pyramid_rank
+        ) - 1 as ladder_rank
+    from pyramid
+    where is_ours or pyramid_level > 0
 )
 
 select
@@ -120,12 +147,18 @@ select
     leagues.member_count,
     scaled.skill_idx,
     scaled.rated,
+    pyramid.pyramid_rank,
+    pyramid.pyramid_level,
     ladder.ladder_rank
 from leagues
 left join scaled
     on
         leagues.snapshot_date = scaled.snapshot_date
         and leagues.cid = scaled.cid
+left join pyramid
+    on
+        leagues.snapshot_date = pyramid.snapshot_date
+        and leagues.cid = pyramid.cid
 left join ladder
     on
         leagues.snapshot_date = ladder.snapshot_date

@@ -65,7 +65,23 @@ what either means is not known.
 
 {% docs ladder_rank %}
 The league's place on the managed team's comparison ladder: 0 is the managed team's league, then
-each league of its nation with a lower reputation, highest first. NULL outside the ladder.
+each league on a lower tier of its pyramid, in `pyramid_rank` order. NULL outside the ladder.
+{% enddocs %}
+
+{% docs pyramid_rank %}
+The league's place in the managed team's pyramid (the leagues of its nation of the same kind as
+its own: league not reserve league, men's or women's as its own is), 0 the top flight, then down
+the tiers; on a tier, the managed team's league first, then the parallel divisions by reputation,
+highest first. NULL outside the pyramid.
+{% enddocs %}
+
+{% docs pyramid_level %}
+The league's tier less the managed team's league's: negative above it, 0 on its tier (a parallel
+division), positive below. NULL outside the pyramid.
+{% enddocs %}
+
+{% docs is_women %}
+A women's competition (FMM27's flag; false on FMM22, which has none).
 {% enddocs %}
 
 {% docs skill_index %}

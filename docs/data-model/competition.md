@@ -34,6 +34,7 @@ erDiagram
         int nation_key FK
         string type "league / cup / continental / friendly"
         int level
+        bool is_women
     }
     dim_stage {
         int stage_key PK
