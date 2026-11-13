@@ -108,6 +108,8 @@ models:
         description: 'The league. {{ doc("cid") }}'
       - name: name
         description: 'The league''s name. {{ doc("name") }}'
+      - name: short_name
+        description: '{{ doc("short_name") }}'
       - name: nation
         description: '{{ doc("nation") }}'
       - name: type

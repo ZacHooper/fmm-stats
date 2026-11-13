@@ -518,8 +518,9 @@ def main():
     min_fam = int(cfg["min_familiarity"])
     fallback = cfg["fallback_formation"]
     # Our pyramid from the top flight down, as far below us as the loan reaches.
-    loan_ladder = [(r["cid"], r["name"], r["pyramid_level"]) for r in s.rows(
-        """SELECT DISTINCT c.league_cid AS cid, l.name, c.pyramid_level, c.pyramid_rank
+    loan_ladder = [(r["cid"], r["name"], r["short_name"], r["pyramid_level"]) for r in s.rows(
+        """SELECT DISTINCT c.league_cid AS cid, l.name, l.short_name, c.pyramid_level,
+                  c.pyramid_rank
            FROM site.loan_clubs c
            JOIN site.leagues l ON l.snapshot_date = c.snapshot_date AND l.cid = c.league_cid
            WHERE c.snapshot_date = ? ORDER BY c.pyramid_rank""", [d])]
@@ -545,14 +546,16 @@ def main():
             rows[-1][3].append([r["club_tid"], r["rank"], r["slots"], pct(r["line"])])
     emit("loans.json", {
         "snapshot": {"season": season, "phase": phase, "min_familiarity": min_fam},
-        "ladder": [{"cid": c, "name": n, "level": lv} for c, n, lv in loan_ladder],
+        "ladder": [{"cid": c, "name": n, "short": sh or n, "level": lv}
+                   for c, n, sh, lv in loan_ladder],
         "formations": formations,
         "fallback_formation": fallback,
         "slots": slots,
         "row_fields": ["league_cid", "lvl", "n", "clubs"],
         "club_fields": ["club_tid", "rank", "slots", "line"],
         "players": dict(sorted(loans.items(), key=lambda kv: int(kv[0]))),
-        "note": "ladder = our pyramid, top flight first; level = the division's tier less "
+        "note": "ladder = our pyramid, top flight first; short = the game's short name; "
+                "level = the division's tier less "
                 "ours (negative above us, 0 on our tier). lvl = his Level %ile at the position "
                 "in that division. Per club: rank = his "
                 "place among that club's players at the position (1 = first choice), slots = "

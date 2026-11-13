@@ -19,7 +19,7 @@ const ordinal = (n) => {
 };
 const starts = (c) => c.rank <= c.slots;
 
-/** Unpack one position's rows into {cid, name, level, ours, lvl, n, clubs[{tid,rank,slots,line}]}.
+/** Unpack one position's rows into {cid, name, short, level, ours, lvl, n, clubs[{tid,rank,slots,line}]}.
  *  level is the division's tier less ours (negative above us); our own division is the first
  *  level-0 entry of the ladder, which lists the pyramid top flight first. */
 function divisions(L, rows) {
@@ -29,6 +29,7 @@ function divisions(L, rows) {
     return {
       cid, lvl, n, level: rung?.level ?? null, ours: cid === ourCid,
       name: rung?.name || D.S.leagues.get(cid)?.name || `#${cid}`,
+      short: rung?.short || rung?.name || D.S.leagues.get(cid)?.name || `#${cid}`,
       clubs: clubs.map(([tid, rank, slots, line]) => ({ tid, rank, slots, line })),
     };
   });
@@ -53,7 +54,7 @@ function strip(d, { picked, best, onPick }) {
     d.lvl == null ? null : el("span.ldot", { style: `left:${d.lvl}%`, title: `His Level %ile here: ${d.lvl}` }),
   ]);
   return el(`div.lrow${picked ? ".on" : ""}${best ? ".best" : ""}`, { onclick: onPick, role: "button", tabindex: "0" }, [
-    el("div.lname", {}, [el("b", { text: d.name }), el("span.dim", { text: whereIs(d) })]),
+    el("div.lname", { title: d.name }, [el("b", { text: d.short }), el("span.dim", { text: whereIs(d) })]),
     n ? track : el("div.ltrack.none", { text: "no club here plays this position" }),
     el("div.lstat", {}, [
       el("b", { text: n ? `${k}/${n}` : DASH }),
