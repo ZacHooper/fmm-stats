@@ -1,22 +1,23 @@
 <!doctype html>
 <!--
-  A visual view of docs/parser/savefile-map.md: open this file in a browser.
-  The markdown is the source of truth. The region list, charts and transfer-row layout below
-  are copied from it by hand, so a change to the map lands in both files.
+  A visual view of docs/parser/savefile-map.md, both games (FMM27 and FMM22): open this file in
+  a browser. The markdown and the table docs are the source of truth. The region lists, charts
+  and transfer-row layout below are copied from them by hand, so a change to the map lands in
+  both files.
 -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>FMM22 Save File Map</title>
+<title>FMM Save File Map</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
-/* Layout: one reading column; the whole file drawn as a byte strip up top, then every region as a hex-editor-style ledger. */
+/* Layout: one reading column; a game-version switch at the top, the whole file drawn as a byte strip, then every region as a hex-editor-style ledger. */
 :root {
   --bg: #f5f6f8; --surface: #ffffff; --fg: #17202c; --muted: #5b6676; --line: #dde1e8; --accent: #0d7c9c;
   --c-static: #3a6cd4; --c-pool: #7d55cc; --c-grid: #158f7c; --c-seasonal: #d75a2b; --c-state: #b58a0f;
-  --c-archive: #c2407e; --c-unknown: #c43d3d; --c-filler: #b7bec9;
+  --c-archive: #c2407e; --c-unknown: #c43d3d; --c-filler: #b7bec9; --c-new: #158f7c;
   --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
   --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
@@ -24,19 +25,18 @@
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --bg: #0f141b; --surface: #161d27; --fg: #e4e9f0; --muted: #94a0b0; --line: #2a3442; --accent: #4fc0de;
   --c-static: #6b97f0; --c-pool: #a786ec; --c-grid: #3cc2ab; --c-seasonal: #f08257; --c-state: #e0b43a;
-  --c-archive: #e7709f; --c-unknown: #ef6a6a; --c-filler: #4a5465; color-scheme: dark } }
+  --c-archive: #e7709f; --c-unknown: #ef6a6a; --c-filler: #4a5465; --c-new: #3cc2ab; color-scheme: dark } }
 :root[data-theme="dark"] {
   --bg: #0f141b; --surface: #161d27; --fg: #e4e9f0; --muted: #94a0b0; --line: #2a3442; --accent: #4fc0de;
   --c-static: #6b97f0; --c-pool: #a786ec; --c-grid: #3cc2ab; --c-seasonal: #f08257; --c-state: #e0b43a;
-  --c-archive: #e7709f; --c-unknown: #ef6a6a; --c-filler: #4a5465; color-scheme: dark }
+  --c-archive: #e7709f; --c-unknown: #ef6a6a; --c-filler: #4a5465; --c-new: #3cc2ab; color-scheme: dark }
 
 * { box-sizing: border-box; }
-html { color-scheme: light; }
 body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.55;
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 .wrap { max-width: 1120px; margin: 0 auto; padding-block: 32px 64px; display: flex; flex-direction: column; gap: 48px; }
 a { color: var(--accent); }
-a:focus-visible, button:focus-visible, input:focus-visible, .seg:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, .seg:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 code, .mono { font-family: var(--mono); font-size: 0.88em; }
 h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
 h1 { font-size: clamp(30px, 5vw, 46px); font-weight: 800; line-height: 1.05; }
@@ -45,9 +45,18 @@ h3 { font-size: 16px; font-weight: 700; }
 p { margin: 0; max-width: 68ch; }
 .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 section { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.slot { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .lede { color: var(--muted); font-size: 16px; }
 .facts { display: flex; flex-wrap: wrap; gap: 8px 28px; font-family: var(--mono); font-size: 13px; color: var(--muted); }
 .facts b { color: var(--fg); font-weight: 600; }
+
+/* version switch */
+.topbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.vswitch { display: inline-flex; align-items: center; gap: 10px; }
+.vswitch label { font: 500 13px var(--body); color: var(--muted); }
+.vswitch select { font: 600 14px var(--mono); padding: 8px 34px 8px 12px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23889' stroke-width='2'/%3E%3C/svg%3E") no-repeat right 12px center;
+  color: var(--fg); appearance: none; -webkit-appearance: none; cursor: pointer; }
 
 /* strip */
 .stripbox { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
@@ -58,7 +67,6 @@ section { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .seg { position: absolute; top: 0; bottom: 0; min-width: 2px; cursor: pointer; border-right: 1px solid var(--surface); }
 .seg.hl { box-shadow: inset 0 0 0 2px var(--fg); z-index: 2; }
 .seg.dim { opacity: 0.25; }
-.hatch { background-image: repeating-linear-gradient(135deg, transparent 0 4px, rgba(255,255,255,0.35) 4px 7px); }
 .needle { position: absolute; top: -6px; bottom: -6px; width: 2px; background: var(--fg); z-index: 3; pointer-events: none; }
 .ruler { position: relative; height: 18px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
 .ruler span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
@@ -77,11 +85,22 @@ section { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .lookup output { font-size: 13.5px; }
 .btn { font: 500 13px var(--body); border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 6px; padding: 7px 12px; cursor: pointer; }
 
-/* drift callout */
+/* drift */
 .drift { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
 .drift > div { border-left: 3px solid var(--line); padding: 2px 0 2px 14px; min-width: 0; }
 .drift .big { font-family: var(--mono); font-size: 22px; font-weight: 600; }
 .drift .warn { border-left-color: var(--c-seasonal); }
+
+/* what changed */
+.diff { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow-x: auto; }
+.diff table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 13.5px; }
+.diff th, .diff td { text-align: left; padding: 10px 14px; border-top: 1px solid var(--line); vertical-align: top; }
+.diff thead th { border-top: 0; font: 600 11px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); background: var(--bg); }
+.diff td:first-child { font-weight: 600; white-space: nowrap; }
+.diff td.n { font-family: var(--mono); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.diff td.old { color: var(--muted); }
+.diff .st { font: 600 11px var(--mono); padding: 2px 7px; border-radius: 4px; white-space: nowrap; color: #fff; }
+.st.ok { background: var(--c-grid); } .st.part { background: var(--c-state); } .st.no { background: var(--c-unknown); }
 
 /* ledger */
 .ledger { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; }
@@ -99,6 +118,7 @@ section { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .what .meta { display: flex; flex-wrap: wrap; gap: 6px; }
 .pill { font: 600 11px var(--mono); letter-spacing: 0.02em; padding: 2px 7px; border-radius: 4px; color: #fff; white-space: nowrap; }
 .tag { font: 11.5px var(--mono); padding: 1px 7px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.tag.chg { border-color: var(--c-seasonal); color: var(--c-seasonal); }
 .row.sub { padding-left: 40px; }
 .row.sub .name { font-weight: 500; font-style: italic; }
 @media (max-width: 720px) {
@@ -143,8 +163,12 @@ section { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .fields .sw { width: 10px; height: 10px; border-radius: 2px; flex: none; transform: translateY(1px); }
 .fields code { color: var(--muted); flex: none; }
 
+.howto { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px 18px; }
+.howto div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.howto dt { margin: 0; } .howto dd { margin: 0; font-size: 13.5px; color: var(--muted); }
 .callout { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 14px 16px; font-size: 14px; display: flex; flex-direction: column; gap: 6px; }
 .callout .k { font: 600 11px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--c-seasonal); }
+.callout.open .k { color: var(--accent); }
 ol.repro { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; max-width: 80ch; }
 footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; display: flex; flex-direction: column; gap: 4px; }
 @media (prefers-reduced-motion: no-preference) { .row { transition: background 0.4s; } }
@@ -155,12 +179,21 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
 <div class="wrap">
 
 <header style="display:flex;flex-direction:column;gap:14px">
-  <div class="eyebrow">fmm-stats · parser reference</div>
-  <h1>FMM22 save file map</h1>
-  <p class="lede">Every table a Football Manager Mobile 2022 <code>.fms</code> save holds, in file order, start to end. Offsets were measured on one save by calling the named parser or by the structural test in the notes. Use them to know what sits next to what, never to seek: locate a table by its own frame or invariant.</p>
+  <div class="topbar">
+    <div class="eyebrow">fmm-stats · parser reference</div>
+    <div class="vswitch">
+      <label for="ver">Game version</label>
+      <select id="ver">
+        <option value="fmm27">FMM27 · Truro City</option>
+        <option value="fmm22">FMM22 · Boldklubben Frem</option>
+      </select>
+    </div>
+  </div>
+  <h1 id="title">FMM27 save file map</h1>
+  <p class="lede" id="lede"></p>
   <div class="facts">
-    <span>save <b>frem-2026-06-11.fms</b></span>
-    <span>size <b>63,936,873 B</b></span>
+    <span>save <b id="fSave"></b></span>
+    <span>size <b id="fSize"></b></span>
     <span>regions <b id="nRegions"></b></span>
     <span>not yet understood <b id="nUnknown"></b></span>
   </div>
@@ -183,20 +216,27 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
   </div>
 </section>
 
+<section aria-labelledby="h-changes" id="secChanges">
+  <h2 id="h-changes">What FMM27 changed</h2>
+  <div class="slot" data-slot="changes"></div>
+</section>
+
 <section aria-labelledby="h-drift">
   <h2 id="h-drift">Read this first: the drift boundary</h2>
-  <p>Everything below ~20 MB is near-static: a reference-half offset from any save of the same career is good to about ±100 KB, close enough to seek to and confirm with the table's header. Everything above ~34 MB moves by megabytes and not monotonically. It sawtooths, because the seasonal transfer band fills by ~2.5 MB each season and is wiped every July.</p>
-  <div class="drift">
-    <div><div class="eyebrow">data dictionary end, 5 years</div><div class="big">+88 KB</div><div class="mono" style="color:var(--muted)">20,206,373 → 20,294,619</div></div>
-    <div class="warn"><div class="eyebrow">match-slot table start, 5 years</div><div class="big">+3.38 MB</div><div class="mono" style="color:var(--muted)">37,009,585 → 40,393,355, and it oscillates</div></div>
-  </div>
-  <p>Locate reference-half tables by their declared count, career-half structures by their own invariant. Never by a remembered offset.</p>
+  <div class="slot" data-slot="drift"></div>
 </section>
 
 <section aria-labelledby="h-ledger">
   <h2 id="h-ledger">Every region</h2>
-  <p class="lede" style="font-size:14px">Shape A–E are the locator shapes in <a href="https://github.com/ZacHooper/fmm-stats/blob/main/fmparser/AGENTS.md#finding-a-table-the-locator-shapes">fmparser/AGENTS.md</a>. Upper-case names are the <code>core</code> tables that read the region. Named regions link to their table doc; an unread region links to a page of what is known about it so far (<a href="https://github.com/ZacHooper/fmm-stats/blob/main/docs/parser/unread/README.md">all unread regions</a>).</p>
-  <div class="ledger" id="ledger">
+  <p class="lede" style="font-size:14px">Each row names the region, says what it holds, and tags how the parser finds where it starts and proves where it ends. The second tag is the name of the parser code that reads it. Named regions link to their table doc; an unread region links to a page of what is known about it so far (<a href="https://github.com/ZacHooper/fmm-stats/blob/main/docs/parser/unread/README.md" target="_blank" rel="noopener">all unread regions</a>).</p>
+  <dl class="howto">
+    <div><dt><span class="tag">count in front</span></dt><dd>A number sits just before the first record and says how many follow. Read that many and check you land on the next table.</dd></div>
+    <div><dt><span class="tag">fixed grid</span></dt><dd>Equal-sized slots reserved up front, many still empty. Found by the record's own pattern; the slot count is room, not a headcount.</dd></div>
+    <div><dt><span class="tag">linked list</span></dt><dd>Each record holds the position of the next one in its chain. Proved by checking every chain links up with no loops or strays.</dd></div>
+    <div><dt><span class="tag">chained records</span></dt><dd>No count anywhere: each record's own lengths land exactly on the next, so the walk starts from one known record and runs both ways.</dd></div>
+    <div><dt><span class="tag">archive member</span></dt><dd>A file inside the compressed archive at the end of the save, found by name in the archive's own directory.</dd></div>
+  </dl>
+  <p style="font-size:13.5px;color:var(--muted)">Terms in the notes: a <b>tid</b> is a person's or club's id, a <b>cid</b> a competition's. "tid == slot index" means record k holds id k, which proves no record was skipped or invented. <b>ff</b> and <b>00</b> are byte values; long runs of them are padding.</p>  <div class="ledger" id="ledger">
     <div class="row head"><span>start → end</span><span style="text-align:right">size</span><span>what</span></div>
   </div>
 </section>
@@ -205,26 +245,17 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
   <h2 id="h-classes">Four kinds of region</h2>
   <p>Ask one question of every region: what happens to it as the career goes on? The answer tells you whether an offset or a count from another save still holds, and whether an empty-looking stretch is missing data or room not yet used.</p>
   <div class="classes" id="classes"></div>
-  <div class="callout">
-    <span class="k">Dead end</span>
-    <p>Club-records and our matches each once passed for a fixed pool. Neither is: club-records holds 1,057 clubs on every Frem save while its size grows 1,224,589 → 1,345,853 bytes from 2023 to 2030, and our matches grow with the match count and empty on the rollover day. To tell a pool from a structure that grows by insertion, follow one entity across saves (one club's row), never a region's size. And check a "constant" on a third save: two that agree prove nothing.</p>
-  </div>
+  <div class="slot" data-slot="classnote"></div>
 </section>
 
 <section aria-labelledby="h-roll">
   <h2 id="h-roll">The July rollover, measured</h2>
-  <p><code>frem-2026-06-29</code> → <code>frem-2026-07-02</code> loses <b>3,004,689 bytes</b>. Anchor-matching one save into the other (a 48-byte non-filler sample every 64 KB, its unique match in the other save, the offset delta) puts every byte of that loss in one of two places.</p>
-  <div class="bars" id="rollBars"></div>
-  <p>The transfer band accounts for its step on its own: across that pair it goes 3.32 MB → 0.79 MB (6,877 → 1,720 rows carrying contract terms), a 2.53 MB collapse against a 2.54 MB measured deletion. Our matches go from 60 anchors to 0.</p>
-  <div class="callout">
-    <span class="k">The rollover day drifts</span>
-    <p>The engine advances a 365-day season counter, not a calendar date, so every leap day slips the rollover one day earlier: 30 June / 1 July in 2021–2023, 29 June from 2024, 28/29 June from 2028. A save taken even two days late has already lost the season's transfers and matches.</p>
-  </div>
+  <div class="slot" data-slot="roll"></div>
 </section>
 
 <section aria-labelledby="h-gaps">
   <h2 id="h-gaps">Unexplained bytes, ranked</h2>
-  <p>Size alone misleads; the filler fraction matters more. Each bar is a gap's size, the solid part its estimated non-filler bytes.</p>
+  <div class="slot" data-slot="gapintro"></div>
   <div class="keyline"><span><i style="background:var(--c-unknown);opacity:.28"></i>gap size</span><span><i style="background:var(--c-unknown)"></i>≈ real bytes</span></div>
   <div class="bars" id="gapBars"></div>
   <div class="callout">
@@ -236,6 +267,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
 <section aria-labelledby="h-band">
   <h2 id="h-band">The transfer band row, 143 bytes</h2>
   <p>Every transfer negotiation of the season so far, one row per bid. <code>[u32 65,000][u32 count][2 B]</code>, then <code>count</code> rows of 143 bytes, row k holding k at +109. The 65,000 is a capacity; the count is exact. Read a row as a bid, never as a transfer: only the <code>0d</code> row holds the agreed fee.</p>
+  <div class="slot" data-slot="band"></div>
   <div class="hexbox">
     <div class="hexscroll"><div class="hex" id="hex" aria-label="143-byte transfer row layout"></div></div>
     <div class="fields" id="fields"></div>
@@ -248,14 +280,150 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
 
 <section aria-labelledby="h-arch">
   <h2 id="h-arch">The <code>sicomps</code> archive</h2>
-  <p>The save ends in a zstd archive: a chain of <code>[u32 stored][zstd frame]</code> members and a directory that names them, ending on the file's last byte. Every member opens <code>[03][01]['tad.']</code> (<code>.dat</code> reversed). Decompressed sizes on <code>frem-2026-06-11</code>, 6.58 MB in all from 1.30 MB stored:</p>
+  <div class="slot" data-slot="archintro"></div>
   <div class="bars" id="archBars"></div>
-  <p style="font-size:14px;color:var(--muted)">The archive is current state: <code>fix_man</code> is a two-calendar-year window and the rules are this season's. A 2026 save knows nothing of 2021. History comes from keeping snapshots.</p>
-  <p style="font-size:14px;color:var(--muted)">FMM27 stores the same archive without the length prefixes: bare zstd frames back to back, and a 9-byte directory header with no size, its frame running to EOF (168 members on <code>truro-2026-07-25</code>). The markdown map has the FMM27 career-half offsets.</p>
+  <p style="font-size:14px;color:var(--muted)">The archive is current state: <code>fix_man</code> is a two-calendar-year window and the rules are this season's. A save knows nothing of seasons before that. History comes from keeping snapshots.</p>
 </section>
 
 <section aria-labelledby="h-repro">
   <h2 id="h-repro">Reproducing the structural rows</h2>
+  <div class="slot" data-slot="repro"></div>
+</section>
+
+<footer>
+  <span>Source: <a href="https://github.com/ZacHooper/fmm-stats/blob/main/docs/parser/savefile-map.md" target="_blank" rel="noopener">docs/parser/savefile-map.md</a>, the FMM27 table docs and <a href="https://github.com/ZacHooper/fmm-stats/blob/main/docs/plans/2026-11-11-fmm27-migration.html" target="_blank" rel="noopener">the FMM27 migration plan</a> in <a href="https://github.com/ZacHooper/fmm-stats" target="_blank" rel="noopener">ZacHooper/fmm-stats</a> (MIT). FMM27 extents measured on <code>truro-2026-07-25</code> with each table's own walk (<code>fmparser.tables.table_spans</code>).</span>
+  <span>Read-only research: nothing here writes to a save.</span>
+</footer>
+</div>
+
+<!-- ===================== FMM27 prose ===================== -->
+<template data-v="fmm27" data-slot="changes">
+  <p>The FMM27 work (#221 on) took it from a header the parser refused to the store and the site, and on to tables FMM22 had never had read. The file keeps FMM22's order front to back: every table sits where it did, most are bigger, and the career half moved by up to 7 MB because its pools were resized.</p>
+  <div class="diff"><table>
+    <thead><tr><th>table</th><th>FMM27 (Truro)</th><th>FMM22 (Frem)</th><th>what changed</th><th>status</th></tr></thead>
+    <tbody>
+      <tr><td>Save header</td><td class="n">230 B</td><td class="n old">250 B</td><td>Fixed NUL-padded title gone: length-prefixed club name, build strings (<code>27.0.0+2495469</code>), the in-game date. No manager name.</td><td><span class="st ok">reads</span></td></tr>
+      <tr><td>Browse names</td><td class="n">67,422</td><td class="n old">45,942 / cap 60,000</td><td>The number in front is now an exact count, not a capacity.</td><td><span class="st ok">reads</span></td></tr>
+      <tr><td>Person</td><td class="n">44,960</td><td class="n old">32,966</td><td>Follows the FMM26 People record (as read by the community fmm-editor tool): counted other nationalities, i16 caps and goals.</td><td><span class="st ok">reads</span></td></tr>
+      <tr><td>Player attributes</td><td class="n">36,344 rows</td><td class="n old">26,505 × 78 B</td><td>78 B plus a u32-counted list of 19 B unavailabilities (bans, injuries).</td><td><span class="st ok">reads</span></td></tr>
+      <tr><td>Staff roles</td><td class="n">2,841 / 772 / 1,157</td><td class="n old">1,971 / 560 / 816</td><td>Named on both versions in this work: coaches, scouts, physios, with specialism and aptitude.</td><td><span class="st ok">new on both</span></td></tr>
+      <tr><td>Clubs</td><td class="n">9,830</td><td class="n old">11,331</td><td>Five club names, <code>is_women</code>, men's and women's national teams.</td><td><span class="st ok">reads</span></td></tr>
+      <tr><td>Competitions</td><td class="n">1,706</td><td class="n old">1,372</td><td><code>ff</code>-terminated strings.</td><td><span class="st ok">reads</span></td></tr>
+      <tr><td>Stadiums</td><td class="n">12,509</td><td class="n old">15,987</td><td>Three names (name, sponsor-free name, a third).</td><td><span class="st ok">reads</span></td></tr>
+      <tr><td>Awards</td><td class="n">1,123</td><td class="n old">807</td><td>Read on both versions (12 Nov): each award's latest three entries. FMM27 adds one byte per award.</td><td><span class="st ok">new on both</span></td></tr>
+      <tr><td>Unions, derbies, regions</td><td class="n">6 / 1,681 / 2,532</td><td class="n old">6 / 1,377 / 2,467</td><td>Found behind the awards and read on both versions (12 Nov). Same layouts; strings end in <code>ff</code>.</td><td><span class="st ok">new on both</span></td></tr>
+      <tr><td>Per-person rows</td><td class="n">44,960 × 15 B</td><td class="n old">32,966 × 14 B</td><td>Found after languages (12 Nov); one byte inserted at +2 and two appended. The loan-slot pointer is followed; the second row number is not.</td><td><span class="st part">one pointer open</span></td></tr>
+      <tr><td>Person stamps</td><td class="n">44,959 × 4 B</td><td class="n old">32,965 × 4 B</td><td>Found after our matches (12 Nov). Same layout: a level and a date per person.</td><td><span class="st ok">new on both</span></td></tr>
+      <tr><td>Staff rows, club rows</td><td class="n">6,212 × 8 B / 9,830 × 132 B</td><td class="n old">4,642 × 8 B / 11,331 × 51 B</td><td>Read on both versions (12–13 Nov): each club's transfer budget, matches played this season and last six results.</td><td><span class="st ok">new on both</span></td></tr>
+      <tr><td>Player status</td><td class="n">36,344 blocks</td><td class="n old">26,505 blocks</td><td>Read on FMM27 (12 Nov): interested clubs, morale, form. The FMM22 blocks are not read yet.</td><td><span class="st part">FMM27 only</span></td></tr>
+      <tr><td>Rule files</td><td class="n">782</td><td class="n old">667</td><td>Schema variants: <code>PLgn</code> for <code>SubF</code>, continents' files, new tags left unread.</td><td><span class="st ok">reads</span></td></tr>
+      <tr><td>Padding after rule files</td><td class="n">2.43 MB</td><td class="n old">9.15 MB</td><td>The big <code>0xFF</code> block shrank by 6.7 MB; the extra tables ate it.</td><td><span class="st ok">—</span></td></tr>
+      <tr><td>Contract grid</td><td class="n">cap 81,465</td><td class="n old">cap 59,632</td><td>Same 83 B record; four <code>ff</code> bytes added to the frame.</td><td><span class="st ok">reads</span></td></tr>
+      <tr><td>Transfer band</td><td class="n">668 rows</td><td class="n old">20,747 rows</td><td>Same 143 B row and <code>65,000</code> header. A late-July save is early in the window.</td><td><span class="st part">located, fields FMM22's</span></td></tr>
+      <tr><td>Loans</td><td class="n">6,637 slots</td><td class="n old">6,243 slots</td><td>Found and read on both versions (12 Nov). Same 25 B slot; every player on loan points at his.</td><td><span class="st ok">new on both</span></td></tr>
+      <tr><td>Last transfers</td><td class="n">36,344 × 30 B</td><td class="n old">26,505 × 30 B</td><td>Found and read on both versions (12 Nov): each player's latest fee and buying club.</td><td><span class="st ok">new on both</span></td></tr>
+      <tr><td>Award & team history</td><td class="n">1,124 / 4</td><td class="n old">1,364 / 845</td><td>Found and read on both versions (12 Nov): past award editions and teams: annual ones every year, weekly and monthly ones this season only.</td><td><span class="st ok">new on both</span></td></tr>
+      <tr><td>Tactic history, club seasons</td><td class="n">15 / 1</td><td class="n old">30 / 5</td><td>Found and read on both versions (12 Nov): the game's record of the user's tactic setups (not saved tactics), and the managed club's season-by-season league line.</td><td><span class="st ok">new on both</span></td></tr>
+      <tr><td>Match slots</td><td class="n">—</td><td class="n old">3,975 × 25 B</td><td>Not located on FMM27. Nothing reads it.</td><td><span class="st no">not found</span></td></tr>
+      <tr><td>Career-history pool</td><td class="n">452,090</td><td class="n old">265,423</td><td>Same 16 B linked rows; FMM22's locator works.</td><td><span class="st part">no screen check</span></td></tr>
+      <tr><td>Club records</td><td class="n">1,087 clubs</td><td class="n old">1,057 clubs</td><td>FMM22's locator works.</td><td><span class="st part">no screen check</span></td></tr>
+      <tr><td>Player progress</td><td class="n">62,400 × 70 B</td><td class="n old">62,400 × 70 B</td><td>Unchanged pool; template year 2025.</td><td><span class="st ok">reads</span></td></tr>
+      <tr><td>Training</td><td class="n">44,960 × 61 B</td><td class="n old">32,966 × 61 B</td><td>Same row. Focus-role codes differ from Inside Forward on (two new roles).</td><td><span class="st part">role codes open</span></td></tr>
+      <tr><td>Our matches</td><td class="n">5,676 + 17n B</td><td class="n old">5,093 B body</td><td>70 B player slots with each player's xG; managers in the team head.</td><td><span class="st ok">reads</span></td></tr>
+      <tr><td>After the club titles</td><td class="n">10 framed tables</td><td class="n old">4.94 MB unread</td><td>Walked on FMM27 (13 Nov): the Player Form lines and each player's ability on his league's scale read; pools and per-staff rows framed, fields open.</td><td><span class="st part">2 of 10 read</span></td></tr>
+      <tr><td>Player lists</td><td class="n">132 lists</td><td class="n old">66 lists</td><td>192 B tails. A second set of 66, all unused so far, probably women's.</td><td><span class="st part">season no. open</span></td></tr>
+      <tr><td>Archive</td><td class="n">168 members</td><td class="n old">159 members</td><td>Bare zstd frames with no length prefixes; a 9-byte directory header. <code>comp_man.dat</code> does not read.</td><td><span class="st part">comp_man open</span></td></tr>
+    </tbody>
+  </table></div>
+</template>
+
+<template data-v="fmm27" data-slot="drift">
+  <p>Truro has three saves, all in one summer window, so FMM27's drift is measured over 17 in-game days, not five seasons. The pattern is FMM22's already: the reference half barely moves, and everything after the contract grid shifts with the transfer band.</p>
+  <div class="drift">
+    <div><div class="eyebrow">rule files end, 22 Jul → 8 Aug</div><div class="big">+38 KB</div><div class="mono" style="color:var(--muted)">27,104,496 → 27,142,672</div></div>
+    <div class="warn"><div class="eyebrow">surname id-table start, same 17 days</div><div class="big">+897 KB</div><div class="mono" style="color:var(--muted)">40,358,771 → 41,255,436</div></div>
+    <div class="warn"><div class="eyebrow">transfer band, same 17 days</div><div class="big">35 → 5,871 rows</div><div class="mono" style="color:var(--muted)">+834,548 B: nearly all of the surnames' shift</div></div>
+  </div>
+  <p>Locate reference-half tables by their declared count, career-half structures by their own invariant. Never by a remembered offset, and never by an FMM22 offset: the career half sits up to 7 MB later on FMM27.</p>
+</template>
+
+<template data-v="fmm27" data-slot="classnote">
+  <div class="callout open">
+    <span class="k">Open on FMM27</span>
+    <p>Which reserved pools fill and which grow can only be told across a season. Truro's saves span 17 days of one pre-season, so every "reserved" and "grows" label on FMM27 is carried over from the FMM22 table it matches.</p>
+  </div>
+</template>
+
+<template data-v="fmm27" data-slot="roll">
+  <div class="callout open">
+    <span class="k">Not measured yet</span>
+    <p>No Truro save crosses a season end. The first late-June save and the first save after rollover will show whether FMM27 still empties the transfer band and our matches on the rollover day, and by how much. Until then, take a save before 30 June each season, as on FMM22.</p>
+  </div>
+  <p style="color:var(--muted);font-size:14px">The FMM22 measurement is one switch away in the version menu at the top.</p>
+</template>
+
+<template data-v="fmm27" data-slot="gapintro">
+  <p>Size alone misleads; the filler fraction matters more. Each bar is a gap's size, the solid part an estimate of its real bytes: the 4 KB blocks that don't compress to near nothing. That is a rougher measure than FMM22's entropy ranking, good for ordering, not for totals.</p>
+</template>
+
+<template data-v="fmm27" data-slot="band">
+  <p style="font-size:14px;color:var(--muted)">On FMM27 the header and the row-index invariant hold on all three Truro saves (35, 668 and 5,871 rows). The field map below was read on FMM22 and has not been checked against an FMM27 transfer screen.</p>
+</template>
+
+<template data-v="fmm27" data-slot="archintro">
+  <p>The save still ends in a zstd archive, but FMM27 stores it <b>without length prefixes</b>: 168 members as bare zstd frames from 69,357,132, then a 9-byte directory header (<code>02 01 'fmf.' 08 00 00</code>) at 69,881,010 whose frame runs to EOF. The directory's offsets count from member 0's first byte, and its 168 entries tile the 523,878 bytes up to the header. Decompressed sizes on <code>truro-2026-07-25</code>, 4.57 MB in all from 0.52 MB stored:</p>
+</template>
+
+<template data-v="fmm27" data-slot="repro">
+  <ol class="repro">
+    <li><b>Version:</b> <code>save_format()</code> tells FMM22 from FMM27 by the header's shape; <code>tables_for(mm)</code> then picks each table's declaration.</li>
+    <li><b>Browse names:</b> the u32 at 782 is the exact name count (67,422); walk <code>[len u32][utf-8]</code> to land on the person table's <code>0xFF</code> frame.</li>
+    <li><b>Contract grid:</b> the same 83-byte scan as FMM22, with four extra <code>ff</code> bytes in the frame; capacity 81,465.</li>
+    <li><b>Transfer band:</b> <code>[u32 65,000][u32 count]</code>, the row frame 2 bytes after the count, row k holding k at +109. Unchanged from FMM22.</li>
+    <li><b>Player lists:</b> the FMM22 seeded walk, now 132 lists with 192-byte tails.</li>
+    <li><b>The archive:</b> the first <code>28 b5 2f fd</code> is member 0 itself, not a length prefix. Walk bare frames to the directory header.</li>
+    <li><b>Drift class:</b> compare any two saves. The reference half moves in tens of KB, the career half in hundreds of KB within weeks.</li>
+  </ol>
+</template>
+
+<!-- ===================== FMM22 prose ===================== -->
+<template data-v="fmm22" data-slot="drift">
+  <p>Everything below ~20 MB is near-static: a reference-half offset from any save of the same career is good to about ±100 KB, close enough to seek to and confirm with the table's header. Everything above ~34 MB moves by megabytes and not monotonically. It sawtooths, because the seasonal transfer band fills by ~2.5 MB each season and is wiped every July.</p>
+  <div class="drift">
+    <div><div class="eyebrow">data dictionary end, 5 years</div><div class="big">+88 KB</div><div class="mono" style="color:var(--muted)">20,206,373 → 20,294,619</div></div>
+    <div class="warn"><div class="eyebrow">match-slot table start, 5 years</div><div class="big">+3.38 MB</div><div class="mono" style="color:var(--muted)">37,009,585 → 40,393,355, and it oscillates</div></div>
+  </div>
+  <p>Locate reference-half tables by their declared count, career-half structures by their own invariant. Never by a remembered offset.</p>
+</template>
+
+<template data-v="fmm22" data-slot="classnote">
+  <div class="callout">
+    <span class="k">Dead end</span>
+    <p>Club-records and our matches each once passed for a fixed pool. Neither is: club-records holds 1,057 clubs on every Frem save while its size grows 1,224,589 → 1,345,853 bytes from 2023 to 2030, and our matches grow with the match count and empty on the rollover day. To tell a pool from a structure that grows by insertion, follow one entity across saves (one club's row), never a region's size. And check a "constant" on a third save: two that agree prove nothing.</p>
+  </div>
+</template>
+
+<template data-v="fmm22" data-slot="roll">
+  <p><code>frem-2026-06-29</code> → <code>frem-2026-07-02</code> loses <b>3,004,689 bytes</b>. Anchor-matching one save into the other (a 48-byte non-filler sample every 64 KB, its unique match in the other save, the offset delta) puts every byte of that loss in one of two places.</p>
+  <div class="bars" id="rollBars"></div>
+  <p>The transfer band accounts for its step on its own: across that pair it goes 3.32 MB → 0.79 MB (6,877 → 1,720 rows carrying contract terms), a 2.53 MB collapse against a 2.54 MB measured deletion. Our matches go from 60 anchors to 0.</p>
+  <div class="callout">
+    <span class="k">The rollover day drifts</span>
+    <p>The engine advances a 365-day season counter, not a calendar date, so every leap day slips the rollover one day earlier: 30 June / 1 July in 2021–2023, 29 June from 2024, 28/29 June from 2028. A save taken even two days late has already lost the season's transfers and matches.</p>
+  </div>
+</template>
+
+<template data-v="fmm22" data-slot="gapintro">
+  <p>Size alone misleads; the filler fraction matters more. Each bar is a gap's size, the solid part its estimated non-filler bytes.</p>
+</template>
+
+<template data-v="fmm22" data-slot="band"></template>
+
+<template data-v="fmm22" data-slot="archintro">
+  <p>The save ends in a zstd archive: a chain of <code>[u32 stored][zstd frame]</code> members and a directory that names them, ending on the file's last byte. Every member opens <code>[03][01]['tad.']</code> (<code>.dat</code> reversed). Decompressed sizes on <code>frem-2026-06-11</code>, 6.58 MB in all from 1.30 MB stored:</p>
+</template>
+
+<template data-v="fmm22" data-slot="repro">
   <ol class="repro">
     <li><b>Contract grid:</b> scan for <code>[tid u32][0x01][wage u16][6×00][doy u16][year u16]</code>, keep hits whose gaps are exact multiples of 83; the run's extent ÷ 83 is the slot count.</li>
     <li><b>Transfer band:</b> <code>[u32 65,000][u32 count]</code> in front of row 0 (the row frame starts 2 bytes after the count), and every row k holds k as a u32 at +109.</li>
@@ -265,17 +433,10 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     <li><b>The archive:</b> the first <code>28 b5 2f fd</code> (zstd magic) in the file.</li>
     <li><b>Drift class:</b> compare any two saves. The reference half moves in tens of KB, the career half in megabytes.</li>
   </ol>
-</section>
-
-<footer>
-  <span>Source: <a href="https://github.com/ZacHooper/fmm-stats/blob/main/docs/parser/savefile-map.md">docs/parser/savefile-map.md</a> in <a href="https://github.com/ZacHooper/fmm-stats">ZacHooper/fmm-stats</a> (MIT). The markdown has the full notes, evidence and open items.</span>
-  <span>Read-only research: nothing here writes to a save.</span>
-</footer>
-</div>
+</template>
 
 <script>
 (function () {
-  var TOTAL = 63936873;
   var DOC = "https://github.com/ZacHooper/fmm-stats/blob/main/docs/parser/";
   var CLASSES = {
     database: { label: "Game database",       color: "--c-static",   desc: "The world as it ships. Full from the start: values change (attributes, reputations, training focus), rows don't. Walk it by its declared count; the count is exact." },
@@ -285,142 +446,228 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     unknown:  { label: "Not yet understood",  color: "--c-unknown" },
     filler:   { label: "Padding",             color: "--c-filler" }
   };
-  // [start, end, class, name, doc, how, parser, note, sub]
-  var R = [
-    [0, 250, "database", "Save header", "save_header.md", "fixed offset", "SAVE_HEADER", "The slot title, d/m/yy - manager (nickname), NUL-padded. Per save."],
-    [299, 515797, "database", "Browse name table", "names.md", "Shape E", "walk_browse_bounds", "45,942 names; the 60,000 in front is a capacity, not a count."],
-    [515797, 572037, "filler", "Filler + a short run of unnamed records", null, "", "", ""],
-    [572037, 3988960, "database", "PERSON table", "person_info.md", "Shape A", "PERSON_INFO_TABLE", "Declares 32,966 (Frem) / 34,312 (Bucaspor), career-constant, so a fixed pool. Records (68 B head, 17 B, counted languages, counted relationships) are walked by declaration; tid == slot index."],
-    [3988968, 6056358, "database", "Player attributes", "player_attributes.md", "Shape A", "PLAYER_ATTRIBUTES_TABLE", "26,505 × 78 B."],
-    [6056370, 6237408, "database", "Staff attributes", "staff.md", "Shape C", "STAFF_TABLE", "4,642 × 39 B, id2 == slot index."],
-    [6237408, 6332591, "database", "Chained small tables", "officials.md", "Shape A/C", "COACHES_TABLE, SCOUTS_TABLE, PHYSIOS_TABLE, OFFICIALS_TABLE, ROUNDS_TABLE", "The three staff role tables (coaches, scouts, physios: specialism and aptitude, staff_roles.md), the 622 × 99 B match officials, the 273-entry round/leg names (rounds.md)."],
-    [6332603, 12607190, "database", "Club + national team table", "clubs.md", "Shape A", "CLUB_TABLE", "11,331 records, tid == slot index, dense. National teams have club_type 1; U21 sides are the last rows."],
-    [12607189, 12756283, "database", "Competitions", "competitions.md", "Shape A", "COMP_TABLE", "[8 × ff][count u16 = 1,372]; 1,272 named + 100 blank slots, cid == slot index. Reputation and holders rewritten."],
-    [12756293, 12796115, "database", "Nations", "nations.md", "Shape A", "NATIONS_TABLE", "Declared 251, all walked by declaration."],
-    [12796123, 13471770, "database", "Stadiums", "stadiums.md", "Shape A", "STADIUMS_TABLE", "15,987 records."],
-    [13471776, 13690902, "database", "Cities", "cities.md", "Shape A", "CITIES_TABLE", "10,956 records."],
-    [13690908, 13833145, "database", "Awards", "awards.md", "Shape A", "AWARDS_TABLE", "807 awards: names, continent, nation, competition, the last date, and the latest edition's three entries (person, club, year, score, the winner's name ids)."],
-    [13833155, 13833340, "database", "Nation unions", "unions.md", "Shape A", "UNIONS_TABLE", "6: European Union, EEA, …"],
-    [13833350, 13898498, "database", "Derbies", "derbies.md", "Shape A", "DERBIES_TABLE", "1,377 named rivalries, each two club tids (Merseyside: Everton v Liverpool)."],
-    [13898508, 13965511, "database", "Regions", "regions.md", "Shape A", "REGIONS_TABLE", "2,467, each nation's regions; what a city's region_id points at."],
-    [13965521, 13969900, "database", "Currencies", "currencies.md", "Shape A", "CURRENCIES_TABLE", "173 records."],
-    [13969910, 13976126, "database", "Id list", "id_list.md", "Shape A", "ID_LIST_TABLE", "888 × 7 B ([id u32][00 00 00]), ends on the languages' frame; what the ids name is unread."],
-    [13976136, 13978480, "database", "Languages", "languages.md", "Shape A", "LANGUAGES_TABLE", "124 records."],
-    [13979798, 14441326, "database", "Per-person rows", "person_index.md", "Shape A", "PERSON_INDEX_TABLE", "[count u32 = 32,966], no 0xFF frame, then 14 B per person: two row numbers into tables not read yet. Ends exactly on a u32 equal to the staff count."],
-    [14441326, 14478464, "database", "Staff rows", "staff_rows.md", "Shape A", "STAFF_ROWS_TABLE", "[count u16 = 4,642], no 0xFF frame, then 8 B per staff member; no field named yet. Ends exactly on a u16 equal to the club count."],
-    [14478464, 15083143, "database", "Club rows", "club_rows.md", "Shape A", "CLUB_ROWS_TABLE", "[count u16 = 11,331], then 51 B per club (first, its transfer budget) plus a 66 B block on 406 clubs. Ends exactly on a u16 equal to the player-attribute count."],
-    [15083143, 16752549, "unknown", "Unidentified", "unread/person_chain.md", "", "", "One variable-length block per player, counted by the player-attribute count (26,505): plain 59-byte rows with counted items, and richer rows that stop the walk."],
-    [16752549, 20021621, "database", "Rule files (tagged data dictionary)", "rule_files.md", "Shape A", "RULE_FILES_TABLE", "667 count-framed rule files ([u32 n][n tagged fields]), 99.2% of the span. The 27 KB between them is per-save state, undecoded."],
-    [20021621, 29171689, "filler", "Filler", "unread/season_blocks.md", "", "", "94% 0xFF, 2% 00. Not a research target."],
-    [29171689, 31907618, "reserved", "Contract grid", "contracts.md", "Shape C", "CONTRACT_TABLE", "Dense 83-byte records, capacity 59,632, 33,127 slots walked (one per person tid, plus 161 past the person table). Stable all career."],
-    [31907618, 34120896, "reserved", "Contract grid, empty slots", "contracts.md", "Shape C", "CONTRACT_TABLE", "The rest of the grid's capacity (59,632 × 83 B), slots not yet used."],
-    [34120896, 34276977, "reserved", "Loans", "loans.md", "back-links", "LOANS_TABLE", "6,243 slots × 25 B, 2,312 loans: the player, the club he is on loan at, start, end, a percentage and an option. Every player on loan points at his slot."],
-    [34276977, 35438751, "unknown", "Unidentified", "unread/after_loans.md", "", "", "1.16 MB in front of the transfer band."],
-    [35438751, 38405582, "seasonal", "Seasonal transfer band", "#band", "Shape A", "hdr", "[u32 65,000][u32 count = 20,747][2 B], then 20,747 × 143 B transfer-negotiation rows: every bid, and the accepted one with its fee and contract terms. Its collapse is the file's July shrink."],
-    [38405582, 39200736, "grows", "Last transfers", "last_transfers.md", "count + one date", "LAST_TRANSFERS_TABLE", "26,505 × 30 B, one per player attribute record: each player's latest transfer (fee, buying club), 10,323 filled. Survives the July rollover."],
-    [39200736, 40042185, "unknown", "Unidentified", "unread/after_last_transfers.md", "", "", "0.84 MB before the match-slot table."],
-    [40042185, 40141560, "reserved", "Match-slot table", "match_slots.md", "Shape C", "MATCH_SLOTS_TABLE", "3,975 × 25 B: two clubs and a score, no venue. The 3,975 is a capacity: slots are reused."],
-    [40141778, 40656146, "database", "Surname id-table", "names.md", "Shape C", "SURNAMES_TABLE", "32,148 slots, 28,625 used."],
-    [40656158, 40962206, "database", "First-name id-table", "names.md", "Shape C", "FIRST_NAMES_TABLE", "19,128 slots, 15,367 used."],
-    [40962218, 41113898, "database", "Nickname id-table", "names.md", "Shape C", "NICKNAMES_TABLE", "9,480 × 16 B."],
-    [41113898, 42630093, "unknown", "Unidentified", "unread/named_records.md", "", "", "82% zero, mostly padding."],
-    [42630093, 46876865, "reserved", "Career-history pool", "history.md", "Shape B", "HISTORY_TABLE", "[count u32] + 265,423 records × 16 B ([stats][club, fee, next], one season line each): a pointer forest. The count is a capacity fixed at career creation."],
-    [46876865, 48166114, "grows", "Club records", "club_records.md", "Shape A", "CLUB_RECORDS_TABLE", "[count u16] (1,057 clubs Frem), then per club [tid u16][n u8][n × 212 B league history][Team/Player Records]. Grows 212 B per new league a club plays in."],
-    [48166114, 48353064, "unknown", "Unidentified", "unread/record_books.md", "", "", "[count u32] = 162 on every save, variable-length rows carrying 21-byte record-shaped matches, then 24-byte filler rows. The same size on every save of a career."],
-    [48353064, 52721064, "reserved", "Player progress", "player_progress.md", "Shape C", "PLAYER_PROGRESS_TABLE", "62,400 rows × 70 B, the same count on every save: [tid u32][6 × u16 skill lines][status u16][0][day u16][year u16][23 × u16], usually one row per player per week. Rows recycled."],
-    [52721064, 53479282, "unknown", "Unidentified", "unread/progress_padding.md", "", "", "All 00 and ff. The training table sits exactly 758,222 B after the progress pool on every Frem save."],
-    [53479282, 55490212, "database", "Training", "training.md", "Shape A", "TRAINING_TABLE", "[count u32 = 32,966][32,966 × 61 B], row k = person tid k: intensity, Focus Role, attribute focus, Focus Pos, contracted flag, squad status. Rewritten as focus changes."],
-    [55490212, 55615704, "grows", "Award history", "award_history.md", "Shape A", "AWARD_HISTORY_TABLE", "1,364 editions × 92 B: past editions of every award, 1st to 3rd: every year of an annual one, the current season of a weekly or monthly one (person, name ids, club, score)."],
-    [55615704, 55882728, "grows", "Team history", "team_history.md", "Shape A", "TEAM_HISTORY_TABLE", "845 teams × 316 B: every year of a season team, the current season's Teams of the Week; 11 players with ratings."],
-    [55882728, 55884748, "unknown", "Unidentified", "unread/before_matches.md", "", "", "2,020 bytes before our matches."],
-    [55884748, 56178674, "seasonal", "Our matches", "matches.md", "Shape A", "MATCHES_TABLE", "[count u8 = 57], then one row per match: [home, away, cid, day][n u8][n × 17 B events][5,093 B body] with both team blocks and our tactic. Emptied on the rollover day."],
-    [56178684, 56310550, "database", "Person stamps", "person_stamps.md", "Shape A", "PERSON_STAMPS_TABLE", "[01][01][count = 32,965] (persons less one), then [knowledge u8][day u16][year offset u8] per person, behind five unread u16 nation ids."],
-    [56310550, 56312470, "database", "Tactic history", "tactic_history.md", "Shape A", "TACTIC_HISTORY_TABLE", "30 tactic setups the game recorded for the user (a role per position; a formation or \"uber tactic\" name), capped at 30, behind a 60 B block and 6 person entries."],
-    [56312470, 56313476, "grows", "Club seasons", "club_seasons.md", "Shape A", "CLUB_SEASONS_TABLE", "The managed club's league line and cups, season by season, in a 50-slot pool."],
-    [56313477, 56314027, "filler", "0xFF run, 550 B", null, "", "", "550 bytes on every Frem save. Not the end of our matches."],
-    [56314027, 56316108, "grows", "Club titles", "club_titles.md", "Shape A", "CLUB_TITLES_TABLE", "32 slots × 65 B: each competition the managed club has won, with its years (3 so far)."],
-    [56316108, 61253092, "unknown", "Unidentified", "unread/club_block.md", "", "", "00 29% / ff 53% / other 18%. Opens with [01][club][first season] and empty 11-byte slots. One small player-list block sits at 56,336,372."],
-    [61253092, 62631642, "reserved", "Player lists", "player_lists.md", "Shape E", "PLAYER_LISTS_TABLE", "66 lists of [100 scrapbook entries][14 B trailer]. Lists 0–30 world (100 players a season), 31–61 our squad per season, 62–65 two copies of a world/club pair. Filled season by season."],
-    [61896648, 62002727, "reserved", "Our club's squad lists (31–61)", "player_lists.md", "", "player_scrapbook.json", "The managed squad, one list per season.", true],
-    [62631781, 62635766, "unknown", "Unnamed dated table", "unread/scheduled_events.md", "Shape C", "struct", "Scheduled events: 14 B units [u32 FFFFFFFF][u16 type][day-of-year][year][u32 tid], dates a fortnight ahead of the save. Type 9 is a transfer going through on that day."],
-    [62635766, 63936873, "grows", "sicomps archive", "#h-arch", "Shape D", "archive.locate", "159 zstd members and a directory, 6.58 MB decompressed: fixtures, comp_stages, comp_honours, 147 × comp_<uid>.dat. Grows with the career."]
-  ];
+
+  // Region rows: [start, end, class, name, doc, how, parser, note, sub, changedInFmm27]
+  var V = {
+    fmm27: {
+      title: "FMM27 save file map", save: "truro-2026-07-25.fms", total: 69883057,
+      lede: "Every table a Football Manager Mobile 2027 <code>.fms</code> save holds, in file order, start to end. Extents are each table's own walk on one Truro save; the gaps between are measured, not guessed. Use the offsets to know what sits next to what, never to seek: locate a table by its own frame or invariant. Rows marked <span class=\"tag chg\">changed</span> read differently from FMM22.",
+      zones: [[0, 27105957, "near-static · tens of KB between saves", ""], [36300713, 69883057, "career half · drifts with the band", "career"]],
+      R: [
+        [0, 230, "database", "Save header", "save_header.md", "start of file", "SAVE_HEADER", "Length-prefixed club name and short name, build strings (27.0.0+2495469, fmm27-rel-staging), the in-game date and write time. No manager name: the title is the club name.", false, true],
+        [230, 782, "unknown", "Unnamed u32 run", null, "", "", "552 B of u32s ending in the browse count. Not read.", false, false],
+        [782, 751974, "database", "Browse name table", "names.md", "chained records", "walk_browse_bounds", "[u32 67,422] then 67,422 [len u32][utf-8] names. The number in front is an exact count; FMM22's was a 60,000 capacity.", false, true],
+        [751974, 5549883, "database", "PERSON table", "person_info.md", "count in front", "PERSON_INFO_TABLE", "Declares 44,960. the FMM26 People record (as read by the community fmm-editor tool): a counted list of other nationalities, i16 caps and goals, so every later head field shifts. tid == slot index.", false, true],
+        [5549883, 8530559, "database", "Player attributes", "player_attributes.md", "count in front", "PLAYER_ATTRIBUTES_TABLE", "36,344 rows: FMM22's 78 B, then a u32-counted list of 19 B unavailabilities (bans, ineligibility, injuries). The old 78 B read drifted from record 361.", false, true],
+        [8530559, 8772839, "database", "Staff attributes", "staff.md", "fixed grid", "STAFF_TABLE", "6,212 × 39 B. Layout unchanged; new locator.", false, false],
+        [8772839, 8889845, "database", "Chained small tables", "staff_roles.md", "count in front + fixed grid", "COACHES/SCOUTS/PHYSIOS, OFFICIALS, ROUNDS", "Staff roles (2,841 coaches, 772 scouts, 1,157 physios, 7 B each, with specialism and aptitude), 671 × 99 B match officials, 288 round/leg names (ff-terminated).", false, true],
+        [8889842, 14540346, "database", "Club + national team table", "clubs.md", "count in front", "CLUB_TABLE", "9,830 records, tid == slot index. Five club names, is_women, men's and women's national teams. Truro is tid 3125; 139 is England.", false, true],
+        [14540346, 14738182, "database", "Competitions", "competitions.md", "count in front", "COMP_TABLE", "1,706 declared, cid == slot index; ff-terminated strings.", false, true],
+        [14738182, 14778320, "database", "Nations", "nations.md", "count in front", "NATIONS_TABLE", "251 declared, as on FMM22. New FMM27 fields.", false, true],
+        [14778569, 15951682, "database", "Stadiums", "stadiums.md", "count in front", "STADIUMS_TABLE", "12,509 records, three names each (name, sponsor-free name, a third ending ff) and 3 more bytes.", false, true],
+        [15951682, 16106632, "database", "Cities", "cities.md", "count in front", "CITIES_TABLE", "7,747 records.", false, false],
+        [16106632, 16306251, "database", "Awards", "awards.md", "count in front", "AWARDS_TABLE", "1,123 awards (FMM22: 807): names, continent, nation, competition, the last date, and the latest edition's three entries (person, club, year, score, the winner's name ids). New: read 12 Nov.", false, true],
+        [16306251, 16306476, "database", "Nation unions", "unions.md", "count in front", "UNIONS_TABLE", "6: European Union, EEA, the African, Caribbean and Pacific States, Overseas Territories Act, Turkic States, EFTA. New: read 12 Nov.", false, false],
+        [16306476, 16385333, "database", "Derbies", "derbies.md", "count in front", "DERBIES_TABLE", "1,681 named rivalries, each two club tids: Merseyside is Everton v Liverpool. New: read 12 Nov.", false, false],
+        [16385333, 16454072, "database", "Regions", "regions.md", "count in front", "REGIONS_TABLE", "2,532 regions (South-East, London, …), each with its nation; what a city's region_id points at. New: read 12 Nov.", false, false],
+        [16454072, 16458461, "database", "Currencies", "currencies.md", "count in front", "CURRENCIES_TABLE", "173 records.", false, false],
+        [16458461, 16464939, "database", "Id list", "id_list.md", "count in front", "ID_LIST_TABLE", "924 × 7 B (FMM22: 888), ids ascending with gaps; ends on the languages' frame. What the ids name is open. New: read 12 Nov.", false, false],
+        [16464939, 16468663, "database", "Languages", "languages.md", "count in front", "LANGUAGES_TABLE", "126 records.", false, false],
+        [16468663, 17143067, "database", "Per-person rows", "person_index.md", "count in front", "PERSON_INDEX_TABLE", "[count = 44,960], no 0xFF frame, then 15 B per person (FMM22: 14 B), two row numbers into tables not read yet. Ends exactly on the staff count (6,212). New: read 12 Nov.", false, true],
+        [17143067, 17192765, "database", "Staff rows", "staff_rows.md", "count in front", "STAFF_ROWS_TABLE", "[count u16 = 6,212], no 0xFF frame, then 8 B per staff member (same on FMM22); no field named yet. Ends exactly on the club count. New: read 12 Nov.", false, false],
+        [17192765, 18564311, "database", "Club rows", "club_rows.md", "count in front", "CLUB_ROWS_TABLE", "[count u16 = 9,830], then 132 B per club (FMM22: 51 B), its first u32 the transfer budget (Truro £10,000), then matches played this season and the last six results ([for][against], oldest first), plus a 68 B block on 1,088 clubs. Ends exactly on the player-attribute count (36,344). New: read 12 Nov.", false, false],
+        [18564311, 22894635, "database", "Player status", "player_status.md", "count in front", "PLAYER_STATUS_TABLE", "[count u32 = 36,344], one block per player: the clubs interested in him, his morale (1-20) and his last five ratings, checked against the squad and contract screens. Every block ends on a 1 Jan 2000 date. New: read 12 Nov.", false, false],
+        [22894635, 22915052, "unknown", "Unidentified", "unread/person_chain.md", "", "", "20 KB: [u16 1,706] then 1,706 empty 4-byte slots, then 13.6 KB before the rule files.", false, false],
+        [22915052, 27105957, "database", "Rule files (tagged data dictionary)", "rule_files.md", "count in front", "RULE_FILES_TABLE", "782 count-framed rule files (FMM22: 667). PLgn for SubF, continents' files; new tags left unread.", false, true],
+        [27105957, 29539118, "filler", "Filler", "unread/season_blocks.md", "", "", "79% 0xFF, 8% 00. 2.43 MB, down from FMM22's 9.15 MB. Not all padding: on 16 Nov a stretch here lists the matchday squad (the Tactics – Captain screen's 16) and the five captains.", false, false],
+        [29539118, 36300713, "reserved", "Contract grid", "contracts.md", "fixed grid", "CONTRACT_TABLE", "83 B records, capacity 81,465 (FMM22: 59,632), 44,960 used. Four ff bytes added to the frame.", false, true],
+        [36300713, 36466644, "reserved", "Loans", "loans.md", "back-links", "LOANS_TABLE", "6,637 slots × 25 B (FMM22: 6,243), 2,513 loans: player, loan club, start, end, a percentage, an option. Every player on loan points at his slot from the per-person rows. New: read 12 Nov.", false, false],
+        [36466644, 37948978, "unknown", "Unidentified", "unread/after_loans.md", "", "", "1.48 MB after the loans. 00 44% / ff 18% / other 38%.", false, false],
+        [37948978, 38044512, "seasonal", "Seasonal transfer band", "#h-band", "count in front", "", "[u32 65,000][u32 count = 668][2 B], then 668 × 143 B rows. 35 rows on 22 Jul, 5,871 on 8 Aug.", false, false],
+        [38044512, 39134836, "grows", "Last transfers", "last_transfers.md", "count + one date", "LAST_TRANSFERS_TABLE", "36,344 × 30 B, one per player: his latest transfer (fee, buying club), kept across seasons. None filled on this save; 428 on 8 Aug. New: read 12 Nov.", false, false],
+        [39134836, 40459235, "unknown", "Unidentified", "unread/after_last_transfers.md", "", "", "1.32 MB before the name id-tables. 00 38% / ff 33% / other 30%. On FMM22 the match-slot table sits about here. On 16 Nov it holds the managed club's season goals per player ([tid][goals u16], 17 entries) and a second list, assists by the look of it.", false, false],
+        [40459235, 41217695, "database", "Surname id-table", "names.md", "fixed grid", "SURNAMES_TABLE", "FMM22's locator.", false, false],
+        [41217694, 41696123, "database", "First-name id-table", "names.md", "fixed grid", "FIRST_NAMES_TABLE", "FMM22's locator.", false, false],
+        [41696122, 41858759, "database", "Nickname id-table", "names.md", "fixed grid", "NICKNAMES_TABLE", "FMM22's locator.", false, false],
+        [41858759, 43991853, "unknown", "Unidentified", "unread/named_records.md", "", "", "96% zero, mostly padding.", false, false],
+        [43991853, 51225297, "reserved", "Career-history pool", "history.md", "linked list", "HISTORY_TABLE", "[count u32] + 452,090 × 16 B (FMM22 Frem: 265,423). The forest check passes; no screen has checked it yet.", false, true],
+        [51225297, 52350344, "grows", "Club records", "club_records.md", "count in front", "CLUB_RECORDS_TABLE", "1,087 clubs. FMM22's locator; the audit raises nothing, no screen check yet.", false, false],
+        [52350344, 52553436, "unknown", "Unidentified", "unread/record_books.md", "", "", "00 26% / ff 67%. FMM22 has its 162-count record table here.", false, false],
+        [52553436, 56921450, "reserved", "Player progress", "player_progress.md", "fixed grid", "PLAYER_PROGRESS_TABLE", "62,400 rows × 70 B, the same pool as FMM22. Template year 2025.", false, false],
+        [56921450, 57955530, "filler", "Zero run, 1.03 MB", "unread/progress_padding.md", "", "", "100% zero (FMM22: 758,222 B of 00 and ff in the same place).", false, false],
+        [57955530, 60698094, "database", "Training", "training.md", "count in front", "TRAINING_TABLE", "[count u32 = 44,960][44,960 × 61 B], row k = person tid k. Focus-role codes differ from FMM22's from Inside Forward on; two new roles (Wide Centre-Back, Inverted Full-Back).", false, true],
+        [60698094, 60801510, "grows", "Award & team history", "award_history.md", "count in front", "AWARD_HISTORY_TABLE, TEAM_HISTORY_TABLE", "1,124 award editions × 92 B (1st to 3rd: every year of an annual award, this season of a weekly or monthly one), then the team history (no teams yet on this save). New: read 12 Nov.", false, false],
+        [60801510, 60844241, "unknown", "Unidentified", "unread/before_matches.md", "", "", "43 KB before our matches.", false, false],
+        [60844241, 60850122, "seasonal", "Our matches", "matches.md", "count in front", "MATCHES_TABLE_FMM27", "One match (a friendly). Rows of 5,676 + 17n B: 70 B player slots with each player's xG, and each side's manager in the team head.", false, true],
+        [60850122, 61029964, "database", "Person stamps", "person_stamps.md", "count in front", "PERSON_STAMPS_TABLE", "[01][01][count = 44,959] (persons less one), then [level u8][day u16][year offset u8] per person. Level 3 on every player of the managed club. New: read 12 Nov.", false, false],
+        [61029964, 61031276, "database", "Tactic history & club seasons", "tactic_history.md", "count in front", "TACTIC_HISTORY_TABLE, CLUB_SEASONS_TABLE", "5 tactic setups the game recorded for the user (a role per position; a formation name or uber tactic), then the managed club's season record in a 50-slot pool. New: read 12 Nov.", false, false],
+        [61031276, 61033908, "grows", "Club titles", "club_titles.md", "count in front", "CLUB_TITLES_TABLE", "32 slots × 65 B: each competition the managed club has won. None yet.", false, false],
+        [61033908, 61035161, "unknown", "Three 50-slot pools", "unread/end_pools.md", "", "", "[u8 n][50 × 12 B] (one used: Truro, 2026), then [u8 0][50 × 6 B] and [u8 0][50 × 7 B], empty. New: framed 13 Nov.", false, false],
+        [61035161, 61035164, "grows", "Player form", "player_form.md", "count in front", "PLAYER_FORM_TABLE", "[u16 n][n × 26 B]: the Player Form page, a line per squad player per competitive match (none yet on 25 Jul; 548 by 16 Nov): rating, goals, assists, morale, player of the match, cards, subs. New: read 13 Nov.", false, false],
+        [61035164, 63651864, "database", "Player ability scales", "player_ability_scales.md", "count in front", "PLAYER_ABILITY_SCALES_TABLE", "[u32 36,343][72 B per player, by tid]: his ability on his league's scale (the Coach Report's stars follow it), a young-player value, and random working state. New: read 13 Nov.", false, false],
+        [63651864, 63651940, "unknown", "One-row list", "player_ability_scales.md", "", "", "[u32 1][72 B]: the same row shape, one person. New: framed 13 Nov.", false, false],
+        [63651940, 63742856, "unknown", "Coach-sized slot pool", "unread/coach_slots.md", "", "", "[u32 cap = coaches (2,841) or twice][cap × 32 B], up to 71 used. New: framed 13 Nov.", false, false],
+        [63742856, 63754431, "unknown", "A row per physio", "unread/physio_rows.md", "", "", "[u16 1,157][row k = physio k, 10 B], all empty so far. New: framed 13 Nov.", false, false],
+        [63754431, 63836279, "unknown", "A row per scout", "unread/scout_rows.md", "", "", "787 × 104 B, 772 with data (= the scouts). New: framed 13 Nov.", false, false],
+        [63836279, 66236284, "unknown", "100,000-slot pool", "unread/slot_pool.md", "", "", "[u32 100,000][100,000 × 24 B]: 0 used on 22 Jul, 887 by 16 Nov. New: framed 13 Nov.", false, false],
+        [66236284, 69209346, "reserved", "Player lists", "player_lists.md", "chained records", "PLAYER_LISTS_TABLE", "132 lists with 192 B tails (FMM22: 66). The second 66 are all unused so far, probably women's.", false, true],
+        [69209346, 69357132, "unknown", "Scheduled events (unread)", "unread/scheduled_events.md", "", "", "Opens with a date one day past the save. On FMM22 this is the game's scheduled events (type 9: a transfer going through that day); FMM27 stores it differently, with a long run of u16 0, 1, 2 … On 16 Nov the set-piece takers sit here: ten-slot tid lists in the Takers screen's order (penalties, corners, free kicks, two more).", false, false],
+        [69357132, 69883057, "grows", "sicomps archive", "#h-arch", "archive member", "archive.locate", "168 bare zstd frames and a directory, 4.57 MB decompressed. No length prefixes.", false, true]
+      ],
+      gaps: [
+        ["36.47–37.95 MB", 1.48, 1.48, "after the loans, in front of the transfer band"],
+        ["39.13–40.46 MB", 1.32, 0.69, "after the last transfers, before the surname id-table"],
+        ["27.11–29.54 MB", 2.43, 0.34, "79% 0xFF, after the rule files"],
+        ["41.86–43.99 MB", 2.13, 0.17, "96% zero, mostly padding"],
+        ["69.21–69.36 MB", 0.15, 0.15, "before the archive; opens with a date"],
+        ["60.80–60.84 MB", 0.04, 0.04, "between the team history and our matches"],
+        ["22.89–22.92 MB", 0.02, 0.02, "between the player status and the rule files"],
+        ["63.65–66.24 MB", 2.58, 0.01, "coach slots, physio and scout rows, the 100,000-slot pool: framed, nearly empty on this save"],
+        ["52.35–52.55 MB", 0.20, 0, "67% 0xFF"],
+        ["56.92–57.96 MB", 1.03, 0, "all zero"]
+      ],
+      arch: [
+        ["comp_<uid> × 156", 2906035, "each competition's stages and rounds; a 53-byte header (comp_rules)"],
+        ["fix_man", 1219757, "the world results list: 95 B fixtures, with season, referee, stage and matchday"],
+        ["comp_man", 213959, "comp_stages, comp_honours: does not read with FMM22's declarations"],
+        ["stadium", 80417, "unexamined"],
+        ["rule_group", 68644, "engine log lines"],
+        ["reserves", 38965, "unexamined (FMM22: 1,500 B)"],
+        ["comp_hosts", 24010, "unexamined"],
+        ["friend_man", 9166, "friendlies; unexamined"],
+        ["rgman", 6959, "unexamined"],
+        ["discipline", 592, "unexamined"],
+        ["squad_man", 169, "unexamined"],
+        ["national_teams", 20, "unexamined"],
+        ["fifa_rankings", 16, "unexamined"]
+      ]
+    },
+    fmm22: {
+      title: "FMM22 save file map", save: "frem-2026-06-11.fms", total: 63936873,
+      lede: "Every table a Football Manager Mobile 2022 <code>.fms</code> save holds, in file order, start to end. Offsets were measured on one save by calling the named parser or by the structural test in the notes. Use them to know what sits next to what, never to seek: locate a table by its own frame or invariant.",
+      zones: [[0, 20021621, "near-static · ±100 KB between saves", ""], [34000000, 63936873, "career half · drifts by MB", "career"]],
+      R: [
+        [0, 250, "database", "Save header", "save_header.md", "start of file", "SAVE_HEADER", "The slot title, d/m/yy - manager (nickname), NUL-padded. Per save."],
+        [299, 515797, "database", "Browse name table", "names.md", "chained records", "walk_browse_bounds", "45,942 names; the 60,000 in front is a capacity, not a count."],
+        [515797, 572037, "filler", "Filler + a short run of unnamed records", null, "", "", ""],
+        [572037, 3988960, "database", "PERSON table", "person_info.md", "count in front", "PERSON_INFO_TABLE", "Declares 32,966 (Frem) / 34,312 (Bucaspor), career-constant, so a fixed pool. Records (68 B head, 17 B, counted languages, counted relationships) are walked by declaration; tid == slot index."],
+        [3988968, 6056358, "database", "Player attributes", "player_attributes.md", "count in front", "PLAYER_ATTRIBUTES_TABLE", "26,505 × 78 B."],
+        [6056370, 6237408, "database", "Staff attributes", "staff.md", "fixed grid", "STAFF_TABLE", "4,642 × 39 B, id2 == slot index."],
+        [6237408, 6332591, "database", "Chained small tables", "staff_roles.md", "count in front + fixed grid", "COACHES/SCOUTS/PHYSIOS, OFFICIALS, ROUNDS", "The three staff role tables, coaches / scouts / physios (1,971 / 560 / 816), the 622 × 99 B match officials, the 273-entry round/leg names."],
+        [6332603, 12607190, "database", "Club + national team table", "clubs.md", "count in front", "CLUB_TABLE", "11,331 records, tid == slot index, dense. National teams have club_type 1; U21 sides are the last rows."],
+        [12607189, 12756283, "database", "Competitions", "competitions.md", "count in front", "COMP_TABLE", "[8 × ff][count u16 = 1,372]; 1,272 named + 100 blank slots, cid == slot index. Reputation and holders rewritten."],
+        [12756293, 12796115, "database", "Nations", "nations.md", "count in front", "NATIONS_TABLE", "Declared 251, all walked by declaration."],
+        [12796123, 13471770, "database", "Stadiums", "stadiums.md", "count in front", "STADIUMS_TABLE", "15,987 records."],
+        [13471776, 13690902, "database", "Cities", "cities.md", "count in front", "CITIES_TABLE", "10,956 records."],
+        [13690908, 13833145, "database", "Awards", "awards.md", "count in front", "AWARDS_TABLE", "807 awards with the latest edition's three entries (person, club, year, score, the winner's name ids)."],
+        [13833155, 13833340, "database", "Nation unions", "unions.md", "count in front", "UNIONS_TABLE", "6: European Union, EEA, …"],
+        [13833350, 13898498, "database", "Derbies", "derbies.md", "count in front", "DERBIES_TABLE", "1,377 named rivalries, each two club tids; Frem v Hvidovre is Gammel Køge Landevej."],
+        [13898508, 13965511, "database", "Regions", "regions.md", "count in front", "REGIONS_TABLE", "2,467, each nation's regions; what a city's region_id points at."],
+        [13965521, 13969900, "database", "Currencies", "currencies.md", "count in front", "CURRENCIES_TABLE", "173 records."],
+        [13969910, 13976126, "database", "Id list", "id_list.md", "count in front", "ID_LIST_TABLE", "888 × 7 B ([id u32][00 00 00]), ends on the languages' frame; what the ids name is open."],
+        [13976136, 13978480, "database", "Languages", "languages.md", "count in front", "LANGUAGES_TABLE", "124 records."],
+        [13979798, 14441326, "database", "Per-person rows", "person_index.md", "count in front", "PERSON_INDEX_TABLE", "[count = 32,966], no 0xFF frame, then 14 B per person: two row numbers into tables not read yet. Ends exactly on the staff count (4,642)."],
+        [14441326, 14478464, "database", "Staff rows", "staff_rows.md", "count in front", "STAFF_ROWS_TABLE", "[count u16 = 4,642], then 8 B per staff member; no field named yet. Ends exactly on the club count."],
+        [14478464, 15083143, "database", "Club rows", "club_rows.md", "count in front", "CLUB_ROWS_TABLE", "[count u16 = 11,331], then 51 B per club (its transfer budget, matches played this season, the last six results) plus a 66 B block on 406 clubs. Ends exactly on the player-attribute count."],
+        [15083143, 16752549, "unknown", "Unidentified", "unread/person_chain.md", "", "", "One variable-length block per player (26,505); dated rich rows stop the walk."],
+        [16752549, 20021621, "database", "Rule files (tagged data dictionary)", "rule_files.md", "count in front", "RULE_FILES_TABLE", "667 count-framed rule files ([u32 n][n tagged fields]), 99.2% of the span. The 27 KB between them is per-save state, undecoded."],
+        [20021621, 29171689, "filler", "Filler", "unread/season_blocks.md", "", "", "94% 0xFF, 2% 00. Not a research target."],
+        [29171689, 31907618, "reserved", "Contract grid", "contracts.md", "fixed grid", "CONTRACT_TABLE", "Dense 83-byte records, capacity 59,632, 33,127 slots walked (one per person tid, plus 161 past the person table). Stable all career."],
+        [31907618, 34120896, "reserved", "Contract grid, empty slots", "contracts.md", "fixed grid", "CONTRACT_TABLE", "The rest of the grid's capacity (59,632 × 83 B)."],
+        [34120896, 34276977, "reserved", "Loans", "loans.md", "back-links", "LOANS_TABLE", "6,243 slots × 25 B, 2,312 loans; the 11 Frem players marked out on loan are exactly the loans out of Frem."],
+        [34276977, 35438751, "unknown", "Unidentified", "unread/after_loans.md", "", "", "1.16 MB in front of the transfer band."],
+        [35438751, 38405582, "seasonal", "Seasonal transfer band", "#h-band", "count in front", "", "[u32 65,000][u32 count = 20,747][2 B], then 20,747 × 143 B transfer-negotiation rows: every bid, and the accepted one with its fee and contract terms. Its collapse is the file's July shrink."],
+        [38405582, 39200736, "grows", "Last transfers", "last_transfers.md", "count + one date", "LAST_TRANSFERS_TABLE", "26,505 × 30 B, one per player: his latest transfer (fee, buying club), 10,323 filled; survives the July rollover."],
+        [39200736, 40042185, "unknown", "Unidentified", "unread/after_last_transfers.md", "", "", "0.84 MB before the match-slot table."],
+        [40042185, 40141560, "reserved", "Match-slot table", "match_slots.md", "fixed grid", "MATCH_SLOTS_TABLE", "3,975 × 25 B: two clubs and a score, no venue. The 3,975 is a capacity: slots are reused."],
+        [40141778, 40656146, "database", "Surname id-table", "names.md", "fixed grid", "SURNAMES_TABLE", "32,148 slots, 28,625 used."],
+        [40656158, 40962206, "database", "First-name id-table", "names.md", "fixed grid", "FIRST_NAMES_TABLE", "19,128 slots, 15,367 used."],
+        [40962218, 41113898, "database", "Nickname id-table", "names.md", "fixed grid", "NICKNAMES_TABLE", "9,480 × 16 B."],
+        [41113898, 42630093, "unknown", "Unidentified", "unread/named_records.md", "", "", "82% zero, mostly padding."],
+        [42630093, 46876865, "reserved", "Career-history pool", "history.md", "linked list", "HISTORY_TABLE", "[count u32] + 265,423 records × 16 B ([stats][club, fee, next], one season line each): a pointer forest. The count is a capacity fixed at career creation."],
+        [46876865, 48166114, "grows", "Club records", "club_records.md", "count in front", "CLUB_RECORDS_TABLE", "[count u16] (1,057 clubs Frem), then per club [tid u16][n u8][n × 212 B league history][Team/Player Records]. Grows 212 B per new league a club plays in."],
+        [48166114, 48353064, "unknown", "Unidentified", "unread/record_books.md", "", "", "[count u32] = 162 on every save, variable-length rows carrying 21-byte record-shaped matches, then 24-byte filler rows. The same size on every save of a career."],
+        [48353064, 52721064, "reserved", "Player progress", "player_progress.md", "fixed grid", "PLAYER_PROGRESS_TABLE", "62,400 rows × 70 B, the same count on every save: [tid u32][6 × u16 skill lines][status u16][0][day u16][year u16][23 × u16], usually one row per player per week. Rows recycled."],
+        [52721064, 53479282, "unknown", "Unidentified", "unread/progress_padding.md", "", "", "All 00 and ff. The training table sits exactly 758,222 B after the progress pool on every Frem save."],
+        [53479282, 55490212, "database", "Training", "training.md", "count in front", "TRAINING_TABLE", "[count u32 = 32,966][32,966 × 61 B], row k = person tid k: intensity, Focus Role, attribute focus, Focus Pos, contracted flag, squad status. Rewritten as focus changes."],
+        [55490212, 55615704, "grows", "Award history", "award_history.md", "count in front", "AWARD_HISTORY_TABLE", "1,364 editions × 92 B, 1st to 3rd: every year of an annual award, this season of a weekly or monthly one."],
+        [55615704, 55882728, "grows", "Team history", "team_history.md", "count in front", "TEAM_HISTORY_TABLE", "845 teams × 316 B with ratings: every year of a season team, this season\'s Teams of the Week."],
+        [55882728, 55884748, "unknown", "Unidentified", "unread/before_matches.md", "", "", "2,020 bytes before our matches."],
+        [55884748, 56178674, "seasonal", "Our matches", "matches.md", "count in front", "MATCHES_TABLE", "[count u8 = 57], then one row per match: [home, away, cid, day][n u8][n × 17 B events][5,093 B body] with both team blocks and our tactic. Emptied on the rollover day."],
+        [56178684, 56310550, "database", "Person stamps", "person_stamps.md", "count in front", "PERSON_STAMPS_TABLE", "[01][01][count = 32,965], then [level u8][day u16][year offset u8] per person, behind five unread u16 nation ids."],
+        [56310550, 56312470, "database", "Tactic history", "tactic_history.md", "count in front", "TACTIC_HISTORY_TABLE", "30 tactic setups the game recorded for the user, capped at 30: a role per position, a formation name or uber tactic."],
+        [56312470, 56313476, "grows", "Club seasons", "club_seasons.md", "count in front", "CLUB_SEASONS_TABLE", "Frem's league line and cups, season by season (50-slot pool)."],
+        [56313477, 56314027, "filler", "0xFF run, 550 B", null, "", "", "550 bytes on every Frem save. Not the end of our matches."],
+        [56314027, 56316108, "grows", "Club titles", "club_titles.md", "count in front", "CLUB_TITLES_TABLE", "32 slots × 65 B: each competition the managed club has won, with its years (3. Division 2021, 2. Division 2022, NordicBet Liga 2023)."],
+        [56316108, 61253092, "unknown", "Unidentified", "unread/end_block.md", "", "", "00 29% / ff 53% / other 18%. Opens with [01][club][first season] and empty 11-byte slots. On FMM27 the same block is ten framed tables (switch version above); not yet walked here. One small player-list block sits at 56,336,372."],
+        [61253092, 62631642, "reserved", "Player lists", "player_lists.md", "chained records", "PLAYER_LISTS_TABLE", "66 lists of [100 scrapbook entries][14 B trailer]. Lists 0–30 world (100 players a season), 31–61 our squad per season, 62–65 two copies of a world/club pair. Filled season by season."],
+        [61896648, 62002727, "reserved", "Our club's squad lists (31–61)", "player_lists.md", "", "player_scrapbook.json", "The managed squad, one list per season.", true],
+        [62631781, 62635766, "unknown", "Scheduled events (unread)", "unread/scheduled_events.md", "fixed grid", "", "14 B units [u32 FFFFFFFF][u16 type][day-of-year][year][u32 tid], dates a fortnight ahead. Type 9 is a transfer going through that day: all 41 are agreed transfers."],
+        [62635766, 63936873, "grows", "sicomps archive", "#h-arch", "archive member", "archive.locate", "159 zstd members and a directory, 6.58 MB decompressed: fixtures, comp_stages, comp_honours, 147 × comp_<uid>.dat. Grows with the career."]
+      ],
+      gaps: [
+        ["56.32–61.25 MB", 4.94, 0.9, "between the club titles and the player lists"],
+        ["34.28–35.44 MB", 1.16, 0.59, "after the loans, in front of the transfer band; real bytes not re-measured"],
+        ["39.20–40.04 MB", 0.84, 0.53, "after the last transfers; real bytes not re-measured"],
+        ["15.08–16.75 MB", 1.67, 0.48, "after the club rows: one variable-length block per player; real bytes not re-measured"],
+        ["20.02–29.17 MB", 9.15, 0.3, "94% 0xFF: padding, not a target"],
+        ["41.11–42.63 MB", 1.52, 0.27, "82% zero, mostly padding"],
+
+        ["52.72–53.48 MB", 0.76, 0, "all 00 and ff"]
+      ],
+      gapLead: { lab: "0.57–3.99 MB", ghost: 3.42, v: 1.55, why: "inside the person table: records walked, bytes partly unnamed" },
+      arch: [
+        ["comp_<uid> × 147", 3562444, "each competition's stages and rounds (comp_rules)"],
+        ["fix_man", 2518076, "the world results list (fixtures)"],
+        ["comp_man", 232446, "comp_stages, unread day blocks, comp_honours"],
+        ["stadium", 133322, "unexamined"],
+        ["rule_group", 66561, "engine log lines; the only plain text"],
+        ["comp_hosts", 30567, "unexamined"],
+        ["rgman", 20947, "a 20-byte grid"],
+        ["friend_man", 16918, "friendlies; unexamined"],
+        ["reserves", 1500, "constant within a career"],
+        ["national_teams", 371, "unexamined"],
+        ["discipline", 254, "byte-identical on every save: a static enumeration"],
+        ["squad_man", 17, "a stub"],
+        ["fifa_rankings", 14, "a date and one u16"]
+      ]
+    }
+  };
 
   var $ = function (id) { return document.getElementById(id); };
-  var useHex = false;
-  try { useHex = localStorage.getItem("fmm-map-hex") === "1"; } catch (e) {}
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+  var useHex = store("fmm-map-hex") === "1";
+  var ver = "fmm27";
+  var h = (location.hash || "").slice(1);
+  if (V[h]) ver = h; else if (V[store("fmm-map-ver")]) ver = store("fmm-map-ver");
+  var cur, R, TOTAL, main;
   var active = {}; Object.keys(CLASSES).forEach(function (k) { active[k] = true; });
+
   function col(c) { return "var(" + CLASSES[c].color + ")"; }
   function n(x) { return x.toLocaleString("en-US"); }
   function off(x) { return useHex ? "0x" + x.toString(16).toUpperCase().padStart(7, "0") : n(x); }
   function sz(b) { return b >= 1048576 ? (b / 1048576).toFixed(2) + " MB" : b >= 10240 ? (b / 1024).toFixed(0) + " KB" : n(b) + " B"; }
   function pct(x) { return (x / TOTAL * 100) + "%"; }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
-  function link(r) { if (!r[4]) return esc(r[3]); var h = r[4].charAt(0) === "#" ? r[4] : DOC + r[4]; return '<a data-h="' + h + '"' + (r[4].charAt(0) === "#" ? "" : ' target="_blank" rel="noopener"') + ">" + esc(r[3]) + "</a>"; }
-
-  // Links built here carry data-h and get their href once in the DOM.
+  function link(r) { if (!r[4]) return esc(r[3]); var hr = r[4].charAt(0) === "#" ? r[4] : DOC + r[4]; return '<a data-h="' + hr + '"' + (r[4].charAt(0) === "#" ? "" : ' target="_blank" rel="noopener"') + ">" + esc(r[3]) + "</a>"; }
   function setHrefs(root) { root.querySelectorAll("a[data-h]").forEach(function (a) { a.setAttribute("href", a.dataset.h); }); }
 
-  var main = R.filter(function (r) { return !r[8]; });
-  $("nRegions").textContent = main.length;
-  var unk = main.filter(function (r) { return r[2] === "unknown"; });
-  $("nUnknown").textContent = unk.length + " spans · " + sz(unk.reduce(function (a, r) { return a + r[1] - r[0]; }, 0));
-
-  // zones
-  $("zones").innerHTML = '<span style="left:0;width:' + pct(20021621) + '">near-static · ±100 KB between saves</span>' +
-    '<span class="career" style="left:' + pct(34000000) + ';width:' + pct(TOTAL - 34000000) + '">career half · drifts by MB</span>';
-
-  // strip
-  var strip = $("strip");
-  main.forEach(function (r, i) {
-    var d = document.createElement("div");
-    d.className = "seg" + (r[2] === "unknown" ? " hatch" : "");
-    d.style.left = pct(r[0]); d.style.width = pct(r[1] - r[0]);
-    d.style.background = col(r[2]);
-    if (r[2] === "unknown") d.style.backgroundImage = "repeating-linear-gradient(135deg, transparent 0 4px, rgba(255,255,255,0.35) 4px 7px)";
-    d.tabIndex = 0; d.setAttribute("role", "listitem");
-    d.setAttribute("aria-label", r[3] + ", " + sz(r[1] - r[0]));
-    d.dataset.i = R.indexOf(r);
-    d.addEventListener("mouseenter", function () { tip(r); });
-    d.addEventListener("focus", function () { tip(r); });
-    d.addEventListener("click", function () { tip(r); jump(R.indexOf(r)); });
-    d.addEventListener("keydown", function (e) { if (e.key === "Enter") jump(R.indexOf(r)); });
-    strip.appendChild(d);
-  });
   function tip(r) {
     $("tip").innerHTML = '<span class="pill" style="background:' + col(r[2]) + '">' + CLASSES[r[2]].label + "</span> <b>" + esc(r[3]) + "</b> · " +
       '<span class="mono">' + off(r[0]) + " → " + off(r[1]) + "</span> · " + sz(r[1] - r[0]) + (r[7] ? "<br>" + esc(r[7]) : "");
   }
-
-  // ruler
-  var ru = "";
-  for (var m = 0; m <= 56; m += 8) { ru += '<span style="left:' + (m * 1048576 / TOTAL * 100) + '%">' + (m === 0 ? "0" : m + " MiB") + "</span>"; }
-  ru += '<span style="left:100%;transform:translateX(-100%)">EOF</span>';
-  $("ruler").innerHTML = ru;
-
-  // legend
-  var counts = {};
-  main.forEach(function (r) { counts[r[2]] = (counts[r[2]] || 0) + (r[1] - r[0]); });
-  Object.keys(CLASSES).forEach(function (k) {
-    var b = document.createElement("button");
-    b.type = "button"; b.className = "chip"; b.setAttribute("aria-pressed", "true");
-    b.innerHTML = '<span class="sw" style="background:' + col(k) + '"></span>' + CLASSES[k].label + ' <span class="n">' + sz(counts[k] || 0) + "</span>";
-    b.addEventListener("click", function () {
-      var only = Object.keys(active).every(function (x) { return active[x]; });
-      if (only) { Object.keys(active).forEach(function (x) { active[x] = x === k; }); }
-      else { active[k] = !active[k]; if (!Object.keys(active).some(function (x) { return active[x]; })) Object.keys(active).forEach(function (x) { active[x] = true; }); }
-      applyFilter();
-    });
-    b.dataset.k = k;
-    $("legend").appendChild(b);
-  });
   function applyFilter() {
     document.querySelectorAll(".chip").forEach(function (c) { c.setAttribute("aria-pressed", active[c.dataset.k] ? "true" : "false"); });
     document.querySelectorAll(".seg").forEach(function (s) { s.classList.toggle("dim", !active[R[s.dataset.i][2]]); });
     document.querySelectorAll(".row[data-i]").forEach(function (row) { row.hidden = !active[R[row.dataset.i][2]]; });
   }
+  function jump(i) {
+    var row = $("r" + i); if (!row) return;
+    if (row.hidden) { Object.keys(active).forEach(function (x) { active[x] = true; }); applyFilter(); }
+    row.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
+    row.classList.add("flash"); setTimeout(function () { row.classList.remove("flash"); }, 1600);
+  }
 
-  // ledger
   function renderLedger() {
     document.querySelectorAll(".row[data-i]").forEach(function (x) { x.remove(); });
     var L = $("ledger");
@@ -428,6 +675,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
       var d = document.createElement("div");
       d.className = "row" + (r[8] ? " sub" : ""); d.dataset.i = i; d.id = "r" + i;
       var meta = "";
+      if (r[9]) meta += '<span class="tag chg">changed</span>';
       if (r[5]) meta += '<span class="tag">' + esc(r[5]) + "</span>";
       if (r[6]) meta += '<span class="tag">' + esc(r[6]) + "</span>";
       d.innerHTML = '<div class="off"><b>' + off(r[0]) + "</b><br>→ " + off(r[1]) + "</div>" +
@@ -439,28 +687,141 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     setHrefs(L);
     applyFilter();
   }
-  function jump(i) {
-    var row = $("r" + i); if (!row) return;
-    if (row.hidden) { Object.keys(active).forEach(function (x) { active[x] = true; }); applyFilter(); }
-    row.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
-    row.classList.add("flash"); setTimeout(function () { row.classList.remove("flash"); }, 1600);
+
+  function bars(el, rows, max) {
+    var s = "";
+    rows.forEach(function (b) {
+      s += '<div class="bar"><span class="lab">' + b.lab + '</span><span class="track">' +
+        (b.ghost != null ? '<span class="fill ghost" style="width:' + (b.ghost / max * 100) + "%;background:" + b.c + '"></span>' : "") +
+        '<span class="fill" style="width:' + (b.v / max * 100) + "%;background:" + b.c + '"></span></span><span class="val">' + b.txt + "</span>" +
+        (b.why ? '<span class="why">' + b.why + "</span>" : "") + "</div>";
+    });
+    el.innerHTML = s;
   }
-  renderLedger();
+
+  function fillSlots() {
+    document.querySelectorAll(".slot[data-slot]").forEach(function (slot) {
+      var t = document.querySelector('template[data-v="' + ver + '"][data-slot="' + slot.dataset.slot + '"]');
+      slot.innerHTML = "";
+      if (t) slot.appendChild(t.content.cloneNode(true));
+    });
+    $("secChanges").hidden = !document.querySelector('template[data-v="' + ver + '"][data-slot="changes"]');
+  }
+
+  function render() {
+    cur = V[ver]; R = cur.R; TOTAL = cur.total;
+    main = R.filter(function (r) { return !r[8]; });
+    $("ver").value = ver;
+    document.title = cur.title.replace(" save file map", "") + " Save File Map";
+    $("title").textContent = cur.title;
+    $("lede").innerHTML = cur.lede;
+    $("fSave").textContent = cur.save;
+    $("fSize").textContent = n(TOTAL) + " B";
+    $("nRegions").textContent = main.length;
+    var unk = main.filter(function (r) { return r[2] === "unknown"; });
+    $("nUnknown").textContent = unk.length + " spans · " + sz(unk.reduce(function (a, r) { return a + r[1] - r[0]; }, 0));
+    $("offIn").value = ""; $("offOut").textContent = "";
+    $("tip").textContent = "Hover or tap a region to see what it is. Click it to jump to its row below.";
+    Object.keys(active).forEach(function (x) { active[x] = true; });
+
+    fillSlots();
+
+    $("zones").innerHTML = cur.zones.map(function (z) {
+      return '<span class="' + z[3] + '" style="left:' + pct(z[0]) + ";width:" + pct(z[1] - z[0]) + '">' + z[2] + "</span>";
+    }).join("");
+
+    var strip = $("strip"); strip.innerHTML = "";
+    main.forEach(function (r) {
+      var i = R.indexOf(r), d = document.createElement("div");
+      d.className = "seg";
+      d.style.left = pct(r[0]); d.style.width = pct(r[1] - r[0]);
+      d.style.background = col(r[2]);
+      if (r[2] === "unknown") d.style.backgroundImage = "repeating-linear-gradient(135deg, transparent 0 4px, rgba(255,255,255,0.35) 4px 7px)";
+      d.tabIndex = 0; d.setAttribute("role", "listitem");
+      d.setAttribute("aria-label", r[3] + ", " + sz(r[1] - r[0]));
+      d.dataset.i = i;
+      d.addEventListener("mouseenter", function () { tip(r); });
+      d.addEventListener("focus", function () { tip(r); });
+      d.addEventListener("click", function () { tip(r); jump(i); });
+      d.addEventListener("keydown", function (e) { if (e.key === "Enter") jump(i); });
+      strip.appendChild(d);
+    });
+
+    var ru = "", maxM = Math.floor(TOTAL / 1048576 / 8) * 8;
+    for (var m = 0; m <= maxM; m += 8) if (m === 0 || (TOTAL - m * 1048576) / TOTAL > 0.05) ru += '<span style="left:' + (m * 1048576 / TOTAL * 100) + '%">' + (m === 0 ? "0" : m + " MiB") + "</span>";
+    ru += '<span style="left:100%;transform:translateX(-100%)">EOF</span>';
+    $("ruler").innerHTML = ru;
+
+    var counts = {};
+    main.forEach(function (r) { counts[r[2]] = (counts[r[2]] || 0) + (r[1] - r[0]); });
+    $("legend").innerHTML = "";
+    Object.keys(CLASSES).forEach(function (k) {
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "chip"; b.setAttribute("aria-pressed", "true"); b.dataset.k = k;
+      b.innerHTML = '<span class="sw" style="background:' + col(k) + '"></span>' + CLASSES[k].label + ' <span class="n">' + sz(counts[k] || 0) + "</span>";
+      b.addEventListener("click", function () {
+        var all = Object.keys(active).every(function (x) { return active[x]; });
+        if (all) { Object.keys(active).forEach(function (x) { active[x] = x === k; }); }
+        else { active[k] = !active[k]; if (!Object.keys(active).some(function (x) { return active[x]; })) Object.keys(active).forEach(function (x) { active[x] = true; }); }
+        applyFilter();
+      });
+      $("legend").appendChild(b);
+    });
+
+    renderLedger();
+
+    $("classes").innerHTML = "";
+    ["database", "reserved", "grows", "seasonal"].forEach(function (k) {
+      var members = main.filter(function (r) { return r[2] === k; }).map(function (r) { return r[3]; });
+      var d = document.createElement("div"); d.className = "cls";
+      d.innerHTML = '<h3><span class="sw" style="background:' + col(k) + '"></span>' + CLASSES[k].label + "</h3><p>" + esc(CLASSES[k].desc) + '</p><div class="m"><b>' + members.length + " regions:</b> " + esc(members.join(", ")) + "</div>";
+      $("classes").appendChild(d);
+    });
+
+    if ($("rollBars")) {
+      var muted = "var(--c-filler)";
+      bars($("rollBars"), [
+        { lab: "below 34.59 MB", v: 8952, c: muted, txt: "−8,952 B", why: "data-dictionary edits, nothing structural" },
+        { lab: "34.59–39.55 MB", v: 2541720, c: "var(--c-seasonal)", txt: "−2,541,720 B", why: "the transfer band" },
+        { lab: "55.6–59.8 MB", v: 383862, c: "var(--c-seasonal)", txt: "−383,862 B", why: "our matches, exactly the region's own size" },
+        { lab: "tail", v: 59274, c: muted, txt: "−59,274 B", why: "" }
+      ], 2541720);
+    }
+
+    var gmax = Math.max.apply(null, cur.gaps.map(function (g) { return g[1]; }));
+    var grows = cur.gaps.map(function (g) {
+      return { lab: g[0], ghost: g[1], v: g[2], c: "var(--c-unknown)", txt: g[2] ? "≈ " + g[2].toFixed(2) + " MB" : "0", why: g[3] + " · " + g[1].toFixed(2) + " MB span" };
+    });
+    if (cur.gapLead) grows.unshift({ lab: cur.gapLead.lab, ghost: cur.gapLead.ghost, v: cur.gapLead.v, c: "var(--c-static)", txt: "≈ " + cur.gapLead.v.toFixed(2) + " MB", why: cur.gapLead.why });
+    bars($("gapBars"), grows, gmax);
+
+    var amax = cur.arch[0][1];
+    bars($("archBars"), cur.arch.map(function (a) { return { lab: esc(a[0]), v: a[1], c: "var(--c-archive)", txt: sz(a[1]), why: a[2] }; }), amax);
+  }
 
   // hex toggle
   function setHex(v) {
-    useHex = v; try { localStorage.setItem("fmm-map-hex", v ? "1" : "0"); } catch (e) {}
+    useHex = v; store("fmm-map-hex", v ? "1" : "0");
     $("hexBtn").setAttribute("aria-pressed", v ? "true" : "false");
     $("hexBtn").textContent = v ? "Show offsets in decimal" : "Show offsets in hex";
     renderLedger();
   }
   $("hexBtn").addEventListener("click", function () { setHex(!useHex); });
-  setHex(useHex);
+
+  // version switch
+  function setVer(v, fromHash) {
+    if (!V[v]) return;
+    ver = v; store("fmm-map-ver", v);
+    if (!fromHash && location.hash !== "#" + v) { try { history.replaceState(null, "", "#" + v); } catch (e) { location.hash = v; } }
+    render(); setHex(useHex);
+  }
+  $("ver").addEventListener("change", function () { setVer(this.value); });
+  window.addEventListener("hashchange", function () { var x = location.hash.slice(1); if (V[x] && x !== ver) setVer(x, true); });
 
   // offset lookup
   var needle = null;
   $("offIn").addEventListener("input", function () {
-    var v = this.value.trim().replace(/[,_\s]/g, ""), x;
+    var v = this.value.trim().replace(/[,_\s]/g, ""), x, strip = $("strip");
     if (needle) { needle.remove(); needle = null; }
     document.querySelectorAll(".seg.hl").forEach(function (s) { s.classList.remove("hl"); });
     if (!v) { $("offOut").textContent = ""; return; }
@@ -474,69 +835,13 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     $("offOut").innerHTML = '<span class="mono">' + n(x) + "</span> is <b>" + n(x - r[0]) + "</b> bytes into <b>" + esc(r[3]) + "</b>. " + '<a data-h="#r' + i + '" id="offJump">Show row</a>';
     setHrefs($("offOut"));
     $("offJump").addEventListener("click", function (e) { e.preventDefault(); jump(i); });
-    var seg = strip.querySelector('.seg[data-i="' + (r[8] ? R.indexOf(main.filter(function (q) { return x >= q[0] && x < q[1]; })[0]) : i) + '"]');
+    var mainHit = main.filter(function (q) { return x >= q[0] && x < q[1]; });
+    var seg = mainHit.length ? strip.querySelector('.seg[data-i="' + R.indexOf(mainHit[mainHit.length - 1]) + '"]') : null;
     if (seg) seg.classList.add("hl");
     tip(r);
   });
 
-  // class cards
-  ["database", "reserved", "grows", "seasonal"].forEach(function (k) {
-    var members = main.filter(function (r) { return r[2] === k; }).map(function (r) { return r[3]; });
-    var d = document.createElement("div"); d.className = "cls";
-    d.innerHTML = '<h3><span class="sw" style="background:' + col(k) + '"></span>' + CLASSES[k].label + "</h3><p>" + esc(CLASSES[k].desc) + '</p><div class="m"><b>' + members.length + " regions:</b> " + esc(members.join(", ")) + "</div>";
-    $("classes").appendChild(d);
-  });
-
-  // bars helper
-  function bars(el, rows, max, opts) {
-    var h = "";
-    rows.forEach(function (b) {
-      h += '<div class="bar"><span class="lab">' + b.lab + '</span><span class="track">' +
-        (b.ghost != null ? '<span class="fill ghost" style="width:' + (b.ghost / max * 100) + "%;background:" + b.c + '"></span>' : "") +
-        '<span class="fill" style="width:' + (b.v / max * 100) + "%;background:" + b.c + '"></span></span><span class="val">' + b.txt + "</span>" +
-        (b.why ? '<span class="why">' + b.why + "</span>" : "") + "</div>";
-    });
-    el.innerHTML = h;
-  }
-  var muted = "var(--c-filler)";
-  bars($("rollBars"), [
-    { lab: "below 34.59 MB", v: 8952, c: muted, txt: "−8,952 B", why: "data-dictionary edits, nothing structural" },
-    { lab: "34.59–39.55 MB", v: 2541720, c: "var(--c-seasonal)", txt: "−2,541,720 B", why: "the transfer band" },
-    { lab: "55.6–59.8 MB", v: 383862, c: "var(--c-seasonal)", txt: "−383,862 B", why: "our matches, exactly the region's own size" },
-    { lab: "tail", v: 59274, c: muted, txt: "−59,274 B", why: "" }
-  ], 2541720);
-
-  var gaps = [
-    ["56.32–61.25 MB", 4.94, 0.9, "between the club titles and the player lists"],
-    ["34.28–35.44 MB", 1.16, 0.59, "after the loans, in front of the transfer band; real bytes not re-measured"],
-    ["39.20–40.04 MB", 0.84, 0.53, "between the last transfers and the match-slot table; real bytes not re-measured"],
-    ["15.08–16.75 MB", 1.67, 0.48, "after the club rows: one variable-length block per player; real bytes not re-measured"],
-    ["20.02–29.17 MB", 9.15, 0.3, "94% 0xFF: padding, not a target"],
-    ["41.11–42.63 MB", 1.52, 0.27, "82% zero, mostly padding"],
-    ["52.72–53.48 MB", 0.76, 0, "all 00 and ff"]
-  ];
-  bars($("gapBars"), [{ lab: "0.57–3.99 MB", ghost: 3.42, v: 1.55, c: "var(--c-static)", txt: "≈ 1.55 MB", why: "inside the person table: records walked, bytes partly unnamed" }].concat(gaps.map(function (g) {
-    return { lab: g[0], ghost: g[1], v: g[2], c: "var(--c-unknown)", txt: g[2] ? "≈ " + g[2].toFixed(2) + " MB" : "0", why: g[3] + " · " + g[1].toFixed(2) + " MB span" };
-  })), 9.15);
-
-  var arch = [
-    ["comp_<uid> × 147", 3562444, "each competition's stages and rounds (comp_rules)"],
-    ["fix_man", 2518076, "the world results list (fixtures)"],
-    ["comp_man", 232446, "comp_stages, unread day blocks, comp_honours"],
-    ["stadium", 133322, "unexamined"],
-    ["rule_group", 66561, "engine log lines; the only plain text"],
-    ["comp_hosts", 30567, "unexamined"],
-    ["rgman", 20947, "a 20-byte grid"],
-    ["friend_man", 16918, "friendlies; unexamined"],
-    ["reserves", 1500, "constant within a career"],
-    ["national_teams", 371, "unexamined"],
-    ["discipline", 254, "byte-identical on every save: a static enumeration"],
-    ["squad_man", 17, "a stub"],
-    ["fifa_rankings", 14, "a date and one u16"]
-  ];
-  bars($("archBars"), arch.map(function (a) { return { lab: esc(a[0]), v: a[1], c: "var(--c-archive)", txt: sz(a[1]), why: a[2] }; }), 3562444);
-
-  // transfer row hex grid
+  // transfer row hex grid (same 143 B row on both versions)
   var F = [
     [0, 1, "kind", "u8", "13 a bid, 0d the accepted one", "--c-seasonal"],
     [4, 2, "club tid", "u16", "or ffff; unread", "--c-filler"],
@@ -549,11 +854,11 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     [101, 2, "selling club", "u16", "", "--c-pool"],
     [103, 2, "buying club", "u16", "", "--c-pool"],
     [109, 4, "row index", "u32", "row k holds k", "--c-unknown"],
-    [113, 4, "serial", "u32", "not dense; ffffffff on 428 rows", "--c-filler"]
+    [113, 4, "serial", "u32", "not dense; ffffffff on 428 rows (FMM22)", "--c-filler"]
   ];
   var owner = new Array(143).fill(-1);
   F.forEach(function (f, fi) { for (var b = f[0]; b < f[0] + f[1]; b++) owner[b] = fi; });
-  var hx = '<span></span>';
+  var hx = "<span></span>";
   for (var c = 0; c < 16; c++) hx += '<span class="colh">' + c.toString(16).toUpperCase() + "</span>";
   for (var b = 0; b < 143; b++) {
     if (b % 16 === 0) hx += '<span class="ad">+' + b + "</span>";
@@ -563,13 +868,15 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
   }
   $("hex").innerHTML = hx;
   $("fields").innerHTML = F.map(function (f, fi) {
-    return '<div data-f="' + fi + '"><span class="sw" style="background:var(' + f[5] + ')"></span><code>+' + f[0] + "</code><span><b>" + f[2] + "</b> <span class=\"mono\" style=\"color:var(--muted)\">" + esc(f[3]) + "</span>" + (f[4] ? " · " + esc(f[4]) : "") + "</span></div>";
+    return '<div data-f="' + fi + '"><span class="sw" style="background:var(' + f[5] + ')"></span><code>+' + f[0] + "</code><span><b>" + f[2] + '</b> <span class="mono" style="color:var(--muted)">' + esc(f[3]) + "</span>" + (f[4] ? " · " + esc(f[4]) : "") + "</span></div>";
   }).join("") + '<div><span class="sw" style="background:var(--bg);border:1px solid var(--line)"></span><span style="color:var(--muted)">the other 103 bytes are unread</span></div>';
-  function hlField(fi, on) { document.querySelectorAll('.hex .cell[data-f="' + fi + '"]').forEach(function (c) { c.classList.toggle("on", on); }); }
+  function hlField(fi, on) { document.querySelectorAll('.hex .cell[data-f="' + fi + '"]').forEach(function (cc) { cc.classList.toggle("on", on); }); }
   document.querySelectorAll("#fields [data-f], #hex .cell.k").forEach(function (el) {
     el.addEventListener("mouseenter", function () { hlField(el.dataset.f, true); });
     el.addEventListener("mouseleave", function () { hlField(el.dataset.f, false); });
   });
+
+  render(); setHex(useHex);
 })();
 </script>
 </body>
