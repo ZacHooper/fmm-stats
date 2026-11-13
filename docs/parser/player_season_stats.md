@@ -91,19 +91,8 @@ Atlético Madrid B, VfB Stuttgart II): none of them transferred or went on loan.
 
 ## What follows: unread
 
-Between the six blocks and the history pool, 197 KB on truro-2026-11-16 (171 KB on 25 Jul) and
-85 KB on frem-2026-06-11, not read:
-
-- **FMM27 ends in 1,020 inline-named records**, about 52–59 bytes apart, the first at
-  44,733,559 on truro-2026-08-08: `… ff ff ff ff [u32 len]"Mark" [u32 0][u32 len]"Smith" 01 00
-  ea 07 ff …`. Others: "Phillip Foose", "Cecilia Tenconi" (followed by `01 d7 07`: 2007, a birth
-  year by the look of it), "Carrie Scrimgeour", "Cathy Jessup". Where exactly the year sits is
-  not settled: the bytes after the surname differ between records. The names are typed into
-  the record, not ids into the name tables, so these are people the database does not ship.
-- Near the end on Truro sit counts of 3,125 (Truro's own tid) and 10,000, about 174 KB before
-  the history pool.
-- **FMM22's tail is different**: rows of two u32 and a u16 nation id (`8b`, `a3`, `a7` …).
-
-Next: check whether the inline names appear in the browse-name table at all, and look for a
-tid or club in each record: they may be generated non-player people (journalists, agents,
-board members) or FMM27's women's players.
+Between the six blocks and the history pool: 197 KB on truro-2026-11-16 (171 KB on 25 Jul) and
+85 KB on frem-2026-06-11, not read. On FMM27 it is three sub-tables, each with its own page:
+[125 variable records](unread/sst_records.md) (~97 KB; FMM22's 85 KB is described there),
+[grouped 14-byte tid rows](unread/sst_tid_groups.md) (~41 KB) and
+[inline-named records](unread/sst_named.md) (58 KB).

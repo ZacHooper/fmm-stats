@@ -98,7 +98,8 @@ rules are checked against screens on `truro-2026-08-08`. Open, in order:
   Inverted Full-Back sit. Then an FMM27 role seed.
 - **The player lists' season numbers** (tail +114) need a save after a season ends.
 - **`comp_man.dat`** (comp_stages, comp_honours) does not read with FMM22's declarations;
-  `match_slots` is not located (nothing reads it).
+  `match_slots` is found by hand on FMM27 (`docs/parser/match_slots.md`), not yet by its locator
+  (nothing reads it).
 
 ### 2. Load an FMM27 save into the store
 `fm-truro.duckdb` builds from all three Truro saves (in `seeds/manifest.csv`): 543 of 544 dbt
@@ -183,10 +184,11 @@ Phase 2 read two tables and found what the other two regions hold:
   [competition record books](parser/unread/record_books.md),
   [scheduled events](parser/unread/scheduled_events.md),
   [after the season stats](parser/player_season_stats.md#what-follows-unread),
-  [season-year blocks](parser/unread/season_blocks.md), the
+  [rule files → contract grid](parser/unread/rf_team_selections.md) (five sub-tables: each
+  team's matchday squad, the formation presets, season-year blocks …), the
   [user's club block](parser/unread/club_block.md) (set pieces / captain?),
   [before our matches](parser/unread/before_matches.md) and the
-  [progress → training padding](parser/unread/progress_padding.md). Team instructions
+  [attribute changes](parser/unread/attribute_changes.md) (not padding). Team instructions
   (mentality, passing, …) are not found; the Tactics screens of 22 and 25 Jul are saved as
   evidence ([tactic history](parser/tactic_history.md)).
 - **The contract grid's span ends 89 bytes short on frem-2030-06-22**: the loan pool's
