@@ -3,8 +3,9 @@
  *
  * AI managers pick their XI mostly on ability, so the ordering here is ability throughout, and
  * it arrives pre-rendered in api/loans.json (percentiles and ranks only — the number behind
- * them never leaves the build machine). One strip per division, from ours down to the third
- * below: every tick is one club's STARTER LINE at the position — the Level %ile of the weakest
+ * them never leaves the build machine). One strip per division of our pyramid, from the top
+ * flight down to the tier below ours, parallel divisions included: every tick is one club's
+ * STARTER LINE at the position — the Level %ile of the weakest
  * player it would start there in its manager's preferred formation — and the dot is him. A
  * tick left of the dot is a club he'd walk into; clubs whose shape has no slot for the position
  * (a winger at a 5-3-2 club) have no tick at all.
@@ -18,14 +19,26 @@ const ordinal = (n) => {
 };
 const starts = (c) => c.rank <= c.slots;
 
-/** Unpack one position's rows into {cid, name, lvl, n, clubs[{tid,rank,slots,line}]}. */
+/** Unpack one position's rows into {cid, name, level, ours, lvl, n, clubs[{tid,rank,slots,line}]}.
+ *  level is the division's tier less ours (negative above us); our own division is the first
+ *  level-0 entry of the ladder, which lists the pyramid top flight first. */
 function divisions(L, rows) {
-  return rows.map(([cid, lvl, n, clubs], tier) => ({
-    cid, tier, lvl, n,
-    name: L.ladder.find((l) => l.cid === cid)?.name || D.S.leagues.get(cid)?.name || `#${cid}`,
-    clubs: clubs.map(([tid, rank, slots, line]) => ({ tid, rank, slots, line })),
-  }));
+  const ourCid = L.ladder.find((l) => l.level === 0)?.cid;
+  return rows.map(([cid, lvl, n, clubs]) => {
+    const rung = L.ladder.find((l) => l.cid === cid);
+    return {
+      cid, lvl, n, level: rung?.level ?? null, ours: cid === ourCid,
+      name: rung?.name || D.S.leagues.get(cid)?.name || `#${cid}`,
+      clubs: clubs.map(([tid, rank, slots, line]) => ({ tid, rank, slots, line })),
+    };
+  });
 }
+
+/** Where a division sits against ours: "our division", "our tier", "2 above", "1 below". */
+const whereIs = (d) => d.ours ? "our division"
+  : d.level == null ? ""
+  : d.level === 0 ? "our tier"
+  : `${Math.abs(d.level)} ${d.level < 0 ? "above" : "below"}`;
 
 /** The highest division with at least one club he'd start for — the loan to aim at. */
 const bestDivision = (divs) => divs.find((d) => d.clubs.some(starts)) || null;
@@ -40,7 +53,7 @@ function strip(d, { picked, best, onPick }) {
     d.lvl == null ? null : el("span.ldot", { style: `left:${d.lvl}%`, title: `His Level %ile here: ${d.lvl}` }),
   ]);
   return el(`div.lrow${picked ? ".on" : ""}${best ? ".best" : ""}`, { onclick: onPick, role: "button", tabindex: "0" }, [
-    el("div.lname", {}, [el("b", { text: d.name }), el("span.dim", { text: d.tier === 0 ? "our division" : `${d.tier} below` })]),
+    el("div.lname", {}, [el("b", { text: d.name }), el("span.dim", { text: whereIs(d) })]),
     n ? track : el("div.ltrack.none", { text: "no club here plays this position" }),
     el("div.lstat", {}, [
       el("b", { text: n ? `${k}/${n}` : DASH }),

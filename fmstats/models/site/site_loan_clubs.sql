@@ -1,6 +1,7 @@
 -- The clubs a player of ours could be loaned to on each snapshot, keyed
--- (snapshot_date, team_tid): every team, ours aside, in our division or the
--- var('loan_outlook').tiers - 1 below it (site.leagues ladder_rank), with the
+-- (snapshot_date, team_tid): every team, ours aside, in a division of our
+-- pyramid (site.leagues), from the top flight down to
+-- var('loan_outlook').levels_below tiers under ours, with the
 -- formation its manager prefers where it is one var('formation_slots') lists
 -- (NULL otherwise: it plays var('fallback_formation')).
 with managers as (
@@ -24,7 +25,8 @@ select
     clubs.snapshot_date,
     clubs.team_tid,
     clubs.league_cid,
-    leagues.ladder_rank,
+    leagues.pyramid_rank,
+    leagues.pyramid_level,
     case
         when
             managers.formation in (
@@ -43,7 +45,7 @@ left join managers
         clubs.snapshot_date = managers.snapshot_date
         and clubs.team_tid = managers.team_tid
 where
-    leagues.ladder_rank < {{ var('loan_outlook').tiers }}
+    leagues.pyramid_level <= {{ var('loan_outlook').levels_below }}
     and clubs.team_tid not in (
         select ours.team_tid from {{ ref('site_our_teams') }} as ours
     )

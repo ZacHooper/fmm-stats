@@ -226,9 +226,10 @@ vars:
     "5-2-2-1": {GK: 1, DML: 1, DC: 3, DMR: 1, MC: 2, AMC: 2, ST: 1}
     "5-3-2": {GK: 1, DML: 1, DC: 3, DMR: 1, MC: 3, ST: 2}
   fallback_formation: "4-2-3-1"
-  # The loan outlook ranks a player in our division and the next tiers - 1 below it; a
-  # position counts as one he can be picked at from min_familiarity.
-  loan_outlook: {tiers: 4, min_familiarity: 15}
+  # The loan outlook ranks a player in every division of our pyramid (site_leagues), from
+  # the top flight down to levels_below tiers under ours; a position counts as one he can be
+  # picked at from min_familiarity.
+  loan_outlook: {levels_below: 1, min_familiarity: 15}
   # The attribute forecast (site_forecast): a cell is a player's value of an attribute at an
   # age, and the values the players in it reach at each horizon age, from the snapshot
   # closest to it within a year; a cell needs min_players. An attribute's bucket compares

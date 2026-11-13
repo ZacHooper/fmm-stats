@@ -517,11 +517,12 @@ def main():
     # ------------------------------------------------------------ loans.json
     min_fam = int(cfg["min_familiarity"])
     fallback = cfg["fallback_formation"]
-    loan_ladder = [(r["cid"], r["name"]) for r in s.rows(
-        """SELECT DISTINCT c.league_cid AS cid, l.name, c.ladder_rank
+    # Our pyramid from the top flight down, as far below us as the loan reaches.
+    loan_ladder = [(r["cid"], r["name"], r["pyramid_level"]) for r in s.rows(
+        """SELECT DISTINCT c.league_cid AS cid, l.name, c.pyramid_level, c.pyramid_rank
            FROM site.loan_clubs c
            JOIN site.leagues l ON l.snapshot_date = c.snapshot_date AND l.cid = c.league_cid
-           WHERE c.snapshot_date = ? ORDER BY c.ladder_rank""", [d])]
+           WHERE c.snapshot_date = ? ORDER BY c.pyramid_rank""", [d])]
     formations = {str(r["team_tid"]): r["formation"] for r in s.rows(
         "SELECT team_tid, formation FROM site.loan_clubs WHERE snapshot_date = ? "
         "ORDER BY league_cid, team_tid", [d])}
@@ -531,7 +532,7 @@ def main():
         slots.setdefault(r["formation"], {})[r["position"]] = r["slots"]
     loans = {}
     for r in s.rows("""SELECT * FROM site.loan_outlook WHERE snapshot_date = ?
-                       ORDER BY person_id, familiarity DESC, position, ladder_rank,
+                       ORDER BY person_id, familiarity DESC, position, pyramid_rank,
                                 club_tid""", [d]):
         if r["person_id"] not in tid_of:
             continue
@@ -544,14 +545,16 @@ def main():
             rows[-1][3].append([r["club_tid"], r["rank"], r["slots"], pct(r["line"])])
     emit("loans.json", {
         "snapshot": {"season": season, "phase": phase, "min_familiarity": min_fam},
-        "ladder": [{"cid": c, "name": n} for c, n in loan_ladder],
+        "ladder": [{"cid": c, "name": n, "level": lv} for c, n, lv in loan_ladder],
         "formations": formations,
         "fallback_formation": fallback,
         "slots": slots,
         "row_fields": ["league_cid", "lvl", "n", "clubs"],
         "club_fields": ["club_tid", "rank", "slots", "line"],
         "players": dict(sorted(loans.items(), key=lambda kv: int(kv[0]))),
-        "note": "lvl = his Level %ile at the position in that division. Per club: rank = his "
+        "note": "ladder = our pyramid, top flight first; level = the division's tier less "
+                "ours (negative above us, 0 on our tier). lvl = his Level %ile at the position "
+                "in that division. Per club: rank = his "
                 "place among that club's players at the position (1 = first choice), slots = "
                 "how many start there in the manager's preferred formation, line = Level %ile "
                 "of the weakest of them (null = the club has no natural player for that slot, "

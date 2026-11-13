@@ -2,7 +2,8 @@
 -- person_id, position, league_cid, club_tid), club_tid NULL in a division
 -- where no club starts anyone at the position: for every position he can be
 -- picked at (familiarity var('loan_outlook').min_familiarity or more), in each
--- division of the loan ladder (site.loan_clubs) and at each club in it whose
+-- division of our pyramid the loan reaches (site.loan_clubs), top flight first,
+-- and at each club in it whose
 -- formation starts someone there:
 --   lvl, n   his Level %ile in that division at the position: the share of
 --            the players listing it whose team is in the division and whose
@@ -43,7 +44,8 @@ ladder as (
     select distinct
         snapshot_date,
         league_cid,
-        ladder_rank
+        pyramid_rank,
+        pyramid_level
     from {{ ref('site_loan_clubs') }}
 ),
 
@@ -124,7 +126,8 @@ levels as (
         owned.person_id,
         owned.position,
         ladder.league_cid,
-        ladder.ladder_rank,
+        ladder.pyramid_rank,
+        ladder.pyramid_level,
         count(pool.person_id) filter (where pool.ca < owned.ca) as below,
         count(pool.person_id)
         - count(pool.person_id) filter (where pool.person_id = owned.person_id)
@@ -142,7 +145,8 @@ levels as (
         owned.person_id,
         owned.position,
         ladder.league_cid,
-        ladder.ladder_rank
+        ladder.pyramid_rank,
+        ladder.pyramid_level
 ),
 
 hosts as (
@@ -233,7 +237,8 @@ select
     owned.position,
     owned.familiarity,
     levels.league_cid,
-    levels.ladder_rank,
+    levels.pyramid_rank,
+    levels.pyramid_level,
     case
         when levels.n > 0 then round_even(100.0 * levels.below / levels.n, 0)
     end as lvl,
