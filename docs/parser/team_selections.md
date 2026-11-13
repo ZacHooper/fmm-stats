@@ -1,0 +1,74 @@
+# team_selections  ([`fmparser/tables/team_selections.py`](../../fmparser/tables/team_selections.py))
+
+**Every team's matchday squad**: the XI in its formation's slot order, the substitutes and,
+on FMM27, the captains. One slot per team, slot k = team tid k, both games. `extract.py`
+writes `team_selections.json`: every team with a place filled, its `team_tid`, the u8 in
+front (`unknown_0`) and `places`, None for an empty one.
+
+| save | slots | filled |
+|---|---|---|
+| truro-2026-07-22 / 07-25 / 08-08 / 11-16 | 17,804 × 105 B | 581 / 652 / 696 / 1,362 |
+| frem-2021-06-27 / 2023-07-02 / 2026-06-11 / 2030-06-22 / 2030-06-30 | 14,506 × 589 B | 567 / 1,228 / 1,375 / 1,415 / 1,317 |
+| bucaspor-2023-04-01 | 15,288 × 589 B | 1,428 |
+
+Straight after the [formations](formations.md), up to a 3.9 KB [tail](unread/rf_tail.md)
+before the [contract grid](contracts.md). Most of what FMM22's save map called 9 MB of filler
+is this table's empty slots.
+
+## Layout
+
+`[u16 count][count × slot]`:
+
+| | FMM27 | FMM22 |
+|---|---|---|
+| slot | 105 B = `[u8][26 × u32 tid]` | 589 B = `[u8][147 × u32 tid]` |
+
+`ffffffff` is an empty place; a team that has not picked a side has every place empty.
+
+**FMM27's 26 places:**
+
+| places | what |
+|---|---|
+| 0–10 | the starting XI in the tactic's slot order: place i stands at the formation's position code i ([formations](formations.md)) |
+| 11–19 | the substitutes, S1 first, up to nine: Maidenhead's seven (van Stappershoef … Achuba) are places 11–17; Truro names five. Of 690 full team sheets on 16 Nov, 438 use all nine, 148 seven; 66 leave a gap before a later substitute |
+| 20–25 | the captains. Truro: the captain on the pitch, then the Captain screen's five in order. Other teams fill only 21 and 22 (Maidenhead: Robinson, N'Guessan), by the look of it captain and vice-captain |
+
+**FMM22's 147**: filled slots hold 14, 18 or 20 tids at the front (226, 132 and 85 slots on
+frem-2026-06-11), a few a single tid further in. Not checked against a screen.
+
+The u8 in front: 14 on Truro's slot; 0, 2, 6, 8, 15, 16, 17 across others. Not named.
+
+The slot does not say which formation the team plays. On 16 Nov each opponent's screen
+showed its manager's preferred formation ([staff](staff.md) `formation_preferred`, an index
+into the formations): Maidenhead 4-2-4, Tonbridge 3-4-3, Dorking 5-1-2-2. So place i of an
+opponent stands at code i of its manager's preferred formation, and of the managed club at
+its saved tactic's.
+
+## Evidence
+
+truro-2026-11-16, Truro's slot against the Tactics – Captain screen: the eleven starters and
+five substitutes in the screen's order, the four empty bench places, then Bogle (on the pitch) and
+the five captains in order. And four Tactics – Formation screens taken that day (Truro,
+Maidenhead, Tonbridge, Dorking): each XI is stored in the screen squad list's order, and
+placed at the formation's codes every starter stands where the pitch shows him. Maidenhead's
+bench screen lists S1–S7 in places 11–17
+([formations](formations.md) has the table and the screens). 1,321 of the 1,362
+filled slots that day hold only players in team k's squad array ([clubs](clubs.md)), the rest
+a player who has since left (1,331 of 1,375 on frem-2026-06-11).
+`tests/test_team_selections_evidence.py` pins the slot's bytes.
+
+![Tactics - Captain, 16 Nov 2026](img/captains-fmm27-1.png)
+![Maidenhead United's bench, S1-S7](img/team_selections-fmm27-5.png)
+
+## How it is found
+
+The u16 straight after the last [formation](formations.md) is the count. The locator
+refuses the pool unless every place of every slot is empty or a u16-sized tid (people
+created during a career have tids above the person index's count: 13 places on
+bucaspor-2023-04-01), and the slots end before the contract grid. The count is fixed for a
+career.
+
+## Next
+
+1. FMM22's 147 places against a Frem screen.
+2. Load it: each opponent's likely XI by position for scouting (TODO).

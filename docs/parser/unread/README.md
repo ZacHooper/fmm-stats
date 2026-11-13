@@ -15,9 +15,7 @@ the [save file map](../savefile-map.md); the order the regions are worked is the
 | club rows → rule files | 1.67 MB | 0.02 MB | FMM22: one block per player (read on FMM27 as player_status); FMM27: a u16-counted slot list, then 13.6 KB | [person_chain](person_chain.md) |
 | rule files → contract grid, 1 | 228 B | 444 B | head slots: 19 × 12 B (FMM22), 73 × 6 B (FMM27) | [rf_head_slots](rf_head_slots.md) |
 | rule files → contract grid, 2 | 575 KB | 524 KB | season-year blocks, 48/52 B rhythm | [rf_season_years](rf_season_years.md) |
-| rule files → contract grid, 3 | 26 KB | 26 KB | 21 formation presets × 1,262 B | [rf_formation_presets](rf_formation_presets.md) |
-| rule files → contract grid, 4 | 8.54 MB | 1.87 MB | each team's matchday squad: slot k = team k (14,506 × 589 B / 17,804 × 105 B) | [rf_team_selections](rf_team_selections.md) |
-| rule files → contract grid, 5 | 3.9 KB | 3.9 KB | a tail opening `[u32 52]` | [rf_tail](rf_tail.md) |
+| rule files → contract grid, 5 (after the [formations](../formations.md) and [team selections](../team_selections.md), now read) | 3.9 KB | 3.9 KB | a tail opening `[u32 52]` | [rf_tail](rf_tail.md) |
 | loans → transfer band, 1 | 1.16 MB in all, not split | 368 KB | ~5,300 position-masked headers, each with a short list | [al_position_lists](al_position_lists.md) |
 | loans → transfer band, 2 | | 1.08 MB | 90,139 × 12 B ranked lists: the world's goalkeepers first | [al_rankings](al_rankings.md) |
 | last transfers → surnames, 1 | 314 KB not split, then the person rows and the match-slot table | 326 B | a u16-counted list of 9 B entries ending in an id | [alt_nine_byte_list](alt_nine_byte_list.md) |

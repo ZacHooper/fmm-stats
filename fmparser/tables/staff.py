@@ -113,35 +113,18 @@ def reputation_tier(world_rep: Optional[int]) -> Optional[str]:
     return None
 
 
-_CATALOG_MARKER = bytes.fromhex("76b9f407")
-_CATALOG_STRIDE = 1262
-
-
 def formation_catalog_span(mm: Any) -> Optional[Tuple[int, int]]:
-    """(start, end) of the 21-template formation catalog, or None when it is not found."""
-    pos = mm.find(_CATALOG_MARKER)
-    if pos == -1:
-        return None
-    return pos - 16, pos - 16 + 21 * _CATALOG_STRIDE
+    """(start, end) of the formation catalog (`formations`), or None when it is not found."""
+    from .formations import formations_table_spans
+    spans = formations_table_spans(mm)
+    return spans[0] if spans else None
 
 
 def formation_catalog(mm: Any) -> List[str]:
-    """The 21 formation templates in declaration order -> ['4-4-2', '4-4-2 Diamond', ...]."""
-    span = formation_catalog_span(mm)
-    if span is None:
-        return []
-    start = span[0]
-    names = []
-    for i in range(21):
-        o = start + i * _CATALOG_STRIDE
-        raw = mm[o + 20:o + 70]
-        end = raw.find(b"\x00")
-        chunk = raw[:end] if end != -1 else raw
-        try:
-            names.append(chunk.decode("latin-1").strip())
-        except UnicodeDecodeError:
-            names.append(f"Formation {i}")
-    return names
+    """The formation templates in stored order -> ['4-4-2', '4-4-2 Diamond', ...]: the list
+    a staff record's formation fields index."""
+    from .formations import locate_formations, scrape_formations
+    return [f["name"] for f in scrape_formations(mm)] if locate_formations(mm) else []
 
 
 _STAFF_CACHE: Dict[Tuple[int, int], Optional[Tuple[int, int]]] = {}

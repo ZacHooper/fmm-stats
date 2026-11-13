@@ -209,6 +209,9 @@ from .staff_rows import STAFF_ROWS_TABLE, scrape_staff_rows, staff_rows_table_sp
 from .player_form import PLAYER_FORM_TABLE, player_form_table_spans, scrape_player_form
 from .player_achievements import (PLAYER_ACHIEVEMENTS_TABLE, player_achievements_table_spans,
                                   scrape_player_achievements)
+from .formations import FORMATIONS_TABLE, formations_table_spans, scrape_formations
+from .team_selections import (TEAM_SELECTIONS_TABLE, TEAM_SELECTIONS_TABLE_FMM27,
+                              scrape_team_selections, team_selections_table_spans)
 from .player_season_stats import (PLAYER_SEASON_STATS_TABLE,
                                   player_season_stats_table_spans,
                                   scrape_player_season_stats)
@@ -248,6 +251,8 @@ TABLES = {
     "club_titles": CLUB_TITLES_TABLE,
     "player_achievements": PLAYER_ACHIEVEMENTS_TABLE,
     "player_season_stats": PLAYER_SEASON_STATS_TABLE,
+    "formations": FORMATIONS_TABLE,
+    "team_selections": TEAM_SELECTIONS_TABLE,
     "last_transfers": LAST_TRANSFERS_TABLE,
     "clubs": CLUB_TABLE,
     "competitions": COMP_TABLE,
@@ -299,7 +304,8 @@ TABLES_BY_FORMAT = {
             "person_index": PERSON_INDEX_TABLE_FMM27,
             "club_rows": CLUB_ROWS_TABLE_FMM27, "player_status": PLAYER_STATUS_TABLE,
             "player_form": PLAYER_FORM_TABLE,
-            "player_ability_scales": PLAYER_ABILITY_SCALES_TABLE},
+            "player_ability_scales": PLAYER_ABILITY_SCALES_TABLE,
+            "team_selections": TEAM_SELECTIONS_TABLE_FMM27},
 }
 
 
@@ -366,6 +372,8 @@ __all__ = [
     "scrape_player_ability_scales",
     "scrape_player_achievements",
     "scrape_player_season_stats",
+    "scrape_formations",
+    "scrape_team_selections",
     "scrape_person_stamps",
     "scrape_regions",
     "scrape_unions",

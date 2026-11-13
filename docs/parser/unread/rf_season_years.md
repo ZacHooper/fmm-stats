@@ -1,13 +1,13 @@
 # Rule files → contract grid, 2: season-year blocks
 
-The second of five sub-tables between the [rule files](../rule_files.md) and the
+The second of five sub-tables (two now read) between the [rule files](../rule_files.md) and the
 [contract grid](../contracts.md), on both games. Before it: the [head slots](rf_head_slots.md);
-after it: the [formation presets](rf_formation_presets.md).
+after it: the [formation presets](../formations.md).
 
 | save | from | to | size |
 |---|---|---|---|
-| truro-2026-11-16 (FMM27) | 27,331,493 | 27,855,893 | 524 KB (531 KB on 22 Jul) |
-| frem-2026-06-11 (FMM22) | 20,021,849 | 20,596,963 | 575 KB (601 KB on 2021-06-27, 583 KB on 2030-06-22) |
+| truro-2026-11-16 (FMM27) | 27,331,493 | 27,855,891 | 524 KB (531 KB on 22 Jul) |
+| frem-2026-06-11 (FMM22) | 20,021,849 | 20,596,961 | 575 KB (601 KB on 2021-06-27, 583 KB on 2030-06-22) |
 
 ## Known
 

@@ -29,6 +29,14 @@ has it too (a Frem formation string at 39,267,138 on frem-2030-06-22).
   (`4-1-2-1-2`). Between them are runs of small u16 pairs (2–34),
   position grids by the look of them. The same string sits 4 times on truro-2026-08-08
   (40,391,444 onwards).
+- **The four "tactics" are four records, each season lists plus a tactic.** After the first
+  tactic come lists again: a count-17 goals list equal to the first, and after the second
+  tactic a count-7 goals list headed by Greenslade 3 (2 FA Cup + 1 FA Trophy goals): cup
+  matches only. So the block reads as one record per competition group (all, league, cups …),
+  each `[header][goals][assists][clean sheets][apps][PoM][the tactic used]`; the headers open
+  `17 00 00 00 01 …`, `17 00 00 00 03 …`, `04 00 00 00 02 …`, `04 00 00 00 04 …`. The fourth
+  record's lists run into the per-person rows. Not settled; no style byte found in them
+  (Low Block, the style picked, would be 10 in the Create Tactic list).
 - Not checked: whether any other club has such a block. The list counts suggest only the
   user's club: formation strings appear nowhere else in this region.
 

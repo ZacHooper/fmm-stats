@@ -43,6 +43,8 @@ Writes output/<label>/ (the label defaults to the save's file name without `.fms
                                  interested in him, his morale and his form
     competition_team_counts.json each nation's team-count rules
     formations.json              the formation catalog the staff records index
+    formation_catalog.json       each catalog formation's 11 position codes
+    team_selections.json         every team's matchday squad, in formation slot order
     contracts.json               the contract grid
     loans.json                   every loan in the world: player, loan club, dates
     last_transfers.json          each player's latest transfer: fee and buying club
@@ -310,6 +312,13 @@ def read_player_status(mm) -> Files:
     return {"player_status.json": (rows, None)}
 
 
+def read_formations(mm) -> Files:
+    """The formation catalog twice: `formations.json`, the names the staff records index
+    (the loader reads it), and `formation_catalog.json`, each formation's 11 position codes."""
+    return {"formations.json": (ST.formation_catalog(mm), 1),
+            "formation_catalog.json": (T.scrape_formations(mm), 1)}
+
+
 def walked(scrape: Callable[[Any], Any]) -> Callable[[Any], Files]:
     """The read for a table walked for its extent while no field of it is named: the walk
     must succeed, and nothing is written."""
@@ -353,8 +362,9 @@ def steps(no_archive: bool = False):
         Step("club_rows", registered("club_rows"), one("club_rows.json", T.scrape_club_rows)),
         Step("player_status", registered("player_status"), read_player_status),
         Step("rule_files", registered("rule_files"), read_team_counts),
-        Step("formation catalog", ST.formation_catalog_span,
-             one("formations.json", ST.formation_catalog, 1)),
+        Step("formations", registered("formations"), read_formations),
+        Step("team_selections", registered("team_selections"),
+             one("team_selections.json", T.scrape_team_selections, None)),
         Step("contracts", registered("contracts"),
              one("contracts.json", contracts.scrape_contracts)),
         Step("loans", registered("loans"), one("loans.json", T.scrape_loans)),

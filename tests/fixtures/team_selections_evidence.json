@@ -1,0 +1,385 @@
+{
+  "save": "truro-2026-11-16.fms",
+  "screen": "docs/parser/img/captains-fmm27-1.png (Tactics - Captain, 16 Nov 2026)",
+  "team_tid": 3125,
+  "unknown_0": 14,
+  "starting": [
+    8350,
+    37088,
+    8821,
+    9445,
+    29417,
+    8478,
+    37343,
+    8934,
+    29649,
+    25700,
+    6588
+  ],
+  "starting_names": [
+    "Lavercombe",
+    "Love-Holmes",
+    "Law",
+    "Harrison",
+    "Kinsey-Wellings",
+    "Palfrey",
+    "Nunn",
+    "En-Neyah",
+    "Tweedy",
+    "Greenslade",
+    "Bogle"
+  ],
+  "substitutes": [
+    7422,
+    29941,
+    25434,
+    31087,
+    8820
+  ],
+  "substitute_names": [
+    "Stone",
+    "Roberts",
+    "Bell",
+    "Matthews",
+    "Jephcott"
+  ],
+  "captains": [
+    6588,
+    8207,
+    8003,
+    9081,
+    6983,
+    7422
+  ],
+  "captain_names": [
+    "Bogle (on the pitch)",
+    "Riley-Lowe",
+    "Harvey",
+    "Dean",
+    "Donnellan",
+    "Stone"
+  ],
+  "formations_fmm27": [
+    "3-4-3",
+    "3-4-3 DM",
+    "4-1-2-2-1",
+    "4-1-4-1",
+    "4-2-1-3",
+    "4-2-2-2",
+    "4-2-3-1",
+    "4-2-3-1 DM",
+    "4-2-4",
+    "4-3-1-2",
+    "4-3-2-1",
+    "4-3-3",
+    "4-4-1-1",
+    "4-4-2",
+    "4-4-2 Diamond",
+    "4-5-1",
+    "5-1-2-2",
+    "5-2-1-2",
+    "5-2-2-1",
+    "5-3-2",
+    "5-4-1"
+  ],
+  "diamond_positions": [
+    1,
+    2052,
+    132,
+    1028,
+    260,
+    520,
+    1040,
+    272,
+    544,
+    1088,
+    320
+  ],
+  "saved_tactic_note": "Truro's saved 4-1-2-1-2 carries the 4-4-2 Diamond's eleven codes",
+  "slot_head_hex": "0e9e200000e090000075220000e5240000e97200001e210000df910000e6220000d173000064640000bc190000fe1c0000f57400005a6300006f79000074220000",
+  "slot_head_note": "the u8 and the first 16 places, as stored",
+  "lineups": {
+    "note": "Tactics - Formation screens, 16 Nov 2026 (docs/parser/img/team_selections-fmm27-1..4.png): each starter's place, the formation the screen shows, and where he stands on the pitch (row + lane, right to left: R, RC, C, LC, L); Maidenhead's bench S1-S7 from team_selections-fmm27-5.png",
+    "3125": {
+      "team": "Truro City",
+      "formation": "4-4-2 Diamond",
+      "xi": [
+        [
+          8350,
+          "GK",
+          "Lavercombe"
+        ],
+        [
+          37088,
+          "DR",
+          "Love-Holmes"
+        ],
+        [
+          8821,
+          "DL",
+          "Law"
+        ],
+        [
+          9445,
+          "DRC",
+          "Harrison"
+        ],
+        [
+          29417,
+          "DLC",
+          "Kinsey-Wellings"
+        ],
+        [
+          8478,
+          "DMC",
+          "Palfrey"
+        ],
+        [
+          37343,
+          "MRC",
+          "Nunn"
+        ],
+        [
+          8934,
+          "MLC",
+          "En-Neyah"
+        ],
+        [
+          29649,
+          "AMC",
+          "Tweedy"
+        ],
+        [
+          25700,
+          "STRC",
+          "Greenslade"
+        ],
+        [
+          6588,
+          "STLC",
+          "Bogle"
+        ]
+      ]
+    },
+    "2354": {
+      "team": "Maidenhead United",
+      "formation": "4-2-4",
+      "xi": [
+        [
+          32333,
+          "GK",
+          "Oram"
+        ],
+        [
+          29720,
+          "DR",
+          "Cochrane"
+        ],
+        [
+          8477,
+          "DL",
+          "Welch-Hayes"
+        ],
+        [
+          38938,
+          "DRC",
+          "Odeniran"
+        ],
+        [
+          21458,
+          "DLC",
+          "Clerima"
+        ],
+        [
+          6727,
+          "MRC",
+          "Robinson"
+        ],
+        [
+          28738,
+          "MLC",
+          "Welch"
+        ],
+        [
+          26798,
+          "AMR",
+          "Nkrumah"
+        ],
+        [
+          9238,
+          "AML",
+          "Coley"
+        ],
+        [
+          8274,
+          "STRC",
+          "Umerah"
+        ],
+        [
+          42968,
+          "STLC",
+          "Fraser"
+        ]
+      ],
+      "bench": [
+        [
+          10217,
+          "S1",
+          "van Stappershoef"
+        ],
+        [
+          8322,
+          "S2",
+          "Onariase"
+        ],
+        [
+          27872,
+          "S3",
+          "Johnson"
+        ],
+        [
+          42598,
+          "S4",
+          "Pendlebury"
+        ],
+        [
+          8730,
+          "S5",
+          "N'Guessan"
+        ],
+        [
+          36526,
+          "S6",
+          "Dundas"
+        ],
+        [
+          22113,
+          "S7",
+          "Achuba"
+        ]
+      ]
+    },
+    "2339": {
+      "team": "Tonbridge Angels",
+      "formation": "3-4-3",
+      "xi": [
+        [
+          9117,
+          "GK",
+          "Harness"
+        ],
+        [
+          41875,
+          "DRC",
+          "Darko-Wilson"
+        ],
+        [
+          9784,
+          "DC",
+          "Beeden"
+        ],
+        [
+          8703,
+          "DLC",
+          "Thompson"
+        ],
+        [
+          26799,
+          "MR",
+          "Tanga"
+        ],
+        [
+          9464,
+          "ML",
+          "Miller"
+        ],
+        [
+          34102,
+          "MRC",
+          "Martin"
+        ],
+        [
+          24369,
+          "MLC",
+          "Corne"
+        ],
+        [
+          31841,
+          "STRC",
+          "Baker"
+        ],
+        [
+          9593,
+          "STC",
+          "Babajide"
+        ],
+        [
+          40595,
+          "STLC",
+          "Gould"
+        ]
+      ]
+    },
+    "3756": {
+      "team": "Dorking Wanderers",
+      "formation": "5-1-2-2",
+      "xi": [
+        [
+          7541,
+          "GK",
+          "Plain"
+        ],
+        [
+          42671,
+          "DRC",
+          "Ble"
+        ],
+        [
+          29283,
+          "DC",
+          "Sayers"
+        ],
+        [
+          38384,
+          "DLC",
+          "Crace"
+        ],
+        [
+          20245,
+          "DMR",
+          "Philpott"
+        ],
+        [
+          28204,
+          "DML",
+          "Olise"
+        ],
+        [
+          6524,
+          "DMC",
+          "Francomb"
+        ],
+        [
+          24377,
+          "MRC",
+          "Taylor"
+        ],
+        [
+          40642,
+          "MLC",
+          "Payton"
+        ],
+        [
+          22008,
+          "STRC",
+          "Rogalski"
+        ],
+        [
+          8557,
+          "STLC",
+          "Rutherford"
+        ]
+      ]
+    }
+  }
+}
