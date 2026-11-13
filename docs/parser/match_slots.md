@@ -1,15 +1,34 @@
 # match_slots  ([`fmparser/tables/match_slots.py`](../../fmparser/tables/match_slots.py))
 
 A preallocated table of 25-byte slots, a few hundred of which hold a recent result between
-two other clubs. What the game uses it for is not known. Not located on FMM27 (Layout); 3,975 slots on every Frem save and
-3,943 on Bucaspor, at ~37.8–40.6 MB (it drifts). Not extracted: nothing in the store reads it.
+two other clubs. What the game uses it for is not known. 3,975 slots on every Frem save and
+3,943 on Bucaspor, at ~37.8–40.6 MB (it drifts); on FMM27 found by hand, not yet by the
+locator (Layout). Not extracted: nothing in the store reads it.
 The complete results list is [fixtures](fixtures.md).
 
 ## Layout
 
-The trailer `87 01 ff ff` does not occur on `truro-2026-07-25`, and the bytes before the
-surname table are not a slot table. Nothing in the store reads match_slots, so it is left
-unlocated. Right after the contract grid is a different 25-byte table: a u32 tid, a u16, two
+**FMM27 keeps the table in the same place**, straight after the per-person 16-byte rows
+([alt_person_rows](unread/alt_person_rows.md)) and ending about 2.5 KB before the surname
+table, with FMM22's slot layout and a different trailer: `82 00 ff ff 03` (130 at +20 where
+FMM22 has 391). `locate` searches for FMM22's trailer, so it does not find it yet.
+
+| save | first slot | slots carrying the trailer |
+|---|---|---|
+| truro-2026-07-22 | 40,220,009 | 5,451 |
+| truro-2026-07-25 | 40,320,481 | 5,451 |
+| truro-2026-08-08 | 41,116,690 | 5,451 |
+| truro-2026-11-16 | 42,331,302 | 5,451 (to 42,467,577) |
+
+- `+8` is the match's year − 2026, the FMM27 career's first year (FMM22: − 2021).
+- On truro-2026-11-16, 675 slots hold two clubs; 609 join the [fixtures](fixtures.md) on the
+  two clubs and the date, and **all 609 agree on both scores**. The club at +2 is the home
+  side on 288 of them: no venue, as on FMM22.
+- The first slot overlaps the per-person rows' last 14 bytes (`00 00 10 27`), the same quirk
+  as FMM22.
+- Truro appears in 3 slots. FMM22 never holds the managed club (Quirks); FMM27 does.
+
+Right after the contract grid is a different 25-byte table: a u32 tid, a u16, two
 dates (`[day u16][year u16]`), unnamed.
 
 ### FMM22
@@ -39,7 +58,7 @@ more than any other; `locate` takes the longest run on that class, bridging gaps
 
 ## Evidence
 
-No FMM27 evidence yet: the table is not read on FMM27 (Layout).
+FMM27: 609 slots joined to the fixtures on truro-2026-11-16, every score agreeing (Layout). No test pins it yet.
 
 ### FMM22
 
@@ -69,8 +88,8 @@ Liverpool, Southampton 3-6 Newcastle on `frem-2026-06-11`).
 > **Quirk:** a match can sit in more than one slot (seven twice and one three times on
 > `frem-2030-06-22`), and a slot can be seasons stale.
 
-> **Quirk:** the first slot overlaps the 16-byte table ending in front of it: its clubs read
-> 0 and 10,000 (`00 00 10 27`). `scrape` drops slots with a null or repeated club.
+> **Quirk:** the first slot overlaps the 16-byte table ending in front of it (the per-person
+> rows, [alt_person_rows](unread/alt_person_rows.md)): its clubs read 0 and 10,000 (`00 00 10 27`). `scrape` drops slots with a null or repeated club.
 
 > **Dead end:** there is no second match table in the main save. The signature `[club u16]
 > [club u16][goals <= 12][goals <= 12][day 1..366]`, both clubs in one league, was swept at

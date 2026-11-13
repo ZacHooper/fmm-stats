@@ -35,8 +35,10 @@ has it too (a Frem formation string at 39,267,138 on frem-2030-06-22).
 ## FMM22
 
 The region between the last transfers and the [match-slot table](../match_slots.md) is 0.84 MB
-on frem-2026-06-11 (39,200,736 → 40,042,185), not read. The formation string at 39,267,138 on
-frem-2030-06-22 puts this block in it; the rest of that 0.84 MB is not split yet.
+on frem-2026-06-11 (39,200,736 → 40,042,185). Its last 527 KB is the per-person 16-byte rows
+([alt_person_rows](alt_person_rows.md)), as on FMM27; the 314 KB in front (39,200,736 →
+39,514,743) is not split. The formation string at 39,267,138 on frem-2030-06-22 puts this
+block in it.
 
 ## Next
 
