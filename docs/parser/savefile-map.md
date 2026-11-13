@@ -183,11 +183,12 @@ Size alone misleads; the filler fraction matters more.
 | 0.57 – 3.99M | 3.42 MB | 45% | 1.55 MB | the person table ([person_info](person_info.md)); the records are walked, the bytes inside them are partly unnamed |
 | 56.32 – 61.25M | 4.94 MB | 18% | ~0.9 MB | between the [club titles](club_titles.md) and the player lists ([end_block](unread/end_block.md)) |
 | 34.28 – 35.44M | 1.16 MB | — | not re-measured | after the [loans](loans.md), in front of the transfer band |
-| 39.20 – 40.04M | 0.84 MB | — | not re-measured | between the [last transfers](last_transfers.md) and the match-slot table |
+| 39.20 – 39.51M | 0.31 MB | — | not re-measured | between the [last transfers](last_transfers.md) and the [per-person 16 B rows](unread/alt_person_rows.md); holds the [managed club's block](unread/alt_managed_club.md) |
+| 39.51 – 40.04M | 0.53 MB | — | not re-measured | [one 16 B row per person](unread/alt_person_rows.md), day-stamped: the key is known, the fields are not |
 | 15.08 – 16.75M | 1.67 MB | — | not re-measured | after the [club rows](club_rows.md): one variable-length block per player ([what is known](unread/person_chain.md)) |
-| 41.11 – 42.63M | 1.52 MB | 18% | 0.27 MB | 82% zero, mostly padding |
-| 52.72 – 53.48M | 0.76 MB | 0% | 0 | all `00` and `ff` |
-| 20.02 – 29.17M | 9.15 MB | 3% | 0.3 MB | 94% `0xFF`: padding, not a target |
+| 42.55 – 42.63M | 85 KB | — | not re-measured | after the [player season stats](player_season_stats.md) ([what is known](unread/sst_records.md)) |
+| 52.72 – 53.48M | 0.76 MB | ~0% | small | not padding: [a 23 B row per person of attribute changes](unread/attribute_changes.md), set for the managed squad only |
+| 20.02 – 29.17M | 9.15 MB | 3% | 0.3 MB | 94% `0xFF`, but not padding: five sub-tables, mostly [each team's matchday squad](unread/rf_team_selections.md) (14,506 slots, most empty), then [season-year blocks](unread/rf_season_years.md) and [formation presets](unread/rf_formation_presets.md) |
 
 > **Dead end:** ranking a gap by its printable fraction. Compressed data is 37.1% printable by
 > construction (95 of 256 byte values), so the archive at the tail once ranked as "the most
@@ -346,17 +347,24 @@ The career half on `truro-2026-11-16` (33 matches into the season), in file orde
 
 | from | table | notes |
 |---|---|---|
+| 27,331,049 | **unread**: five sub-tables after the rule files | [head slots](unread/rf_head_slots.md) (444 B), [season-year blocks](unread/rf_season_years.md) (524 KB), [formation presets](unread/rf_formation_presets.md) (21 × 1,262 B), [team selections](unread/rf_team_selections.md) (from 27,882,395: 17,804 × 105 B, slot k = team k, each team's matchday squad), [a 3.9 KB tail](unread/rf_tail.md) |
 | 29,755,739 | [contract grid](contracts.md) | 83 B, capacity 81,465, 44,960 used; four `ff` bytes added to the frame |
-| 36,517,355 | [loans](loans.md) | 6,637 × 25 B slots, 4,706 loans; then ~1.45 MB unread to the transfer band |
+| 36,517,355 | [loans](loans.md) | 6,637 × 25 B slots, 4,706 loans |
+| 36,683,286 | **unread** | [position-masked lists](unread/al_position_lists.md) (368 KB), then from 37,051,936 [ranked player lists](unread/al_rankings.md) (90,139 × 12 B) to the transfer band |
 | 38,133,604 | transfer band | `[u32 65,000][u32 13,449][2 B]`, 143 B rows: 1.92 MB |
 | 40,056,821 | [last transfers](last_transfers.md) | 36,344 × 30 B, 793 filled |
+| 41,147,145 | **unread** | a [nine-byte list](unread/alt_nine_byte_list.md), a [25 B slot table](unread/alt_slot_table.md) (453 KB, nearly empty), the [managed club's season lists and tactics](unread/alt_managed_club.md) (from 41,600,030) |
+| 41,611,956 | **unread**: [one 16 B row per person](unread/alt_person_rows.md) | 44,960 rows, day-stamped, refreshed daily for players |
+| 42,331,302 | [match-slot table](match_slots.md) | 5,451 × 25 B, trailer `82 00 ff ff 03`; found by hand, not yet by the locator; the first slot overlaps the person rows |
 | 42,470,066 | [name id-tables](names.md) | surnames, first names, nicknames; FMM22's locators |
-| 43,869,578 | [player season stats](player_season_stats.md) | six blocks × 36,344 × 9 B, 92,461 rows with data; then 197 KB unread |
+| 43,869,578 | [player season stats](player_season_stats.md) | six blocks × 36,344 × 9 B, 92,461 rows with data |
+| 45,832,154 | **unread** | [125 variable records](unread/sst_records.md), [grouped tid rows](unread/sst_tid_groups.md), [inline-named records](unread/sst_named.md) (197 KB) |
 | 46,029,092 | [history](history.md) | 452,090 rows declared |
 | 53,262,534 | [club_records](club_records.md) | 1,087 clubs |
 | 54,590,685 | [player progress](player_progress.md) | 62,400 × 70 B, 539 used; template year 2025 |
+| 58,958,685 | **unread**: [attribute changes](unread/attribute_changes.md) | 44,960 × 23 B, set for the managed squad only (not padding) |
 | 59,992,765 | [training](training.md) | count 44,960, 61 B rows |
-| 62,735,329 | [award history](award_history.md), [team history](team_history.md) | 1,232 editions, 280 teams; then ~5 KB unread to our matches |
+| 62,735,329 | [award history](award_history.md), [team history](team_history.md) | 1,232 editions, 280 teams; then ~5 KB unread to our matches ([before_matches](unread/before_matches.md)) |
 | 62,942,258 | [our matches](matches.md) | 33 rows; 70 B player slots |
 | 63,137,047 | [person stamps](person_stamps.md) | `[01][01][44,959]`, 4 B per person, straight after our matches |
 | 63,319,022 | [tactic history](tactic_history.md), [club seasons](club_seasons.md), [club titles](club_titles.md) | 31 tactic-history records, the 50-slot season pool (one season so far), then a `00`, 550 `ff` and the 32-slot titles pool (none yet) |
