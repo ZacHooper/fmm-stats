@@ -9,8 +9,8 @@ Straight after the nickname id-table (`names.py`), in front of the career-histor
 
 Row `block * players + k` belongs to player-attribute record k (the `sid`, the same order as
 `player_attributes` and `player_status`); nothing points at a row, its position is the key.
-The blocks, checked on truro-2026-11-16 against Omar Bogle's and Ben Starkie's Player History
-screens and every Truro player's league line in our matches:
+The blocks, checked on truro-2026-11-16 against Omar Bogle's, Ben Starkie's and Florian
+Wirtz's Player History screens and every Truro player's league line in our matches:
 
     0  club_season       the history screen's current-season line: league + cup + continental,
                          and matches for a club's B team (Valladolid B, VfB Stuttgart II)

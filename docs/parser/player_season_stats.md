@@ -52,11 +52,13 @@ season's end, nation by nation: frem-2030-06-22 → -06-30 crosses Denmark's rol
 
 ## Evidence
 
-truro-2026-11-16. Omar Bogle (tid 6588, sid 2,812) and Ben Starkie (tid 4353, sid 779), and
+truro-2026-11-16. Omar Bogle (tid 6588, sid 2,812), Ben Starkie (tid 4353, sid 779) and
+Florian Wirtz (Liverpool, tid 23281: every block filled, a red card in Europe), and
 every Truro player's league line in our 33 matches (all 25 match block 1 field for field).
 
 ![Omar Bogle, Player History, 16 Nov 2026](img/player_season_stats-fmm27-1.png)
 ![Ben Starkie, Player History, 16 Nov 2026](img/player_season_stats-fmm27-2.png)
+![Florian Wirtz, Player History, 16 Nov 2026](img/player_season_stats-fmm27-3.png)
 
 | player | block | raw bytes | on screen |
 |---|---|---|---|
@@ -67,9 +69,12 @@ every Truro player's league line in our 33 matches (all 25 match block 1 field f
 | Starkie | 0 | `0c 04 01 00 55 00 00 00 01` | 2026/27 Truro: 12, 4, 1, 7.08 (9 league + 3 cup; his 2 caps are not in it) |
 | Starkie | 2 | `03 01 00 00 14 00 00 00 00` | Cup: 3, 1, 6.66 |
 | Starkie | 5 | `02 00 00 00 0c 00 00 00 00` | International: 2, 6.00 |
+| Wirtz | 0 | `0f 05 07 00 6a 00 01 01 01` | 2026/27 Liverpool: 15, 5, 7, 1 yel, 1 red, 7.06 (10 + 2 + 3; not his 6 caps) |
+| Wirtz | 3 | `03 00 01 00 14 00 00 01 00` | Continental: 3, 0, 1, **Red 1**, 6.66 |
+| Wirtz | 5 | `06 01 01 00 2c 00 00 00 01` | International: 6, 1, 1, PoM 1, 7.33 |
 
-**Reds**: no Truro player has one. Jahrel McKoy's one sending-off in our match table (59th
-minute, English Reserves Group 11, 21 Oct) is the 1 in his block 4 row
+**Reds**: Wirtz's Continental red is byte +7 of his block 3 row. Jahrel McKoy's one
+sending-off in our match table (59th minute, English Reserves Group 11, 21 Oct) is the 1 in his block 4 row
 `09 00 01 00 3b 00 00 01 00`, and nowhere else; that also puts reserve matches in Non
 Competitive.
 
