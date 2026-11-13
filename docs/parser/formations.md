@@ -74,9 +74,36 @@ fails with the inside lanes swapped.
 ![Dorking Wanderers, Tactics - Formation](img/team_selections-fmm27-4.png)
 
 The screens also show each player's role (NCB, DFB, W, TF, P, WM, BBM, AP …) and a team
-style ("Route One", "Wing Play", "Low Block"). Neither is in the formation or the team
-selection; the managed club's roles are in its saved tactics, other teams' are not found.
+style. Neither is in the formation or the team selection.
+
+### Team style: not stored for AI teams, by every test so far
+
+FMM27 has eleven styles (the Create Tactic screen, below): Tiki-Taka, Vertical Tiki-Taka,
+Control Possession, Gegenpress, Wing Play, Clean Slate, Route One, Fluid Counter-Attack,
+Direct Counter-Attack, Catenaccio, Low Block. No name is stored as text anywhere in the
+save. Ten league sides' Tactics – Formation screens on 16 Nov:
+
+| style | teams (manager's preferred formation) |
+|---|---|
+| Route One | Maidenhead (4-2-4), Tonbridge (3-4-3), Ebbsfleet (4-2-3-1) |
+| Wing Play | Dorking (5-1-2-2), Maidstone (4-2-3-1), Weston-super-Mare (4-2-3-1) |
+| Direct Counter | Salisbury (4-1-2-2-1), Torquay (4-2-3-1) |
+| Low Block | Farnham (4-2-3-1); Truro (our own choice) |
+
+No byte of the club rows (131 B), the manager's staff record (39 B, including the five
+unnamed bytes at +34, which share one vocabulary and once looked like a style: Ebbsfleet and
+Farnham both read 9 there), the manager's person record or the team selection's u8 is equal
+within a style and different between Route One and Wing Play. The same formation carries
+every style (4-2-3-1: all four), so the style is not in the formation either. The likeliest
+reading is that the game picks an AI side's style from its squad when it needs one, as the
+Create Tactic screen recommends styles from our squad's attributes (the stars, and reasons
+such as "our squad has the physical profile needed to carry out a high press"). The roles on
+the screens follow the style (Route One sides: target forward and poacher; Wing Play: wing-backs
+and wingers), so roles are probably computed the same way.
+
+![Create Tactic: the eleven styles, three recommended for Truro](img/tactic_styles-fmm27-1.png)
 
 ## Next
 
-Name the 1,204-byte tail (the phase grids); find where a team's roles and style are stored.
+Name the 1,204-byte tail (the phase grids). Find the managed club's own style and roles
+(the tactic records in [alt_managed_club](unread/alt_managed_club.md) are the place to look).
