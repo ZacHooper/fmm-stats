@@ -18,8 +18,8 @@ The rows run tid 401 to 44,958 and are 2.6 MB, the block's biggest table.
 | +0 | u32 | the player's tid, ascending |
 | +4 | 4 × u32 | four player-table indexes (0–36,202); each column is a **random permutation** of the players |
 | +20 | u16 | 0–190; changes slowly (86% unchanged over 17 days, 40% over three months) |
-| +22 | u16 | `ffff` on most players; a small number on a few |
-| +24 | 6 × u32 | 100 on most players |
+| +22 | u16 | set only on young players: every player aged 21 or under, part of the 22-year-olds, nobody older (born 18 Jul 2004 or later; 12,063 players on 16 Nov); 20–118; `ffff` otherwise |
+| +24 | 6 × u32 | `ffff…` on 28,856 players, 100 on 7,389 (the whole Truro squad and its league), a few other values (74, 93, 57: percentages?) |
 | +48 | 6 × u32 | two player-table indexes, two 100s, then two indexes again |
 
 - **The four indexes at +4 are not people that belong with the player.** Read as player-table
@@ -50,6 +50,32 @@ state. Greenslade's +48 holds his own row (19204). The fields that look like pla
 are +20 and +22. (A "Seckie" was asked for; no Truro player has that name, so Ben Starkie
 stands in.)
 
+## Lined up: Truro and its league (truro-2026-11-16)
+
+`--` = `ff` (empty). The +4 and +48 indexes (working state) are left out.
+
+| player | club | +20 | +22 | +24 (six u32) | +56/+60 |
+|---|---|---|---|---|---|
+| Ben Starkie | Truro | 61 | -- | 100 × 6 | 100/100 |
+| Omar Bogle | Truro | 74 | -- | 100 × 6 | 100/100 |
+| Will Dean | Truro | 71 | -- | 100 × 6 | 100/100 |
+| Luke Jephcott | Truro | 67 | -- | 100 × 6 | 100/100 |
+| Harvey Greenslade | Truro | 59 | -- | 100 × 6 | 100/100 |
+| Josiah Aboh | Truro | 35 | **106** | 100 100 -- -- 100 100 | --/-- |
+| Maxwell Kinsey-Wellings | Truro | 53 | **87** | 100 × 6 | 100/100 |
+| Jack Nunn | Truro | 53 | **83** | 100 × 6 | 100/100 |
+| Jack Matthews | Truro | 45 | **75** | 100 × 6 | 100/100 |
+| Tylor Love-Holmes | Truro | 46 | **37** | 100 × 6 | 100/100 |
+| Tom Tweedy | Truro | 66 | **22** | 100 × 6 | 100/100 |
+| Luca Barrington | Torquay | 88 | **117** | 100 × 6 | 100/100 |
+| Jordan Archer | Torquay | 87 | -- | 100 × 6 | 100/100 |
+| Charlie Casper | Chesham | 65 | **118** | 100 × 6 | 100/100 |
+| Harry Barbrook | Chelmsford | 58 | **95** | 100 × 6 | 100/100 |
+| Andy Carroll | Dagenham & Redbridge | 67 | -- | 100 × 6 | 100/100 |
+| Jet Dyer | Dagenham & Redbridge | 32 | **38** | 100 × 6 | 100/100 |
+| Essa Jadama | Dover | 27 | **55** | 100 × 6 | 100/100 |
+| Jaye Long | Slough | 33 | **66** | 100 × 6 | 100/100 |
+
 ## Tried
 
 - The four columns as person tids (random people at unrelated clubs) and as sort orders
@@ -59,7 +85,8 @@ stands in.)
 
 ## Next
 
-1. Find which players have +22 set (how many, and what they share).
+1. +22: what young-player number this is. Not ability or potential (|r| < 0.04). A screen
+   that shows a number for youngsters only (development? a youth rating?) is the lead.
 2. Diff the +20 number over a match: a save before and after a game, for the players who
    played.
 3. Table 6's one person (Kimika Forbes, tid 37304): what puts that row in a list of its own.
