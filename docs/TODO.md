@@ -175,8 +175,9 @@ Phase 2 read two tables and found what the other two regions hold:
   [`parser/unread/`](parser/unread/README.md) with its offsets on both games, the bytes seen,
   what was tried and the next step: the [per-person chain](parser/unread/person_chain.md)
   (next: the FMM22 per-player blocks), [after the loans](parser/unread/after_loans.md),
-  [after the last transfers](parser/unread/after_last_transfers.md) (five sub-tables on
-  FMM27, one page each: the managed club's season lists and tactics, a row per person …),
+  after the last transfers (five FMM27 sub-tables: the
+  [managed club's season lists and tactics](parser/unread/alt_managed_club.md), a
+  [row per person](parser/unread/alt_person_rows.md) and three more in the index),
   [competition record books](parser/unread/record_books.md),
   [scheduled events](parser/unread/scheduled_events.md),
   [after the season stats](parser/player_season_stats.md#what-follows-unread),

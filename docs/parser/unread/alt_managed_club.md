@@ -1,6 +1,6 @@
 # After last transfers, 3: the managed club's season lists and tactics
 
-Part of [last transfers → surnames](after_last_transfers.md). Seen on FMM27; FMM22 most likely
+Between the [last transfers](../last_transfers.md) and the [name id-tables](../names.md), one of five sub-tables there on FMM27 (the others: the [unread index](README.md)). Seen on FMM27; FMM22 most likely
 has it too (a Frem formation string at 39,267,138 on frem-2030-06-22).
 
 | save | from | to | size |
@@ -31,6 +31,12 @@ has it too (a Frem formation string at 39,267,138 on frem-2030-06-22).
   (40,391,444 onwards).
 - Not checked: whether any other club has such a block. The list counts suggest only the
   user's club: formation strings appear nowhere else in this region.
+
+## FMM22
+
+The region between the last transfers and the [match-slot table](../match_slots.md) is 0.84 MB
+on frem-2026-06-11 (39,200,736 → 40,042,185), not read. The formation string at 39,267,138 on
+frem-2030-06-22 puts this block in it; the rest of that 0.84 MB is not split yet.
 
 ## Next
 

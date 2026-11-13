@@ -70,7 +70,7 @@ notes. The status column names the `core` table that reads it
 | 34,276,977 | 35,438,751 | 1.16 MB | **UNIDENTIFIED** ([what is known](unread/after_loans.md)) | — | — | — |
 | **35,438,751** | **38,405,582** | **2.97 MB** | **[seasonal transfer band](#the-transfer-band)** — `[u32 65,000][u32 count = 20,747][2 B]`, then 20,747 × 143 B transfer-negotiation rows, row k holding k at +109: every bid, and the accepted one with its fee and contract terms. The rows fill the whole span | **resets every July**; the span's collapse IS the file's July shrink | Shape A | hdr (no parser table) |
 | 38,405,582 | 39,200,736 | 0.80 MB | **[last transfers](last_transfers.md)** — `[count u32 = 26,505]`, one 30 B row per player attribute record: each player's latest transfer (fee, buying club), 10,323 filled; every row dated the save's day | **grows** as players move; survives the July rollover | count = the attribute count, rows share one date | `LAST_TRANSFERS_TABLE` |
-| 39,200,736 | 40,042,185 | 0.84 MB | **UNIDENTIFIED** ([what is known](unread/after_last_transfers.md)) | — | — | — |
+| 39,200,736 | 40,042,185 | 0.84 MB | **UNIDENTIFIED** ([what is known](unread/alt_managed_club.md)) | — | — | — |
 | 40,042,185 | 40,141,560 | 99,375 B | **[match-slot table](match_slots.md)** — 3,975 × 25 B, two clubs and a score, no venue | **reserved space**: slots reused | Shape C | `MATCH_SLOTS_TABLE` |
 | 40,141,778 | 40,656,146 | 0.51 MB | **[surname id-table](names.md)** — 32,148 slots, 28,625 used | game database | Shape C | `SURNAMES_TABLE` |
 | 40,656,158 | 40,962,206 | 0.31 MB | **[first-name id-table](names.md)** — 19,128 slots, 15,367 used | game database | Shape C | `FIRST_NAMES_TABLE` |

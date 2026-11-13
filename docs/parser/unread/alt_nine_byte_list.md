@@ -1,6 +1,6 @@
 # After last transfers, 1: a nine-byte list
 
-Part of [last transfers → surnames](after_last_transfers.md). FMM27 only so far.
+Between the [last transfers](../last_transfers.md) and the [name id-tables](../names.md), one of five sub-tables there on FMM27 (the others: the [unread index](README.md)). FMM27 only so far.
 
 | save | from | to | size |
 |---|---|---|---|
