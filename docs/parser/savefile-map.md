@@ -86,7 +86,7 @@ notes. The status column names the `core` table that reads it
 | 46,876,865 | 48,166,114 | 1.29 MB | **[club-records](club_records.md)** — `[count u16]` (1,057 clubs Frem, 1,060 Bucaspor), then per club `[tid u16][n u8][n × 212 B league history][Team/Player Records, overall + this season: 4 × 12 slots of 21 / 22 B]` | **grows** 212 B per new league a club plays in | Shape A, record blocks C | `CLUB_RECORDS_TABLE` |
 | 48,166,114 | 48,353,064 | 0.19 MB | **UNIDENTIFIED** ([what is known](unread/record_books.md)) — `[count u32]` = 162 on every save and variable-length rows carrying 21-byte record-shaped matches, then 24-byte filler rows (TODO, "The unclaimed regions of the career half"); the same size on every save of a career | — | — | — |
 | 48,353,064 | 52,721,064 | 4.37 MB | **[player progress](player_progress.md)** — 62,400 rows × 70 B (the same count on every save): `[tid u32][6 × u16 skill lines][status u16][0][day u16][year u16][23 × u16]`, usually one row per player per week, a few weeks two to four; the Player Progress page, injured / on-loan bits | **reserved space**: oldest rows overwritten once full | Shape C (seeded from unused rows, walked both ways) | `PLAYER_PROGRESS_TABLE` |
-| 52,721,064 | 53,479,282 | 0.76 MB | **UNIDENTIFIED**: 32,966 × 23 B, one row per person of attribute changes, set for the managed squad only ([what is known](unread/attribute_changes.md)) | — | — | — |
+| 52,721,064 | 53,479,282 | 0.76 MB | **[attribute changes](attribute_changes.md)** — 32,966 × 23 B, row k = person tid k, an i8 per attribute: the profile's change arrows, set for the managed squad only | **reserved space** | Shape C (between player progress and training, one row per person) | `ATTRIBUTE_CHANGES_TABLE` |
 | 53,479,282 | 55,490,212 | 2.01 MB | **[training](training.md)** — `[count u32 = 32,966][32,966 × 61 B]`, row k = person tid k (`ffffffff` unused, role `ffff` on staff): intensity `+21`, Focus Role `+23`, attribute focus `+27`, Focus Pos `+29/+30` as the match slot pair, `contracted` `+37` (`87` under contract) and squad status `+39`; the Club Squad > Training page | game database; rewritten as focus changes | Shape A (count-framed, `tid == row`) | `TRAINING_TABLE` |
 | 55,490,212 | 55,615,704 | 0.13 MB | **[award history](award_history.md)** — `[count u32 = 1,364]`, 92 B editions: `[award_id][day][year]` + 1st to 3rd (person, name ids, club, score). Every year of an annual award; the current season's weeks or months of a weekly or monthly one | **grows** by an edition per award decided | count-framed | `AWARD_HISTORY_TABLE` |
 | 55,615,704 | 55,882,728 | 0.27 MB | **[team history](team_history.md)** — `[count u32 = 845]`, 316 B teams: `[award_id][day][year]` + 11 × (person, name ids, club, rating). Every year of a season team; the current season's Teams of the Week | **grows** | count-framed | `TEAM_HISTORY_TABLE` |
@@ -187,7 +187,7 @@ Size alone misleads; the filler fraction matters more.
 | 39.51 – 40.04M | 0.53 MB | — | not re-measured | [one 16 B row per person](unread/alt_person_rows.md), day-stamped: the key is known, the fields are not |
 | 15.08 – 16.75M | 1.67 MB | — | not re-measured | after the [club rows](club_rows.md): one variable-length block per player ([what is known](unread/person_chain.md)) |
 | 42.55 – 42.63M | 85 KB | — | not re-measured | after the [player season stats](player_season_stats.md) ([what is known](unread/sst_records.md)) |
-| 52.72 – 53.48M | 0.76 MB | ~0% | small | not padding: [a 23 B row per person of attribute changes](unread/attribute_changes.md), set for the managed squad only |
+| 52.72 – 53.48M | 0.76 MB | ~0% | small | not padding: [a 23 B row per person, the profile's change arrows](attribute_changes.md) (read), set for the managed squad only |
 | 20.02 – 29.17M | 9.15 MB | 3% | 0.3 MB | 94% `0xFF`, but not padding: five sub-tables, mostly [each team's matchday squad](team_selections.md) (14,506 slots, most empty; read), the [formations](formations.md) (read) and [season-year blocks](unread/rf_season_years.md) |
 
 > **Dead end:** ranking a gap by its printable fraction. Compressed data is 37.1% printable by
@@ -362,7 +362,7 @@ The career half on `truro-2026-11-16` (33 matches into the season), in file orde
 | 46,029,092 | [history](history.md) | 452,090 rows declared |
 | 53,262,534 | [club_records](club_records.md) | 1,087 clubs |
 | 54,590,685 | [player progress](player_progress.md) | 62,400 × 70 B, 539 used; template year 2025 |
-| 58,958,685 | **unread**: [attribute changes](unread/attribute_changes.md) | 44,960 × 23 B, set for the managed squad only (not padding) |
+| 58,958,685 | [attribute changes](attribute_changes.md) | 44,960 × 23 B, the profile's change arrows; 23 set |
 | 59,992,765 | [training](training.md) | count 44,960, 61 B rows |
 | 62,735,329 | [award history](award_history.md), [team history](team_history.md) | 1,232 editions, 280 teams; then ~5 KB unread to our matches ([before_matches](unread/before_matches.md)) |
 | 62,942,258 | [our matches](matches.md) | 33 rows; 70 B player slots |

@@ -187,9 +187,8 @@ Phase 2 read two tables and found what the other two regions hold:
   rule files → contract grid ([season-year blocks](parser/unread/rf_season_years.md) and two
   smaller pages; the [formations](parser/formations.md) and
   [team selections](parser/team_selections.md) there are read), the
-  [user's club block](parser/unread/club_block.md) (set pieces / captain?),
-  [before our matches](parser/unread/before_matches.md) and the
-  [attribute changes](parser/unread/attribute_changes.md) (not padding). Team instructions
+  [user's club block](parser/unread/club_block.md) (set pieces / captain?) and
+  [before our matches](parser/unread/before_matches.md). Team instructions
   (mentality, passing, …) are not found; the Tactics screens of 22 and 25 Jul are saved as
   evidence ([tactic history](parser/tactic_history.md)).
 - **The contract grid's span ends 89 bytes short on frem-2030-06-22**: the loan pool's

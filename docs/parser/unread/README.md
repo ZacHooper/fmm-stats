@@ -26,7 +26,6 @@ the [save file map](../savefile-map.md); the order the regions are worked is the
 | after the season stats, 2 | | 41 KB | 14 B tid rows in groups | [sst_tid_groups](sst_tid_groups.md) |
 | after the season stats, 3 | | 58 KB | ~1,020 records with names typed in | [sst_named](sst_named.md) |
 | club records → player progress | 0.19 MB | 0.20 MB | each competition's record book | [record_books](record_books.md) |
-| player progress → training | 0.76 MB | 1.03 MB | 23 B per person: attribute changes, the managed squad only | [attribute_changes](attribute_changes.md) |
 | team history → our matches | 0.3–2 KB | 2–43 KB | a fixed 229 B head of two 25-slot pools, then tid lists | [before_matches](before_matches.md) |
 | person stamps → tactic history | 148 B | 64 B | the user's club block: 17 players by position, set pieces? | [club_block](club_block.md) |
 | club titles → player lists | 4.94 MB | 5.31 MB | FMM27: ten framed tables (pools, match lines, a row per player, per-staff rows, the player achievements) | [end_block](end_block.md) |

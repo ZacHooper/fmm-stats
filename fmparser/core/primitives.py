@@ -31,6 +31,11 @@ def u32(mm: Any, off: int) -> int:
     return struct.unpack_from("<I", mm, off)[0]
 
 
+def i8(mm: Any, off: int) -> int:
+    """Read a signed 8-bit integer."""
+    return struct.unpack_from("<b", mm, off)[0]
+
+
 def i16(mm: Any, off: int) -> int:
     """Read a little-endian signed 16-bit integer."""
     return struct.unpack_from("<h", mm, off)[0]

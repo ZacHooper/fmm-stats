@@ -10,6 +10,8 @@ from .clubs import CLUB_TABLE, CLUB_TABLE_FMM27, locate_clubs, scrape_clubs
 from .history import HISTORY_TABLE, locate_history, scrape_history
 from .player_progress import (PLAYER_PROGRESS_TABLE, locate_player_progress,
                               scrape_player_progress)
+from .attribute_changes import (ATTRIBUTE_CHANGES_TABLE, attribute_changes_table_spans,
+                                locate_attribute_changes, scrape_attribute_changes)
 from .training import (LOAN_STATUS, TRAINING_TABLE, locate_training, scrape_unknown_39,
                        scrape_training, training_table_spans)
 from .player_lists import (PLAYER_LISTS_TABLE, PLAYER_LISTS_TABLE_FMM27,
@@ -260,6 +262,7 @@ TABLES = {
     "club_records": CLUB_RECORDS_TABLE,
     "player_lists": PLAYER_LISTS_TABLE,
     "player_progress": PLAYER_PROGRESS_TABLE,
+    "attribute_changes": ATTRIBUTE_CHANGES_TABLE,
     "training": TRAINING_TABLE,
     "player_list_trailers": PLAYER_LIST_TRAILERS_TABLE,
     "comp_honours": COMP_HONOURS_TABLE,
@@ -388,6 +391,8 @@ __all__ = [
     "PLAYER_PROGRESS_TABLE",
     "locate_player_progress",
     "scrape_player_progress",
+    "locate_attribute_changes",
+    "scrape_attribute_changes",
     # Training
     "TRAINING_TABLE",
     "locate_training",

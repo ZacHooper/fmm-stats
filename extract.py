@@ -53,6 +53,7 @@ Writes output/<label>/ (the label defaults to the save's file name without `.fms
     club_records.json, player_records.json, club_league_history.json
                                  Club History, per club
     player_progress.json         the weekly Player Progress table
+    attribute_changes.json       the profile's change arrows, a signed change per attribute
     training.json                the Training page, every player
     award_history.json           past editions of every award, 1st to 3rd
     team_history.json            season teams by year; this season's Teams of the Week
@@ -377,6 +378,8 @@ def steps(no_archive: bool = False):
         Step("history", registered("history"), read_history),
         Step("club_records", registered("club_records"), read_club_records),
         Step("player_progress", registered("player_progress"), read_player_progress),
+        Step("attribute_changes", registered("attribute_changes"),
+             one("attribute_changes.json", T.scrape_attribute_changes)),
         Step("training", registered("training"), read_training),
         Step("award_history", registered("award_history"),
              one("award_history.json", T.scrape_award_history, 1)),
