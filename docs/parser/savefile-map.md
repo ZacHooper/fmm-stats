@@ -64,9 +64,9 @@ notes. The status column names the `core` table that reads it
 | 15,083,143 | 16,752,549 | 1.67 MB | **UNIDENTIFIED** ([what is known](unread/person_chain.md)) — `[count u16 = 26,505]`, one variable-length block per player: a plain 59-byte row with counted 5-byte items, and richer rows with 2025/26 dates that stop the walk | — | — | — |
 | 16,752,549 | 20,021,621 | 3.27 MB | **[rule files](rule_files.md)** — the tagged data dictionary: 667 count-framed rule files (`[u32 n][n tagged fields]`), 99.2% of the span; the 27 KB between them is per-save state, undecoded | game database; the gaps between rule files change | Shape A | `RULE_FILES_TABLE`; `team_counts` → `competition_team_counts.json` |
 | 20,021,621 | 20,021,849 | 228 B | **UNIDENTIFIED**: 19 head slots × 12 B ([what is known](unread/rf_head_slots.md)) | — | — | — |
-| 20,021,849 | 20,596,963 | 575 KB | **UNIDENTIFIED**: season-year blocks ([what is known](unread/rf_season_years.md)) | — | — | — |
-| 20,596,963 | 20,623,465 | 26 KB | **UNIDENTIFIED**: 21 formation presets × 1,262 B ([what is known](unread/rf_formation_presets.md)) | — | — | — |
-| 20,623,465 | 29,167,499 | **8.54 MB** | **UNIDENTIFIED**: each team's matchday squad, 14,506 × 589 B, slot k = team k; mostly empty slots, once taken for filler ([what is known](unread/rf_team_selections.md)) | **reserved space** | Shape C | — |
+| 20,021,849 | 20,596,961 | 575 KB | **UNIDENTIFIED**: season-year blocks ([what is known](unread/rf_season_years.md)) | — | — | — |
+| 20,596,961 | 20,623,463 | 26 KB | **[formations](formations.md)** — the 21 stock formations × 1,262 B: name and 11 position codes | **game database** | — | `FORMATIONS_TABLE` |
+| 20,623,463 | 29,167,499 | **8.54 MB** | **[team selections](team_selections.md)** — `[u16 14,506]` × 589 B, slot k = team k: each team's matchday squad; mostly empty slots, once taken for filler | **reserved space** | Shape C | `TEAM_SELECTIONS_TABLE` |
 | 29,167,499 | 29,171,689 | 3.9 KB | **UNIDENTIFIED**: a tail opening `[u32 52]` ([what is known](unread/rf_tail.md)) | — | — | — |
 | **29,171,689** | **31,907,618** | **2.74 MB** | **[contract grid](contracts.md)** — dense **83-byte** records, capacity 59,632, 33,127 slots walked (one per person tid, plus 161 past the person table) | **reserved space**: room for 59,632 slots, one per person, rewritten in place | Shape C | `CONTRACT_TABLE` |
 | 31,907,618 | 34,120,896 | 2.21 MB | the contract grid's empty slots, up to its capacity (59,632 × 83 B) | reserved space | Shape C | `CONTRACT_TABLE` |
@@ -188,7 +188,7 @@ Size alone misleads; the filler fraction matters more.
 | 15.08 – 16.75M | 1.67 MB | — | not re-measured | after the [club rows](club_rows.md): one variable-length block per player ([what is known](unread/person_chain.md)) |
 | 42.55 – 42.63M | 85 KB | — | not re-measured | after the [player season stats](player_season_stats.md) ([what is known](unread/sst_records.md)) |
 | 52.72 – 53.48M | 0.76 MB | ~0% | small | not padding: [a 23 B row per person of attribute changes](unread/attribute_changes.md), set for the managed squad only |
-| 20.02 – 29.17M | 9.15 MB | 3% | 0.3 MB | 94% `0xFF`, but not padding: five sub-tables, mostly [each team's matchday squad](unread/rf_team_selections.md) (14,506 slots, most empty), then [season-year blocks](unread/rf_season_years.md) and [formation presets](unread/rf_formation_presets.md) |
+| 20.02 – 29.17M | 9.15 MB | 3% | 0.3 MB | 94% `0xFF`, but not padding: five sub-tables, mostly [each team's matchday squad](team_selections.md) (14,506 slots, most empty; read), the [formations](formations.md) (read) and [season-year blocks](unread/rf_season_years.md) |
 
 > **Dead end:** ranking a gap by its printable fraction. Compressed data is 37.1% printable by
 > construction (95 of 256 byte values), so the archive at the tail once ranked as "the most
@@ -347,7 +347,7 @@ The career half on `truro-2026-11-16` (33 matches into the season), in file orde
 
 | from | table | notes |
 |---|---|---|
-| 27,331,049 | **unread**: five sub-tables after the rule files | [head slots](unread/rf_head_slots.md) (444 B), [season-year blocks](unread/rf_season_years.md) (524 KB), [formation presets](unread/rf_formation_presets.md) (21 × 1,262 B), [team selections](unread/rf_team_selections.md) (from 27,882,395: 17,804 × 105 B, slot k = team k, each team's matchday squad), [a 3.9 KB tail](unread/rf_tail.md) |
+| 27,331,049 | **unread**: five sub-tables after the rule files | [head slots](unread/rf_head_slots.md) (444 B), [season-year blocks](unread/rf_season_years.md) (524 KB), [formations](formations.md) (21 × 1,262 B, read), [team selections](team_selections.md) (from 27,882,393: 17,804 × 105 B, slot k = team k, each team's matchday squad; read), [a 3.9 KB tail](unread/rf_tail.md) |
 | 29,755,739 | [contract grid](contracts.md) | 83 B, capacity 81,465, 44,960 used; four `ff` bytes added to the frame |
 | 36,517,355 | [loans](loans.md) | 6,637 × 25 B slots, 4,706 loans |
 | 36,683,286 | **unread** | [position-masked lists](unread/al_position_lists.md) (368 KB), then from 37,051,936 [ranked player lists](unread/al_rankings.md) (90,139 × 12 B) to the transfer band |

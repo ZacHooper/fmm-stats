@@ -1,9 +1,9 @@
 # Rule files → contract grid, 1: head slots
 
-The first of five sub-tables between the [rule files](../rule_files.md) and the
+The first of five sub-tables (two now read) between the [rule files](../rule_files.md) and the
 [contract grid](../contracts.md), on both games. The others:
-[season-year blocks](rf_season_years.md), [formation presets](rf_formation_presets.md),
-[team selections](rf_team_selections.md), [the tail](rf_tail.md).
+[season-year blocks](rf_season_years.md), [formation presets](../formations.md),
+[team selections](../team_selections.md), [the tail](rf_tail.md).
 
 | save | from | to | size |
 |---|---|---|---|

@@ -1,8 +1,8 @@
 # Rule files → contract grid, 5: the tail
 
-The last of five sub-tables between the [rule files](../rule_files.md) and the
+The last of five sub-tables (two now read) between the [rule files](../rule_files.md) and the
 [contract grid](../contracts.md), on both games, after the
-[team selections](rf_team_selections.md).
+[team selections](../team_selections.md).
 
 | save | from | to | size |
 |---|---|---|---|

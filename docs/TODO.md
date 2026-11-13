@@ -184,8 +184,9 @@ Phase 2 read two tables and found what the other two regions hold:
   [competition record books](parser/unread/record_books.md),
   [scheduled events](parser/unread/scheduled_events.md),
   [after the season stats](parser/player_season_stats.md#what-follows-unread),
-  [rule files → contract grid](parser/unread/rf_team_selections.md) (five sub-tables: each
-  team's matchday squad, the formation presets, season-year blocks …), the
+  rule files → contract grid ([season-year blocks](parser/unread/rf_season_years.md) and two
+  smaller pages; the [formations](parser/formations.md) and
+  [team selections](parser/team_selections.md) there are read), the
   [user's club block](parser/unread/club_block.md) (set pieces / captain?),
   [before our matches](parser/unread/before_matches.md) and the
   [attribute changes](parser/unread/attribute_changes.md) (not padding). Team instructions
@@ -539,6 +540,15 @@ read a rating of 646.75-647.63 (u16 64675-64763). As a signed value that is -7.7
 an ordinary average negated, so a youth-team line may store its rating that way. Prove it
 against a youth player's in-game history screen before reading these as ratings;
 `stg_player_history_seasons` passes them through. (0xFFFF, the save's "none", reads NULL.)
+
+### 16c. Each team's matchday squad
+`team_selections.json` ([team_selections](parser/team_selections.md)) holds every team's
+current XI in formation slot order, five substitutes and (FMM27) the captains. Load it as a
+`raw` table and a mart of team, place, player, and the position the place stands at (the
+team's formation, [formations](parser/formations.md); for an opponent, the manager's
+`formation_preferred` until a team's current tactic is found). Then the scout-opponent
+skill's XI comes from the game's own team sheet instead of "best N per unit". The inside
+lanes of the position codes need one lineup screenshot first (the formations doc's Next).
 
 ### 18. Rebuild the weight-set method on team results
 ([`agent-context/role-weight-methods.md`](agent-context/role-weight-methods.md), "What the match
