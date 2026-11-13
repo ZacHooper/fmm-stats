@@ -174,7 +174,9 @@ Phase 2 read two tables and found what the other two regions hold:
 - **Unread regions with leads**: each has a page in
   [`parser/unread/`](parser/unread/README.md) with its offsets on both games, the bytes seen,
   what was tried and the next step: the [per-person chain](parser/unread/person_chain.md)
-  (next: the FMM22 per-player blocks), [after the loans](parser/unread/after_loans.md),
+  (next: the FMM22 per-player blocks), after the loans
+  ([position-masked lists](parser/unread/al_position_lists.md),
+  [ranked player lists](parser/unread/al_rankings.md)),
   after the last transfers (five FMM27 sub-tables: the
   [managed club's season lists and tactics](parser/unread/alt_managed_club.md), a
   [row per person](parser/unread/alt_person_rows.md) and three more in the index),

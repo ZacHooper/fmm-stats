@@ -482,7 +482,8 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
         [27331049, 29755760, "filler", "Filler", "unread/season_blocks.md", "", "", "78% 0xFF, 8% 00. 2.42 MB, down from FMM22's 9.15 MB. Not all padding: on 16 Nov a stretch here lists the matchday squad (the Tactics – Captain screen's 16) and the five captains.", false, false],
         [29755760, 36517355, "reserved", "Contract grid", "contracts.md", "fixed grid", "CONTRACT_TABLE", "83 B records, capacity 81,465 (FMM22: 59,632), 44,960 used. Four ff bytes added to the frame.", false, true],
         [36517355, 36683286, "reserved", "Loans", "loans.md", "back-links", "LOANS_TABLE", "6,637 slots × 25 B (FMM22: 6,243), 4,706 loans (2,513 on 25 Jul): player, loan club, start, end, a percentage, an option. Every player on loan points at his slot from the per-person rows. New: read 12 Nov.", false, false],
-        [36683286, 38133604, "unknown", "Unidentified", "unread/after_loans.md", "", "", "1.45 MB after the loans. 00 43% / ff 19% / other 38%.", false, false],
+        [36683286, 37051936, "unknown", "Unidentified: position-masked lists", "unread/al_position_lists.md", "", "", "400 B of ff, then about 5,300 records: a 38 B header carrying a position bitmask three times (0x01, 0x04, 0x10, 0x40 …), then a short list of 12 B rows. Most lists empty.", false, false],
+        [37051936, 38133604, "unknown", "Unidentified: ranked player lists", "unread/al_rankings.md", "", "", "90,139 × 12 B [tid][value][value or -1], sorted descending: the first list ranks the world's goalkeepers (Courtois 40,600, Alisson 40,000 …).", false, false],
         [38133604, 40056821, "seasonal", "Seasonal transfer band", "#h-band", "count in front", "", "[u32 65,000][u32 count = 13,449][2 B], then 13,449 × 143 B rows: 1.92 MB, the career half's biggest mover. 35 rows on 22 Jul, 668 on 25 Jul, 5,871 on 8 Aug.", false, false],
         [40056821, 41147145, "grows", "Last transfers", "last_transfers.md", "count + one date", "LAST_TRANSFERS_TABLE", "36,344 × 30 B, one per player: his latest transfer (fee, buying club), kept across seasons. 793 filled (none on 25 Jul, 428 on 8 Aug). New: read 12 Nov.", false, false],
         [41147145, 41147471, "unknown", "Unidentified: nine-byte list", "unread/alt_nine_byte_list.md", "count in front", "", "[u16 36] then 36 × 9 B: [u16][u16][u8, a multiple of 5][u32 id]. Grows during the season.", false, false],
@@ -520,7 +521,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
         [71769958, 72985749, "grows", "sicomps archive", "#h-arch", "archive member", "archive.locate", "168 bare zstd frames and a directory, 6.60 MB decompressed (4.57 MB on 25 Jul). No length prefixes.", false, true]
       ],
       gaps: [
-        ["36.68–38.13 MB", 1.45, 1.45, "after the loans, in front of the transfer band"],
+        ["36.68–38.13 MB", 1.45, 1.45, "after the loans: position-masked lists, then ranked player lists"],
         ["41.15–42.47 MB", 1.32, 0.82, "after the last transfers: five sub-tables, among them the managed club's season lists and a row per person"],
         ["27.33–29.76 MB", 2.42, 0.40, "78% 0xFF, after the rule files"],
         ["45.83–46.03 MB", 0.20, 0.19, "inline-named records, after the season stats"],
@@ -580,7 +581,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
         [29171689, 31907618, "reserved", "Contract grid", "contracts.md", "fixed grid", "CONTRACT_TABLE", "Dense 83-byte records, capacity 59,632, 33,127 slots walked (one per person tid, plus 161 past the person table). Stable all career."],
         [31907618, 34120896, "reserved", "Contract grid, empty slots", "contracts.md", "fixed grid", "CONTRACT_TABLE", "The rest of the grid's capacity (59,632 × 83 B)."],
         [34120896, 34276977, "reserved", "Loans", "loans.md", "back-links", "LOANS_TABLE", "6,243 slots × 25 B, 2,312 loans; the 11 Frem players marked out on loan are exactly the loans out of Frem."],
-        [34276977, 35438751, "unknown", "Unidentified", "unread/after_loans.md", "", "", "1.16 MB in front of the transfer band."],
+        [34276977, 35438751, "unknown", "Unidentified", "unread/al_position_lists.md", "", "", "1.16 MB in front of the transfer band."],
         [35438751, 38405582, "seasonal", "Seasonal transfer band", "#h-band", "count in front", "", "[u32 65,000][u32 count = 20,747][2 B], then 20,747 × 143 B transfer-negotiation rows: every bid, and the accepted one with its fee and contract terms. Its collapse is the file's July shrink."],
         [38405582, 39200736, "grows", "Last transfers", "last_transfers.md", "count + one date", "LAST_TRANSFERS_TABLE", "26,505 × 30 B, one per player: his latest transfer (fee, buying club), 10,323 filled; survives the July rollover."],
         [39200736, 40042185, "unknown", "Unidentified", "unread/alt_managed_club.md", "", "", "0.84 MB before the match-slot table."],

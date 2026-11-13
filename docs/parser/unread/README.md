@@ -14,7 +14,8 @@ the [save file map](../savefile-map.md); the order the regions are worked is the
 |---|---|---|---|---|
 | club rows → rule files | 1.67 MB | 0.02 MB | FMM22: one block per player (read on FMM27 as player_status); FMM27: a u16-counted slot list, then 13.6 KB | [person_chain](person_chain.md) |
 | rule files → contract grid | 9.15 MB | 2.43 MB | FMM22 padding; FMM27 a slot pool, then season-year blocks | [season_blocks](season_blocks.md) |
-| loans → transfer band | 1.16 MB | 1.50 MB | not known | [after_loans](after_loans.md) |
+| loans → transfer band, 1 | 1.16 MB in all, not split | 368 KB | ~5,300 position-masked headers, each with a short list | [al_position_lists](al_position_lists.md) |
+| loans → transfer band, 2 | | 1.08 MB | 90,139 × 12 B ranked lists: the world's goalkeepers first | [al_rankings](al_rankings.md) |
 | last transfers → surnames, 1 | 0.84 MB in all (then the match-slot table) | 326 B | a u16-counted list of 9 B entries ending in an id | [alt_nine_byte_list](alt_nine_byte_list.md) |
 | last transfers → surnames, 2 | | 453 KB | 17,794 slots × 25 B, nearly all empty | [alt_slot_table](alt_slot_table.md) |
 | last transfers → surnames, 3 | | 11.9 KB | the managed club's season goals, assists, apps, PoM per player; four saved tactics | [alt_managed_club](alt_managed_club.md) |
