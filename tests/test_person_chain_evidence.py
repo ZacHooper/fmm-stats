@@ -72,7 +72,7 @@ def check_save(name, fx):
 
     for tid, want in fx.get("club_values", {}).items():
         for k, v in want.items():
-            check(rows[int(tid)][k] == v, f"club {tid} {k} = {v:,}")
+            check(rows[int(tid)][k] == v, f"club {tid} {k} = {v}")
 
     print(" CHAIN")
     pi = person_index.locate_person_index(mm)

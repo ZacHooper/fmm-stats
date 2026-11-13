@@ -1,9 +1,9 @@
 # club_rows  ([`fmparser/tables/club_rows.py`](../../fmparser/tables/club_rows.py))
 
 **One row per club**, straight after the [staff rows](staff_rows.md): the third link of the
-chain from the languages to the [rule files](rule_files.md). Its extent is proved and one field
-is named, the club's **transfer budget**; `extract.py` writes it to `club_rows.json`, one row
-per club in tid order.
+chain from the languages to the [rule files](rule_files.md). Its extent is proved and three fields
+are named: the club's **transfer budget**, its **matches played** this season and its **last
+six results**; `extract.py` writes them to `club_rows.json`, one row per club in tid order.
 
 | | Truro (FMM27) | Frem (FMM22) | Bucaspor (FMM22) |
 |---|---|---|---|
@@ -18,8 +18,10 @@ per club in tid order.
 | FMM27 | FMM22 | type | what is seen |
 |---|---|---|---|
 | +0 | +0 | u32 `transfer_budget` | pounds, as the Club Finances screen shows it |
-| +4 | +4 | 113 / 32 B | mostly 0 |
-| +117 | +36 | 12 B | all `ff` on most clubs; twelve small numbers (0–6) on others |
+| +4 | +4 | 103 / 22 B | mostly 0 |
+| +107 | +26 | u8 `matches_played` | this season's matches, friendlies included |
+| +108 | +27 | 9 B | mostly 0 |
+| +117 | +36 | 6 × 2 B `recent_scores` | the last six results, `[for][against]` each, oldest first; `ff ff` = none |
 | +129 | +48 | 2 B | 0 on most clubs |
 | +131 | +50 | u8 `n` | 0 or 1: how many extra blocks follow |
 | +132 | +51 | n × 68 / 66 B | the extra block |
@@ -31,6 +33,17 @@ nation's clubs share, then zeros. The shape of a ranking or coefficient table; n
 matched to a screen. On FMM27 the f32 is at +7 (4.0, 3.5, 7.5).
 
 The count of clubs carrying the block grows over a career on both games.
+
+**Recent results.** On truro-2026-11-16 Truro's twelve bytes read `02 00 01 00 06 00 03 02 01
+00 01 02`: Slough 2-0, Ebbsfleet 1-0, Billericay 6-0, Bristol Rovers 3-2, Folkestone 1-0,
+Herne Bay 1-2, and `matches_played` 25 (23 in the match table and the two friendlies before
+the career began). Each summer save adds the new games on the right (2, 3, 5 matches on
+22 Jul, 25 Jul, 8 Aug). Against the world fixture list, `matches_played` equals every club's
+played fixtures on the four Truro saves, and the six results agree for 98% of clubs; the rest
+are shoot-out games, where the pair is the shoot-out score on most (29 of 1,689 clubs on
+16 Nov unexplained). On FMM22, whose fixture list spans two seasons, 80-86% agree.
+
+These twelve bytes were first taken for the team instructions; they are not.
 
 ## How it is found
 

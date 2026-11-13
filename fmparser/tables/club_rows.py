@@ -13,8 +13,18 @@ save of both games, is the table's extent proof.
 
 The row's first u32 is the club's **transfer budget** in pounds: Truro's reads 10,000 on
 truro-2026-07-25, the Club Finances screen's "Transfer Budget £10,000" that day (Frem reads
-1,030,284 on frem-2026-06-11). The rest of the row is open. Each FMM22 row carries 12 bytes at +36, all `ff` on most clubs
-and small numbers (0-6) on others. The extra block is set for 232 clubs on frem-2021-06-27,
+1,030,284 on frem-2026-06-11).
+
+**Recent results.** Twelve bytes (+117 FMM27, +36 FMM22) hold the club's last six results,
+`[goals for][goals against]` each, oldest first, `ff ff` for none; a u8 ten bytes earlier
+counts the season's matches, friendlies included. On truro-2026-11-16 Truro's read 2-0, 1-0,
+6-0, 3-2, 1-0, 1-2 (Slough to Herne Bay) and 25 matches. Against the world fixture list the
+count is exact for every club on the four Truro saves and the six results for 98%; the rest
+are shoot-out games, where the pair is the shoot-out score on most and not yet explained on
+29 clubs of 1,689. On FMM22 (whose fixture list spans two seasons) 80-86% agree. The rest of
+the row is open.
+
+The extra block is set for 232 clubs on frem-2021-06-27,
 growing to 474 by frem-2030-06-22, and for 1,088 to 1,298 on Truro. On FMM22 it holds an f32
 at +5 that neighbouring clubs of one nation share (1.45 on four Albanian clubs, 7.17 on
 Afghanistan and Bahrain), then u32s that count up across those clubs (177, 178, 179, ...):
@@ -33,16 +43,23 @@ __all__ = ["CLUB_ROW", "CLUB_ROW_FMM27", "CLUB_ROW_EXTRA", "CLUB_ROW_EXTRA_FMM27
 
 CLUB_ROW = Record("club_row", 50, (
     Field(0,  4,  "transfer_budget", U32, note="pounds, as the Club Finances screen shows it"),
-    Field(4,  32, UNKNOWN, RAW, note="mostly 0"),
-    Field(36, 12, UNKNOWN, RAW, note="all ff on most clubs; 12 small numbers on others"),
+    Field(4,  22, UNKNOWN, RAW, note="mostly 0"),
+    Field(26, 1,  "matches_played", U8, note="this season's matches, friendlies included"),
+    Field(27, 9,  UNKNOWN, RAW, note="mostly 0"),
+    Field(36, 12, "recent_scores", RAW, note="the last six results, [goals for][against] each, "
+                                             "oldest first; ff ff = no match"),
     Field(48, 2,  UNKNOWN, RAW, note="0 on most clubs"),
 ), is_head=True)
 
 CLUB_ROW_FMM27 = Record("club_row_fmm27", 131, (
     Field(0,   4,   "transfer_budget", U32, note="pounds: Truro's 10,000 is the Club Finances "
                                                "screen's £10,000 on truro-2026-07-25"),
-    Field(4,   113, UNKNOWN, RAW, note="mostly 0"),
-    Field(117, 12,  UNKNOWN, RAW, note="all ff on most clubs"),
+    Field(4,   103, UNKNOWN, RAW, note="mostly 0"),
+    Field(107, 1,   "matches_played", U8, note="this season's matches, friendlies included: "
+                                              "every club's played fixtures, four Truro saves"),
+    Field(108, 9,   UNKNOWN, RAW, note="mostly 0"),
+    Field(117, 12,  "recent_scores", RAW, note="the last six results, [goals for][against] "
+                                               "each, oldest first; ff ff = no match"),
     Field(129, 2,   UNKNOWN, RAW, note="0 on most clubs"),
 ), is_head=True)
 
@@ -100,8 +117,16 @@ def locate_club_rows(mm: Any) -> Optional[Tuple[int, int]]:
     return res[:2] if res else None
 
 
+def _scores(raw: Any) -> List[List[int]]:
+    """[[for, against], ...] oldest first, the empty `ff ff` pairs dropped."""
+    b = bytes.fromhex(raw) if isinstance(raw, str) else bytes(raw)
+    return [[b[i], b[i + 1]] for i in range(0, len(b), 2) if b[i] != 0xFF]
+
+
 def _post(rec: Dict[str, Any], off: int) -> Dict[str, Any]:
-    return {"transfer_budget": rec["transfer_budget"]}
+    return {"transfer_budget": rec["transfer_budget"],
+            "matches_played": rec["matches_played"],
+            "recent_scores": _scores(rec["recent_scores"])}
 
 
 def club_rows_table_spans(mm: Any) -> List[Tuple[int, int]]:
