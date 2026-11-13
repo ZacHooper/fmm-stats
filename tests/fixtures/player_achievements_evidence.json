@@ -1,0 +1,248 @@
+{
+  "save": "truro-2026-11-16.fms",
+  "rows": 887,
+  "screens": "docs/parser/img/player_achievements-fmm27-*.png and the screenshots of 2026-11-13",
+  "note": "Each player's Player Achievements (All) screen on 16 Nov 2026, lines top to bottom (newest first): [text, club as shown, season as shown].",
+  "players": {
+    "8326": {
+      "name": "Jarrod Bowen",
+      "lines": [
+        [
+          "Manager Sacked",
+          "West Ham",
+          "2026"
+        ]
+      ]
+    },
+    "7138": {
+      "name": "Declan Rice",
+      "lines": [
+        [
+          "Community Shield Winner",
+          "Arsenal",
+          "2026"
+        ]
+      ]
+    },
+    "4728": {
+      "name": "Enzo Fernández",
+      "lines": [
+        [
+          "Community Shield Runner-Up",
+          "Man City",
+          "2026"
+        ]
+      ]
+    },
+    "29649": {
+      "name": "Tom Tweedy",
+      "lines": [
+        [
+          "Player of the Month",
+          "Truro",
+          "2026/27"
+        ]
+      ]
+    },
+    "25700": {
+      "name": "Harvey Greenslade",
+      "lines": [
+        [
+          "Player of the Month",
+          "Truro",
+          "2026/27"
+        ]
+      ]
+    },
+    "34344": {
+      "name": "Jack Wint",
+      "lines": [
+        [
+          "Young Player of the Month",
+          "Kidderminster",
+          "2026/27"
+        ],
+        [
+          "Player of the Month",
+          "Kidderminster",
+          "2026/27"
+        ],
+        [
+          "Young Player of the Month",
+          "Kidderminster",
+          "2026/27"
+        ]
+      ]
+    },
+    "21555": {
+      "name": "Serhou Guirassy",
+      "lines": [
+        [
+          "Supercup Runner-Up",
+          "Borussia Dortmund",
+          "2026"
+        ],
+        [
+          "Footballer of the Year",
+          "Borussia Dortmund",
+          "2026/27"
+        ]
+      ]
+    }
+  },
+  "row0_bytes": "38 33 54 00 00 80 00 00 00 ff ff ff ff ff 01 02 00 00 00 46 00 00 00 00",
+  "kinds_on_screen": {
+    "2": "Winner",
+    "1": "Runner-Up",
+    "32": "Manager Sacked",
+    "128": "the award's name"
+  },
+  "more": [
+    {
+      "save": "frem-2030-06-30.fms",
+      "note": "FMM22, screenshots of 2026-11-13 (docs/parser/img/player_achievements-fmm22-*.png); Pedersen's two pages",
+      "players": {
+        "10004": {
+          "name": "Victor Jensen",
+          "lines": [
+            [
+              "3F Superliga Winner",
+              "Frem",
+              "2029/30"
+            ],
+            [
+              "Relegated from Second Division",
+              "Eibar",
+              "2028/29"
+            ],
+            [
+              "Club Bankrupt",
+              "Eibar",
+              "2028/29"
+            ],
+            [
+              "Relegated from 3F Superliga",
+              "Viborg FF",
+              "2027/28"
+            ],
+            [
+              "Promoted from NordicBet Liga",
+              "Viborg FF",
+              "2025/26"
+            ]
+          ]
+        },
+        "10447": {
+          "name": "Mattias Jakobsen",
+          "lines": [
+            [
+              "Manager Sacked",
+              "Denmark",
+              "2030"
+            ],
+            [
+              "3F Superliga Winner",
+              "Frem",
+              "2029/30"
+            ],
+            [
+              "Manager Sacked",
+              "Fortuna Düsseldorf",
+              "2028/29"
+            ],
+            [
+              "Club Bankrupt",
+              "Fortuna Düsseldorf",
+              "2027/28"
+            ],
+            [
+              "Relegated from First Division",
+              "Alavés",
+              "2026/27"
+            ],
+            [
+              "Sydbank Pokalen Winner",
+              "FC København",
+              "2022/23"
+            ],
+            [
+              "3F Superliga Winner",
+              "FC København",
+              "2022/23"
+            ]
+          ]
+        },
+        "10027": {
+          "name": "Anton Pedersen",
+          "lines": [
+            [
+              "3F Superliga Winner",
+              "Frem",
+              "2029/30"
+            ],
+            [
+              "Sydbank Pokalen Runner-Up",
+              "Frem",
+              "2028/29"
+            ],
+            [
+              "3F Superliga Winner",
+              "Frem",
+              "2028/29"
+            ],
+            [
+              "Team of the Year",
+              "Frem",
+              "2028/29"
+            ],
+            [
+              "Team of the Month",
+              "Frem",
+              "2028/29"
+            ],
+            [
+              "Team of the Year",
+              "Frem",
+              "2026/27"
+            ],
+            [
+              "Team of the Month",
+              "Frem",
+              "2026/27"
+            ],
+            [
+              "Team of the Month",
+              "Frem",
+              "2026/27"
+            ],
+            [
+              "Team of the Year",
+              "Frem",
+              "2023/24"
+            ],
+            [
+              "NordicBet Liga Winner",
+              "Frem",
+              "2023/24"
+            ],
+            [
+              "Promoted from NordicBet Liga",
+              "Frem",
+              "2023/24"
+            ],
+            [
+              "Team of the Year",
+              "Karlslunde",
+              "2021/22"
+            ],
+            [
+              "Relegated from 3. Division",
+              "Karlslunde",
+              "2021/22"
+            ]
+          ]
+        }
+      }
+    }
+  ]
+}

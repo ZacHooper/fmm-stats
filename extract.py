@@ -34,6 +34,8 @@ Writes output/<label>/ (the label defaults to the save's file name without `.fms
                                  competitive match
     player_ability_scales.json   FMM27: per player (tid order) his ability on his league's
                                  scale and, if young, his youth international rating
+    player_achievements.json     the Player Achievements screen, a row per
+                                 achievement (finals won and lost, Manager Sacked, awards)
     player_status.json           FMM27: per player (attribute-record order) the clubs
                                  interested in him, his morale and his form
     competition_team_counts.json each nation's team-count rules
@@ -377,6 +379,8 @@ def steps(no_archive: bool = False):
         Step("player_form", registered("player_form"), read_player_form),
         Step("player_ability_scales", registered("player_ability_scales"),
              read_player_ability_scales),
+        Step("player_achievements", registered("player_achievements"),
+             one("player_achievements.json", T.scrape_player_achievements, None)),
         Step("player_lists", registered("player_lists", "player_list_trailers"),
              read_scrapbook),
         Step("archive", archive_span, read_archive(no_archive)),

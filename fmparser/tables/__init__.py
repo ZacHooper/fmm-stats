@@ -207,6 +207,8 @@ from .person_index import PERSON_INDEX_TABLE, PERSON_INDEX_TABLE_FMM27, scrape_p
 from .person_stamps import PERSON_STAMPS_TABLE, scrape_person_stamps
 from .staff_rows import STAFF_ROWS_TABLE, scrape_staff_rows, staff_rows_table_spans
 from .player_form import PLAYER_FORM_TABLE, player_form_table_spans, scrape_player_form
+from .player_achievements import (PLAYER_ACHIEVEMENTS_TABLE, player_achievements_table_spans,
+                                  scrape_player_achievements)
 from .player_ability_scales import (PLAYER_ABILITY_SCALES_TABLE,
                                     player_ability_scales_table_spans,
                                     scrape_player_ability_scales)
@@ -241,6 +243,7 @@ TABLES = {
     "tactic_history": TACTIC_HISTORY_TABLE,
     "club_seasons": CLUB_SEASONS_TABLE,
     "club_titles": CLUB_TITLES_TABLE,
+    "player_achievements": PLAYER_ACHIEVEMENTS_TABLE,
     "last_transfers": LAST_TRANSFERS_TABLE,
     "clubs": CLUB_TABLE,
     "competitions": COMP_TABLE,
@@ -357,6 +360,7 @@ __all__ = [
     "scrape_player_status",
     "scrape_player_form",
     "scrape_player_ability_scales",
+    "scrape_player_achievements",
     "scrape_person_stamps",
     "scrape_regions",
     "scrape_unions",

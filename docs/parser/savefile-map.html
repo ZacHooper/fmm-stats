@@ -330,7 +330,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
       <tr><td>Player progress</td><td class="n">62,400 × 70 B</td><td class="n old">62,400 × 70 B</td><td>Unchanged pool; template year 2025.</td><td><span class="st ok">reads</span></td></tr>
       <tr><td>Training</td><td class="n">44,960 × 61 B</td><td class="n old">32,966 × 61 B</td><td>Same row. Focus-role codes differ from Inside Forward on (two new roles).</td><td><span class="st part">role codes open</span></td></tr>
       <tr><td>Our matches</td><td class="n">5,676 + 17n B</td><td class="n old">5,093 B body</td><td>70 B player slots with each player's xG; managers in the team head.</td><td><span class="st ok">reads</span></td></tr>
-      <tr><td>After the club titles</td><td class="n">10 framed tables</td><td class="n old">4.94 MB unread</td><td>Walked on FMM27 (13 Nov): the Player Form lines and each player's ability on his league's scale read; pools and per-staff rows framed, fields open.</td><td><span class="st part">2 of 10 read</span></td></tr>
+      <tr><td>After the club titles</td><td class="n">10 framed tables</td><td class="n old">4.94 MB unread</td><td>Walked on FMM27 (13 Nov): the Player Form lines, each player's ability on his league's scale and the player achievements read; pools and per-staff rows framed, fields open.</td><td><span class="st part">3 of 10 read</span></td></tr>
       <tr><td>Player lists</td><td class="n">132 lists</td><td class="n old">66 lists</td><td>192 B tails. A second set of 66, all unused so far, probably women's.</td><td><span class="st part">season no. open</span></td></tr>
       <tr><td>Archive</td><td class="n">168 members</td><td class="n old">159 members</td><td>Bare zstd frames with no length prefixes; a 9-byte directory header. <code>comp_man.dat</code> does not read.</td><td><span class="st part">comp_man open</span></td></tr>
     </tbody>
@@ -509,7 +509,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
         [63651940, 63742856, "unknown", "Coach-sized slot pool", "unread/coach_slots.md", "", "", "[u32 cap = coaches (2,841) or twice][cap × 32 B], up to 71 used. New: framed 13 Nov.", false, false],
         [63742856, 63754431, "unknown", "A row per physio", "unread/physio_rows.md", "", "", "[u16 1,157][row k = physio k, 10 B], all empty so far. New: framed 13 Nov.", false, false],
         [63754431, 63836279, "unknown", "A row per scout", "unread/scout_rows.md", "", "", "787 × 104 B, 772 with data (= the scouts). New: framed 13 Nov.", false, false],
-        [63836279, 66236284, "unknown", "100,000-slot pool", "unread/slot_pool.md", "", "", "[u32 100,000][100,000 × 24 B]: 0 used on 22 Jul, 887 by 16 Nov. New: framed 13 Nov.", false, false],
+        [63836279, 66236284, "reserved", "Player achievements", "player_achievements.md", "count in front", "PLAYER_ACHIEVEMENTS_TABLE", "[u32 100,000][100,000 × 24 B]: the Player Achievements screen, a row per achievement (player, kind, competition, club, award): cup wins, Manager Sacked, monthly awards. 1 used on 25 Jul, 887 by 16 Nov. New: read 13 Nov.", false, false],
         [66236284, 69209346, "reserved", "Player lists", "player_lists.md", "chained records", "PLAYER_LISTS_TABLE", "132 lists with 192 B tails (FMM22: 66). The second 66 are all unused so far, probably women's.", false, true],
         [69209346, 69357132, "unknown", "Scheduled events (unread)", "unread/scheduled_events.md", "", "", "Opens with a date one day past the save. On FMM22 this is the game's scheduled events (type 9: a transfer going through that day); FMM27 stores it differently, with a long run of u16 0, 1, 2 … On 16 Nov the set-piece takers sit here: ten-slot tid lists in the Takers screen's order (penalties, corners, free kicks, two more).", false, false],
         [69357132, 69883057, "grows", "sicomps archive", "#h-arch", "archive member", "archive.locate", "168 bare zstd frames and a directory, 4.57 MB decompressed. No length prefixes.", false, true]
@@ -522,7 +522,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
         ["69.21–69.36 MB", 0.15, 0.15, "before the archive; opens with a date"],
         ["60.80–60.84 MB", 0.04, 0.04, "between the team history and our matches"],
         ["22.89–22.92 MB", 0.02, 0.02, "between the player status and the rule files"],
-        ["63.65–66.24 MB", 2.58, 0.01, "coach slots, physio and scout rows, the 100,000-slot pool: framed, nearly empty on this save"],
+        ["63.65–63.84 MB", 0.18, 0.01, "coach slots, physio and scout rows: framed, nearly empty on this save"],
         ["52.35–52.55 MB", 0.20, 0, "67% 0xFF"],
         ["56.92–57.96 MB", 1.03, 0, "all zero"]
       ],
