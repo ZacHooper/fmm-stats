@@ -1123,7 +1123,8 @@ def load_core(con, d, season, phase):
             _int(m.get("home_flag")), home_tid, away_tid, _int(m.get("attendance")),
             _int(score.get("home")), _int(score.get("away")),
             dv["star"]["home"], dv["star"]["away"], m.get("formation"),
-            _int(m.get("player_of_match")),
+            # ffffffff (no player of the match: reserve and some cup games on FMM27) -> NULL
+            None if m.get("player_of_match") == 0xFFFFFFFF else _int(m.get("player_of_match")),
             *[_num(h.get(k)) for k in _TS_KEYS], *[_num(a.get(k)) for k in _TS_KEYS],
             *[_int(((m.get("team_head") or {}).get(side) or {}).get(k))
               for side in ("home", "away") for k in _TH_KEYS + _TH_KEYS_FMM27],

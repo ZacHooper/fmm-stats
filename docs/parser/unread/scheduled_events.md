@@ -25,3 +25,21 @@ After the [player lists](../player_lists.md), up to the archive.
    ordering over the entries?).
 2. Name the other types from what changes between two saves a few days apart.
 3. Then one table for both games.
+
+## Found on truro-2026-11-16 (first mid-season FMM27 save)
+
+**Set-piece takers.** After the player lists, at 71,730,799, lists of ten u32 slots (unused
+`ffffffff`), each the Set Pieces – Takers screen's order: penalties (Jephcott, Harvey, Bogle,
+Stretton, Tweedy), left corners (Riley-Lowe, Law, Dean, Starkie, Harvey), right corners
+(Tweedy, Oxlade-Chamberlain, Riley-Lowe, Donnellan), direct free kicks (Riley-Lowe, Tweedy,
+Dean, Harvey), then two lists the screenshots do not show (Harvey, Oxlade-Chamberlain,
+Jephcott, Hasani, Law: long throws? indirect free kicks?).
+
+Near 71,664,780, a list of Truro players followed by length-prefixed strings
+("Transition-Restrict", "Direct Play", "Defensive Shape", "Transition-Press"): training
+units or tactical styles, not yet looked at.
+
+![Takers: penalties](../img/set_pieces-fmm27-1.png)
+![Takers: left corners](../img/set_pieces-fmm27-2.png)
+![Takers: direct free kicks](../img/set_pieces-fmm27-3.png)
+![Takers: right corners](../img/set_pieces-fmm27-4.png)

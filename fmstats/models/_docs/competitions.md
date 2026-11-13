@@ -181,7 +181,8 @@ Matches lost on the final score, through that matchday.
 {% enddocs %}
 
 {% docs is_decided %}
-The tie is decided: all its legs (by the round's rules) are played.
+The tie is decided: all its legs (by the round's rules) are played. A single-leg tie whose
+match was drawn with no shoot-out is replayed, and decided once the replay is played.
 {% enddocs %}
 
 {% docs winner_tid %}

@@ -38,3 +38,24 @@ The tables [tactic history](../tactic_history.md), [club seasons](../club_season
 
 **Next:** count the empty slots (a capacity, as the season and title pools have), then
 profile the rest by entropy.
+
+## Found on truro-2026-11-16 (first mid-season FMM27 save)
+
+- **The 14-byte entries in front of the tactic history** hold 17 Truro players, each
+  `[tid u32][0][position u8][0][6][6 × 0]`, the position code being his best (rated 20) one:
+  DC 3, DMC 5, MC 7, AMC 10, AMR 11, ST 12, as the training table spells them. Not the
+  takers, the captains or the training focus (keepers, full-backs, Nunn and Jephcott are
+  missing). Open.
+- **After the club-season pool: per-player match lines of our matches.** 26 bytes each,
+  `[tid u32][opponent u16][u8][match id u24][club u16][6 B][u8 1-20][rating u8][goals u8]
+  [assists u8][u8][yellow u8][u8][sub flag u8: 9 on, 10 off]`, both sides of each game: 546
+  lines over 20 matches. On 14 Nov at Herne Bay: En-Neyah's goal, Greenslade's assist and 8,
+  Love-Holmes's yellow, the three substitutions. A summary of what `matches` already holds,
+  separate bytes (63,323,934 on; `matches` ends at 63,137,047). On truro-2026-08-08 it held
+  the opener only, which is what first looked like a squad list.
+- **Relationships** (the screens below) are not found yet: Kinsey-Wellings's Manager, Dean
+  and Donnellan and Jephcott's Roberts, Harvey and Hasani do not sit together as tids
+  anywhere obvious.
+
+![Kinsey-Wellings, Player Relationships](../img/relationships-fmm27-1.png)
+![Jephcott, Player Relationships](../img/relationships-fmm27-2.png)
