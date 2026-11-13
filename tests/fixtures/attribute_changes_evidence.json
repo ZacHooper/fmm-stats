@@ -1,0 +1,28 @@
+{
+  "save": "truro-2026-11-16.fms",
+  "note": "Player Profile screens, 16 Nov 2026 (docs/parser/img/attribute_changes-fmm27-1..7.png). arrows: attribute -> 1 (one up arrow), 2 (double up), -1 (one down), -2 (double down); every other attribute shows no arrow. row_hex: the player's 23 stored bytes.",
+  "players": [
+    {"tid": 25434, "name": "Zac Bell", "img": 1,
+     "arrows": {"Dribbling": 2, "Teamwork": 1, "Pace": 1, "Stamina": 2, "Strength": 1},
+     "row_hex": "0002000000000000000000000001010301000000000000"},
+    {"tid": 29941, "name": "Caleb Roberts", "img": 2,
+     "arrows": {"Crossing": 1, "Dribbling": 1, "Passing": 1, "Shooting": 1, "Tackling": 1,
+                "Creativity": 1, "Decisions": 1, "Movement": 1, "Positioning": 2, "Stamina": 1},
+     "row_hex": "0101000101010000010100010200000100000000000000"},
+    {"tid": 29417, "name": "Maxwell Kinsey-Wellings", "img": 3,
+     "arrows": {"Tackling": -1, "Positioning": -1, "Pace": 1, "Stamina": 1},
+     "row_hex": "0000000000ff000000000000ff00010100000000000000"},
+    {"tid": 8501, "name": "Dan Rooney", "img": 4,
+     "arrows": {"Crossing": -1, "Passing": -1, "Movement": -1},
+     "row_hex": "ff0000ff00000000000000ff0000000000000000000000"},
+    {"tid": 8934, "name": "Yassine En-Neyah", "img": 5,
+     "arrows": {"Creativity": -1},
+     "row_hex": "0000000000000000ff0000000000000000000000000000"},
+    {"tid": 8821, "name": "Ryan Law", "img": 6,
+     "arrows": {"Dribbling": 2, "Creativity": 1},
+     "row_hex": "0002000000000000010000000000000000000000000000"},
+    {"tid": 8350, "name": "Dan Lavercombe", "img": 7, "goalkeeper": true,
+     "arrows": {"Kicking": 1, "Reflexes": 1},
+     "row_hex": "0000000000000000000000000000000000000000010100"}
+  ]
+}

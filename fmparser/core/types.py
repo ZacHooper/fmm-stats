@@ -25,7 +25,7 @@ UNKNOWN = _Unknown()
 
 # Field kind identifiers
 U8, U16, U32 = "u8", "u16", "u32"
-I16, I32 = "i16", "i32"
+I8, I16, I32 = "i8", "i16", "i32"
 F32 = "f32"
 DATE = "date"
 HEX4, HEX2 = "hex4", "hex2"
@@ -38,6 +38,7 @@ KIND_WIDTH = {
     U8: 1,
     U16: 2,
     U32: 4,
+    I8: 1,
     I16: 2,
     I32: 4,
     F32: 4,
