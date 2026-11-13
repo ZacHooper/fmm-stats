@@ -7,6 +7,14 @@ models:
     data_tests:
       - rows_match_source: {arguments: {table: contracts}}
       - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
+  - name: stg_loans
+    description: >
+      Every loan in the loan pool as stored: the player, the club he is on loan at, the agreed
+      start and end, the share of his wage that club pays and the option flag.
+    data_tests:
+      - rows_match_source: {arguments: {table: loans}}
+      - unique_combination: {arguments: {columns: [snapshot_date, tid]}}
+      - unique_combination: {arguments: {columns: [snapshot_date, slot]}}
   - name: stg_attribute_model
     description: >
       The attribute decoder's coefficients, one row per (attribute, feature), with each input

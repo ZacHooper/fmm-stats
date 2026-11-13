@@ -978,9 +978,12 @@ unit_tests:
       player is a loan too (a national side is not); the two merge on player, season and
       borrowing club. The parent is the listing's record club, else the club a later snapshot
       shows him at with a joined date before the loan's season, else the club of the last
-      line before the loan that is not a loan. Our own loans out take their first and last
-      week on loan from Player Progress, cut at a season boundary only where a loan of ours
-      in the next season meets the run; two loans of ours in one season get no dates.
+      line before the loan that is not a loan. A loan in the loan pool takes its agreed dates,
+      wage share and parent from the pool, with or without a line or a listing, and ended
+      early where the next snapshot's pool no longer holds it before its end. Our own loans
+      out the pool never held take their first and last week on loan from Player Progress,
+      cut at a season boundary only where a loan of ours in the next season meets the run;
+      two loans of ours in one season get no dates.
     model: int_loan_spells
     given:
       - input: ref('stg_career')
@@ -989,9 +992,25 @@ unit_tests:
       - input: ref('stg_snapshots')
         rows:
           - {snapshot_date: '2024-11-01', season: 2025}
+          - {snapshot_date: '2025-01-15', season: 2025}
       - input: ref('int_teams')
         rows:
           - {snapshot_date: '2024-11-01', team_tid: 346, club_tid: 346}
+      - input: ref('stg_loans')
+        rows:
+          - {snapshot_date: '2024-11-01', tid: 30, borrowing_club_tid: 700, start_date: '2024-08-15', end_date: '2025-06-29', wage_pct: 50, has_option: false}
+          - {snapshot_date: '2025-01-15', tid: 30, borrowing_club_tid: 700, start_date: '2024-08-15', end_date: '2025-06-29', wage_pct: 50, has_option: false}
+          - {snapshot_date: '2024-11-01', tid: 31, borrowing_club_tid: 500, start_date: '2024-09-01', end_date: '2025-05-31', wage_pct: 100, has_option: true}
+      - input: ref('int_person_snapshots')
+        rows:
+          - {snapshot_date: '2024-11-01', tid: 30, person_id: s}
+          - {snapshot_date: '2025-01-15', tid: 30, person_id: s}
+          - {snapshot_date: '2024-11-01', tid: 31, person_id: w}
+      - input: ref('stg_persons')
+        rows:
+          - {snapshot_date: '2024-11-01', tid: 30, club_tid: 951}
+          - {snapshot_date: '2025-01-15', tid: 30, club_tid: 951}
+          - {snapshot_date: '2024-11-01', tid: 31, club_tid: 950}
       - input: ref('int_player_career_lines')
         rows:
           - {person_id: q, line_index: 0, season: 2024, club_tid: 346, fee_kind: stay}
@@ -1024,14 +1043,15 @@ unit_tests:
           - {person_id: v, spell_type: on_loan, start_date: '2026-07-14', end_date: '2027-06-20'}
     expect:
       rows:
-        - {person_id: q, season: 2024, borrowing_club_tid: 600, borrowing_team_tid: 600, parent_club_tid: 346, start_date: '2023-08-04', end_date: '2024-06-29', first_seen_date: null, has_line: true}
-        - {person_id: q, season: 2025, borrowing_club_tid: 700, borrowing_team_tid: 700, parent_club_tid: 346, start_date: '2024-06-30', end_date: '2025-02-01', first_seen_date: '2024-11-01', has_line: false}
-        - {person_id: r, season: 2020, borrowing_club_tid: 800, borrowing_team_tid: 800, parent_club_tid: 900, start_date: null, end_date: null, first_seen_date: null, has_line: true}
-        - {person_id: s, season: 2025, borrowing_club_tid: 700, borrowing_team_tid: 700, parent_club_tid: 951, start_date: null, end_date: null, first_seen_date: '2024-11-01', has_line: true}
-        - {person_id: t, season: 2022, borrowing_club_tid: 1625, borrowing_team_tid: 1625, parent_club_tid: 6567, start_date: null, end_date: null, first_seen_date: null, has_line: true}
-        - {person_id: u, season: 2024, borrowing_club_tid: 600, borrowing_team_tid: 600, parent_club_tid: 346, start_date: '2023-08-01', end_date: '2024-07-05', first_seen_date: null, has_line: true}
-        - {person_id: v, season: 2027, borrowing_club_tid: 325, borrowing_team_tid: 325, parent_club_tid: 346, start_date: null, end_date: null, first_seen_date: null, has_line: true}
-        - {person_id: v, season: 2027, borrowing_club_tid: 3756, borrowing_team_tid: 3756, parent_club_tid: 346, start_date: null, end_date: null, first_seen_date: null, has_line: true}
+        - {person_id: q, season: 2024, borrowing_club_tid: 600, borrowing_team_tid: 600, parent_club_tid: 346, start_date: '2023-08-04', end_date: '2024-06-29', wage_pct: null, ended_early_by_date: null, first_seen_date: null, has_line: true}
+        - {person_id: q, season: 2025, borrowing_club_tid: 700, borrowing_team_tid: 700, parent_club_tid: 346, start_date: '2024-06-30', end_date: '2025-02-01', wage_pct: null, ended_early_by_date: null, first_seen_date: '2024-11-01', has_line: false}
+        - {person_id: r, season: 2020, borrowing_club_tid: 800, borrowing_team_tid: 800, parent_club_tid: 900, start_date: null, end_date: null, wage_pct: null, ended_early_by_date: null, first_seen_date: null, has_line: true}
+        - {person_id: s, season: 2025, borrowing_club_tid: 700, borrowing_team_tid: 700, parent_club_tid: 951, start_date: '2024-08-15', end_date: '2025-06-29', wage_pct: 50, ended_early_by_date: null, first_seen_date: '2024-11-01', has_line: true}
+        - {person_id: w, season: 2025, borrowing_club_tid: 500, borrowing_team_tid: 500, parent_club_tid: 950, start_date: '2024-09-01', end_date: '2025-05-31', wage_pct: 100, ended_early_by_date: '2025-01-15', first_seen_date: null, has_line: false}
+        - {person_id: t, season: 2022, borrowing_club_tid: 1625, borrowing_team_tid: 1625, parent_club_tid: 6567, start_date: null, end_date: null, wage_pct: null, ended_early_by_date: null, first_seen_date: null, has_line: true}
+        - {person_id: u, season: 2024, borrowing_club_tid: 600, borrowing_team_tid: 600, parent_club_tid: 346, start_date: '2023-08-01', end_date: '2024-07-05', wage_pct: null, ended_early_by_date: null, first_seen_date: null, has_line: true}
+        - {person_id: v, season: 2027, borrowing_club_tid: 325, borrowing_team_tid: 325, parent_club_tid: 346, start_date: null, end_date: null, wage_pct: null, ended_early_by_date: null, first_seen_date: null, has_line: true}
+        - {person_id: v, season: 2027, borrowing_club_tid: 3756, borrowing_team_tid: 3756, parent_club_tid: 346, start_date: null, end_date: null, wage_pct: null, ended_early_by_date: null, first_seen_date: null, has_line: true}
 
   - name: staff_spells_by_team_and_role
     description: >

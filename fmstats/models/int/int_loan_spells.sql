@@ -1,18 +1,22 @@
 -- Every loan the store can see, one row per player, season and borrowing
 -- club: keyed (person_id, season, borrowing_club_tid). A loan is a spell on top
--- of an unchanged contract, never a transfer. Two sources:
+-- of an unchanged contract, never a transfer. Three sources:
+--   * the loan pool (stg_loans): every loan in the world while it runs, with
+--     its agreed start and end, the share of the player's wage the borrowing
+--     club pays and the option flag. A loan is a row for each season of a
+--     snapshot whose pool holds it;
 --   * the career history: a loan line (fee code 'loan') is a season at the
 --     borrowing club;
 --   * the squads: a club's first, b or reserve team listing a player whose
 --     own record names another club's team (int.squad_membership is_loan_in;
 --     a national side is not a loan). The history has no line for a loan made
---     during the season until it ends, so a current loan is often only here.
--- borrowing_team_tid is the team that lists him, else the loan line's team.
--- first_seen_date / last_seen_date are the snapshots listing him there (NULL
--- for a loan only the history shows).
+--     during the season until it ends.
+-- borrowing_team_tid is the team that lists him, else the pool's or the loan
+-- line's team. first_seen_date / last_seen_date are the snapshots listing him
+-- there (NULL for a loan no squad lists).
 --
 -- parent_club_tid, first found of:
---   * his record's club, where a snapshot lists him on loan;
+--   * his record's club, where a snapshot's pool or squads show him on loan;
 --   * the club we manage, where his weeks in Player Progress are flagged on
 --     loan in that season (the flag marks only loans out: no run of it
 --     overlaps a loan to us on the gate stores);
@@ -25,16 +29,24 @@
 -- went straight out on loan keeps no line there, and the line before the loan
 -- names his previous club.
 --
--- start_date and end_date are real only for a loan out of the club we manage:
--- the first and last week flagged on loan in Player Progress
--- (int.progress_spells). A run of flagged weeks belongs to the loan of the
--- season it starts in, and is cut at a season boundary only where a loan of
--- ours in the next season meets it, since the flag can run unbroken from a
--- loan into its renewal; a loan's last weeks can lie past the rollover day
--- (Bucaspor's run to 28 June, its rollover 20 June). With two loans of ours
--- in one season the runs cannot be told apart, so both read NULL (Johan
--- Maarup's 2026/27: AB, and a 0-app line at FC Botosani, where he went
--- next). Elsewhere the save gives no loan dates and they read NULL.
+-- start_date and end_date are the pool's agreed dates wherever a snapshot's
+-- pool holds the loan (a loan of several seasons carries the same dates on
+-- each). The day-one database holds a few loans agreed years before it
+-- (Truro: one from 2006); the dates are kept as stored. ended_early_by_date
+-- is the first snapshot after the pool last held the loan, where that is
+-- before its agreed end: the loan ended between the two (recalled, cut
+-- short, or turned into a transfer).
+--
+-- A loan of ours no snapshot's pool holds (one that started and ended between
+-- two snapshots) falls back to Player Progress: the first and last week
+-- flagged on loan (int.progress_spells), so to the week, and the last flagged
+-- week is the save's own on a loan still running. A run of flagged weeks
+-- belongs to the loan of the season it starts in, and is cut at a season
+-- boundary only where a loan of ours in the next season meets it, since the
+-- flag can run unbroken from a loan into its renewal; a loan's last weeks can
+-- lie past the rollover day (Bucaspor's run to 28 June, its rollover 20
+-- June). With two loans of ours in one season the runs cannot be told apart,
+-- so both read NULL. Elsewhere a loan no pool holds has no dates.
 with career as (
     select * from {{ ref('stg_career') }}
 ),
@@ -85,6 +97,101 @@ line_loans as (
     ) as parented
     where is_loan and club_tid is not null
     group by person_id, season, club_tid
+),
+
+-- each snapshot's loan pool, the player's own record's club his parent; one
+-- loan is one (person, borrowing club, start date) across snapshots, its
+-- terms as the latest snapshot holds them
+pool as (
+    select
+        people.person_id,
+        snapshots.season,
+        loans.snapshot_date,
+        coalesce(borrowers.club_tid, loans.borrowing_club_tid)
+            as borrowing_club_tid,
+        loans.borrowing_club_tid as borrowing_team_tid,
+        coalesce(parents.club_tid, person.club_tid) as parent_club_tid,
+        loans.start_date,
+        loans.end_date,
+        loans.wage_pct,
+        loans.has_option
+    from {{ ref('stg_loans') }} as loans
+    inner join {{ ref('stg_snapshots') }} as snapshots
+        on loans.snapshot_date = snapshots.snapshot_date
+    inner join {{ ref('int_person_snapshots') }} as people
+        on
+            loans.snapshot_date = people.snapshot_date
+            and loans.tid = people.tid
+    inner join {{ ref('stg_persons') }} as person
+        on
+            loans.snapshot_date = person.snapshot_date
+            and loans.tid = person.tid
+    left join {{ ref('int_teams') }} as borrowers
+        on
+            loans.snapshot_date = borrowers.snapshot_date
+            and loans.borrowing_club_tid = borrowers.team_tid
+    left join {{ ref('int_teams') }} as parents
+        on
+            person.snapshot_date = parents.snapshot_date
+            and person.club_tid = parents.team_tid
+),
+
+-- the snapshot after each one
+next_snapshots as (
+    select
+        snapshot_date,
+        lead(snapshot_date) over (order by snapshot_date) as next_date
+    from {{ ref('stg_snapshots') }}
+),
+
+pool_loans as (
+    select
+        pool.person_id,
+        pool.borrowing_club_tid,
+        pool.start_date,
+        min(pool.season) as first_season,
+        max(pool.season) as last_season,
+        arg_max(pool.borrowing_team_tid, pool.snapshot_date)
+            as borrowing_team_tid,
+        arg_max(pool.parent_club_tid, pool.snapshot_date) as parent_club_tid,
+        arg_max(pool.end_date, pool.snapshot_date) as end_date,
+        arg_max(pool.wage_pct, pool.snapshot_date) as wage_pct,
+        arg_max(pool.has_option, pool.snapshot_date) as has_option,
+        max(pool.snapshot_date) as last_pooled_date
+    from pool
+    group by pool.person_id, pool.borrowing_club_tid, pool.start_date
+),
+
+-- each pool loan on each season a snapshot's pool held it; two loans of one
+-- season at one club are one loan, the later-starting one's
+pooled as (
+    select
+        pool_loans.person_id,
+        seasons.season,
+        pool_loans.borrowing_club_tid,
+        arg_max(pool_loans.borrowing_team_tid, pool_loans.start_date)
+            as borrowing_team_tid,
+        arg_max(pool_loans.parent_club_tid, pool_loans.start_date)
+            as parent_club_tid,
+        max(pool_loans.start_date) as start_date,
+        arg_max(pool_loans.end_date, pool_loans.start_date) as end_date,
+        arg_max(pool_loans.wage_pct, pool_loans.start_date) as wage_pct,
+        arg_max(pool_loans.has_option, pool_loans.start_date) as has_option,
+        arg_max(
+            case
+                when next_snapshots.next_date < pool_loans.end_date
+                    then next_snapshots.next_date
+            end,
+            pool_loans.start_date
+        ) as ended_early_by_date
+    from pool_loans
+    cross join
+        unnest(
+            range(pool_loans.first_season, pool_loans.last_season + 1)
+        ) as seasons (season)
+    left join next_snapshots
+        on pool_loans.last_pooled_date = next_snapshots.snapshot_date
+    group by all
 ),
 
 -- each player's club on each snapshot, with the date he joined it
@@ -176,13 +283,21 @@ loaned_out as (
 
 loans as (
     select
-        coalesce(listed.person_id, line_loans.person_id) as person_id,
-        coalesce(listed.season, line_loans.season) as season,
-        coalesce(listed.borrowing_club_tid, line_loans.borrowing_club_tid)
-            as borrowing_club_tid,
-        coalesce(listed.borrowing_team_tid, line_loans.borrowing_team_tid)
-            as borrowing_team_tid,
+        coalesce(pooled.person_id, listed.person_id, line_loans.person_id)
+            as person_id,
+        coalesce(pooled.season, listed.season, line_loans.season) as season,
         coalesce(
+            pooled.borrowing_club_tid,
+            listed.borrowing_club_tid,
+            line_loans.borrowing_club_tid
+        ) as borrowing_club_tid,
+        coalesce(
+            listed.borrowing_team_tid,
+            pooled.borrowing_team_tid,
+            line_loans.borrowing_team_tid
+        ) as borrowing_team_tid,
+        coalesce(
+            pooled.parent_club_tid,
             listed.parent_club_tid,
             case
                 when loaned_out.person_id is not null
@@ -191,15 +306,27 @@ loans as (
             joined_owners.owner_club_tid,
             line_loans.parent_club_tid
         ) as parent_club_tid,
+        pooled.start_date as pool_start_date,
+        pooled.end_date as pool_end_date,
+        pooled.wage_pct,
+        pooled.has_option,
+        pooled.ended_early_by_date,
         listed.first_seen_date,
         listed.last_seen_date,
         line_loans.person_id is not null as has_line
-    from listed
+    from pooled
+    full outer join listed
+        on
+            pooled.person_id = listed.person_id
+            and pooled.season = listed.season
+            and pooled.borrowing_club_tid = listed.borrowing_club_tid
     full outer join line_loans
         on
-            listed.person_id = line_loans.person_id
-            and listed.season = line_loans.season
-            and listed.borrowing_club_tid = line_loans.borrowing_club_tid
+            coalesce(pooled.person_id, listed.person_id)
+            = line_loans.person_id
+            and coalesce(pooled.season, listed.season) = line_loans.season
+            and coalesce(pooled.borrowing_club_tid, listed.borrowing_club_tid)
+            = line_loans.borrowing_club_tid
     left join joined_owners
         on
             line_loans.person_id = joined_owners.person_id
@@ -270,18 +397,28 @@ select
     loans.borrowing_club_tid,
     loans.borrowing_team_tid,
     loans.parent_club_tid,
-    case
-        when
-            loans.parent_club_tid = career.managed_club_tid
-            and ours.loans = 1
-            then dated.start_date
-    end as start_date,
-    case
-        when
-            loans.parent_club_tid = career.managed_club_tid
-            and ours.loans = 1
-            then dated.end_date
-    end as end_date,
+    coalesce(
+        loans.pool_start_date,
+        case
+            when
+                loans.parent_club_tid = career.managed_club_tid
+                and ours.loans = 1
+                then dated.start_date
+        end
+    ) as start_date,
+    coalesce(
+        loans.pool_end_date,
+        case
+            when
+                loans.parent_club_tid = career.managed_club_tid
+                and ours.loans = 1
+                then dated.end_date
+        end
+    ) as end_date,
+    loans.pool_start_date is not null as is_dated_by_pool,
+    loans.ended_early_by_date,
+    loans.wage_pct,
+    loans.has_option,
     loans.first_seen_date,
     loans.last_seen_date,
     loans.has_line

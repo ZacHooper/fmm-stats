@@ -49,6 +49,8 @@ erDiagram
         int borrowing_team_key FK
         date start_date
         date end_date
+        int wage_pct "borrower's share"
+        date ended_early_by_date
     }
 ```
 
@@ -114,7 +116,7 @@ step-16 gate stores (Frem 2021-06-27 / 2023-07-02 / 2026-06-11 and 2023-06-29 / 
 |---|---|---|
 | `fact_contract` | `person_id`, `first_seen_date` | a run of snapshots whose current contract keeps one stored start date at one club; `start_date`, wage, expiry and team (first and last seen), `last_seen_date` / `ended_by_date`, `end_reason` |
 | `fact_transfer` | `person_id`, `to_line_index` | each club change in the career history (loan lines skipped) plus the club on his newest snapshot, and each graduation from a youth side; fee from the seller's line; snapshot bounds, `move_date` and the two contracts for a move the store watched |
-| `fact_loan_spell` | `person_id`, `season`, `borrowing_club_tid` | loan lines and squad listings; parent club; real dates for our own loans out |
+| `fact_loan_spell` | `person_id`, `season`, `borrowing_club_tid` | the loan pool (every loan in the world while it runs: agreed dates, the borrower's wage share, the option flag), loan lines and squad listings; parent club; `ended_early_by_date` where the pool lost a loan before its end; Player Progress weeks for a loan of ours no pool held |
 | `fact_staff_spell` | `person_id`, `first_seen_date` | runs of snapshots on one team's books in one role (`manager` / `staff`) |
 | `squad_membership` (view) | `person_id`, `snapshot_date`, `team_tid` | who each squad array lists, with the club his record names and `is_loan_in` |
 

@@ -132,7 +132,9 @@ core.league_fields = ["cid","name","nation","reputation","clubs","skill_idx","ra
 
 `core.pos_role` maps a position code to the role whose weights apply (`DL`→`LB`, `DMC`→`DM`,
 `MC`→`CM`, `ML`→`AML` …). `core.ours` carries our club tids, per-player squad status, loaned-in
-tids, career-origin clubs and capital-region eligibility.
+tids, each current loan's terms either way (`loans`, keyed by tid, fields in `loan_fields`: the
+other club, the agreed start and end, and the share of his wage the borrowing club pays, from
+the save's loan pool), career-origin clubs and capital-region eligibility.
 
 ## Caveats that change the answer
 
@@ -225,9 +227,9 @@ rather than averaging the averages.
 
 **Do not trust `raw.players.loaned_in`.** The save sets it and never clears it, so it
 accumulates: at the newest snapshot the flag claimed nine loanees where three loans were live.
-The spell tables are the answer — that is what they exist for. There is no `loaned_out`
-column: a loan out is read from Player Progress (`mart.loan_out_spells`), never from the
-training row's squad status.
+The spell tables are the answer — that is what they exist for: `mart.fact_loan_spell` has
+every loan in the world with its agreed dates and wage share (the save's loan pool), and a loan
+out is never read from the training row's squad status.
 
 `mart.squad_on('YYYY-MM-DD')` is a table macro — call it, don't select from it.
 

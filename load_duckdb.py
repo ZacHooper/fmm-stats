@@ -315,6 +315,16 @@ DDL = [
         marker INTEGER, wage_units INTEGER, expiry DATE, start_date DATE
     )""",
 
+    # The loan pool, every loan in the world as stored (fmparser.tables.loans): the player,
+    # the club he is on loan at, the agreed start and end, the share of his wage that club
+    # pays (0-100) and the option flag. A loan is in the pool from its start until it ends.
+    # natural key: (season, phase, tid)
+    """CREATE TABLE IF NOT EXISTS raw.loans (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL, slot INTEGER NOT NULL,
+        tid INTEGER NOT NULL, club_tid INTEGER, start_date DATE, end_date DATE,
+        wage_pct INTEGER, option INTEGER
+    )""",
+
     # The club record's trailer (fmparser.tables.clubs.CLUB_TABLE). Facts the club
     # record asserts directly, rather than inferred.
     # natural key: (season, phase, tid)
@@ -1074,6 +1084,17 @@ def load_core(con, d, season, phase):
               _date(v.get("expiry")), _date(v.get("start_date")))
              for v in _load_json(ct_path)])
 
+    ln_path = os.path.join(d, "loans.json")
+    if os.path.exists(ln_path):
+        counts["loans"] = _insert(
+            con, "loans",
+            ["season", "phase", "slot", "tid", "club_tid", "start_date", "end_date", "wage_pct",
+             "option"],
+            [(season, phase, _int(v["slot"]), _int(v["tid"]), _int(v.get("club_tid")),
+              _date(v.get("start")), _date(v.get("end")), _int(v.get("wage_pct")),
+              _int(v.get("option")))
+             for v in _load_json(ln_path)])
+
     # --- stadiums + cities ----------------------------------------------------
     sd_path = os.path.join(d, "stadiums.json")
     if os.path.exists(sd_path):
@@ -1356,7 +1377,7 @@ def _clear_group(con, group, season, phase):
                   "club_affiliates", "competitions", "competition_team_counts", "matches",
                   "match_events", "match_player_stats", "club_records", "player_records",
                   "club_league_history", "awards", "award_places", "award_team_places",
-                  "training", "contracts"):
+                  "training", "contracts", "loans"):
             _delete(con, t, season, phase)
     elif group == "world":
         for tbl in ("world_fixtures", "competition_rounds", "round_names"):
