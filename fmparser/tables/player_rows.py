@@ -14,8 +14,8 @@ parser reads it as stored.
 
 Not named: four u32 player-table indexes at +4 and two more inside +48, each column a random
 permutation of the players redrawn between saves (engine working state); +22, set only on
-players aged 21 or under (20-118, updated in batches, not potential, not days to a
-birthday); six u32 at +24, `ffffffff` on most players and 100 on the 7,389 of Truro's and
+players aged 21 or under (up to 238, updated in batches; ranks England's U21 squad near
+the top: a youth selection score, very probably); six u32 at +24, `ffffffff` on most players and 100 on the 7,389 of Truro's and
 nearby leagues. See `docs/parser/unread/player_rows.md`.
 
 **How it is found.** Where the Player Form lines end: a `00`, then the u32 count, then rows
@@ -34,7 +34,7 @@ PLAYER_ROW = Record("player_row", 72, (
     Field(0,  4,  "tid", U32, note="ascending"),
     Field(4,  16, UNKNOWN, RAW, note="four player-table indexes, random, redrawn between saves"),
     Field(20, 2,  "league_ability", U16, note="current ability on the league's scale"),
-    Field(22, 2,  UNKNOWN, U16, note="players aged 21 or under only (20-118); ffff otherwise"),
+    Field(22, 2,  UNKNOWN, U16, note="players aged 21 or under only (up to 238): a youth selection score?"),
     Field(24, 24, UNKNOWN, RAW, note="six u32: ffffffff, or 100 on Truro's and nearby leagues"),
     Field(48, 24, UNKNOWN, RAW, note="two indexes, two of +24's values, the two indexes again"),
 ))

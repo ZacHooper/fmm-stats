@@ -21,7 +21,7 @@ The rows run tid 401 to 44,958 and are 2.6 MB, the block's biggest table.
 | +0 | u32 | the player's tid, ascending |
 | +4 | 4 × u32 | four player-table indexes (0–36,202); each column is a **random permutation** of the players |
 | +20 | u16 `league_ability` | **ability on the player's league's scale**: within a league it tracks current ability (median r = 0.95 over 100 leagues; 0.954 in Truro's, 595 players), across leagues not at all (r = -0.04). Moves when ability moves (r = 0.75 between 8 Aug and 16 Nov). 0–190 |
-| +22 | u16 | an age-group score, probably (below); set only on young players: every player aged 21 or under, part of the 22-year-olds, nobody older (born 18 Jul 2004 or later; 12,063 players on 16 Nov); 20–118; `ffff` otherwise |
+| +22 | u16 | an age-group score, probably (below); set only on young players: every player aged 21 or under, part of the 22-year-olds, nobody older (born 18 Jul 2004 or later; 12,063 players on 16 Nov); up to 238; `ffff` otherwise |
 | +24 | 6 × u32 | `ffff…` on 28,856 players, 100 on 7,389 (the whole Truro squad and its league), a few other values (74, 93, 57: percentages?) |
 | +48 | 6 × u32 | two player-table indexes, two 100s, then two indexes again |
 
@@ -101,7 +101,17 @@ Josiah Aboh, the mid-season youth intake, half a star at 35. Potential stars do 
 0.88 and 0.77). The split is by birth year, not by age on the save's date, as youth
 international eligibility is. A score a nation's youth coach would pick an age-group squad by
 (two schemes: U19-ish born 2007+, U21-ish 2004–2006) fits that, the batch updates, and the
-drop at a birthday. Not named until a screen confirms it.
+drop at a birthday.
+
+**England U21, 16 Nov** (the Nation Squad screen): the eleven players on screen rank 1, 4, 5,
+7, 8, 12, 18, 25, 29, 32 and 60 among England's 2,430 young players by +22 (Josh King of
+Fulham first, 238). Of the others in the top ten, Nico O'Reilly (229) and Kobbie Mainoo (211)
+are in the senior squad, Myles Lewis-Skelly (233) probably too: the best go up, the U21
+coach picks from the rest. A youth international selection score, very probably; values run
+to 238 (118 is only the top in Truro's league).
+
+![England U21 squad, 16 Nov 2026](img/player_rows-fmm27-2.png)
+![England senior squad, 16 Nov 2026](img/player_rows-fmm27-3.png)
 
 **+22 over four saves.** Unchanged for every young player from 22 to 25 Jul; 70% unchanged
 from 25 Jul to 8 Aug; nearly all changed by 16 Nov, up and down. Not tied to the club having
