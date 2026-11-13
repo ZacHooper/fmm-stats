@@ -15,7 +15,12 @@ the [save file map](../savefile-map.md); the order the regions are worked is the
 | club rows → rule files | 1.67 MB | 0.02 MB | FMM22: one block per player (read on FMM27 as player_status); FMM27: a u16-counted slot list, then 13.6 KB | [person_chain](person_chain.md) |
 | rule files → contract grid | 9.15 MB | 2.43 MB | FMM22 padding; FMM27 a slot pool, then season-year blocks | [season_blocks](season_blocks.md) |
 | loans → transfer band | 1.16 MB | 1.50 MB | not known | [after_loans](after_loans.md) |
-| last transfers → surnames | 0.94 MB | 1.32 MB | FMM22 holds the match-slot table here; FMM27's not found | [after_last_transfers](after_last_transfers.md) |
+| last transfers → surnames | 0.94 MB | 1.32 MB | FMM22 holds the match-slot table here. FMM27: five sub-tables, one page each (below) | [after_last_transfers](after_last_transfers.md) |
+| ↳ 1 | | 326 B | a u16-counted list of 9 B entries ending in an id | [alt_nine_byte_list](alt_nine_byte_list.md) |
+| ↳ 2 | | 453 KB | 17,794 slots × 25 B, nearly all empty | [alt_slot_table](alt_slot_table.md) |
+| ↳ 3 | | 11.9 KB | the managed club's season goals, assists, apps, PoM per player; four saved tactics | [alt_managed_club](alt_managed_club.md) |
+| ↳ 4 | | 719 KB | one 16 B row per person (44,960), day-stamped | [alt_person_rows](alt_person_rows.md) |
+| ↳ 5 | | 139 KB | records with `00 82 00 ff ff 03`, ending on "Manager" | [alt_tail](alt_tail.md) |
 | after the season stats → history | 85 KB | 197 KB | (FMM27) 1,020 inline-named records; (FMM22) rows of two u32 and a nation id | [player_season_stats](../player_season_stats.md#what-follows-unread) |
 | club records → player progress | 0.19 MB | 0.20 MB | each competition's record book | [record_books](record_books.md) |
 | player progress → training | 0.76 MB | 1.03 MB | padding, to prove | [progress_padding](progress_padding.md) |

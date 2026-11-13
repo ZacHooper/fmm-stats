@@ -2,30 +2,29 @@
 
 | | from | to | size |
 |---|---|---|---|
-| FMM22 | 39,200,736 | 40,141,766 | 0.94 MB, holding the match-slot table at 40,042,185 |
-| FMM27 | 39,933,439 | 41,255,436 | 1.32 MB, 00 38% / ff 33% / other 30% |
+| FMM22 | 39,200,736 | 40,141,766 | 0.94 MB, holding the [match-slot table](../match_slots.md) at 40,042,185 |
+| FMM27 | 41,147,145 | 42,470,054 | 1.32 MB on truro-2026-11-16 |
 
-After [last transfers](../last_transfers.md), up to the [name id-tables](../names.md).
+After [last transfers](../last_transfers.md), up to the [name id-tables](../names.md). On FMM27
+the region is six things one after another, each with its own page. Offsets are from
+truro-2026-11-16.
 
-## Known
+| # | from | to | size | what | known | page |
+|---|---|---|---|---|---|---|
+| 1 | 41,147,145 | 41,147,471 | 326 B | a u16-counted list of 36 × 9 B entries, `[u16][u16][u8, a multiple of 5][u32 id]` | layout only | [alt_nine_byte_list](alt_nine_byte_list.md) |
+| 2 | 41,147,471 | 41,600,030 | 453 KB | 7.7 KB repeating at 150 B, then 17,794 slots × 25 B, nearly all empty | layout of an empty slot; 48 filled slots share one key pair | [alt_slot_table](alt_slot_table.md) |
+| 3 | 41,600,030 | 41,611,956 | 11.9 KB | **the managed club's block**: the season's goals, assists, clean sheets, appearances and player-of-the-match per player, then four saved tactics | five lists checked against our matches | [alt_managed_club](alt_managed_club.md) |
+| 4 | 41,611,956 | 42,331,316 | 719 KB | **one 16 B row per person** (44,960, row = tid), stamped with the day it last changed | the row key and the day; the rest unnamed | [alt_person_rows](alt_person_rows.md) |
+| 5 | 42,331,316 | 42,470,054 | 139 KB | records repeating `00 82 00 ff ff 03 ff ff ff ff ff ff`, ending on the text "Manager" | nothing yet | [alt_tail](alt_tail.md) |
 
-- **FMM22** keeps the [match-slot table](../match_slots.md) here (3,975 × 25 B, two clubs and a
-  score), after 0.84 MB that is not read.
-- **FMM27's match-slot table is not located**, and this is where it most likely is.
-- FMM27 opens `02 00 2f 04 8a 02 05 26 63 00 00 9e 02 aa 02 0a …` straight after the last
-  transfers.
+## FMM22
+
+The [match-slot table](../match_slots.md) (3,975 × 25 B) closes the region; the 0.84 MB in
+front of it is not read. A formation string (`4-1-2-2-1`, Frem's) sits at 39,267,138 on
+frem-2030-06-22, so FMM22 most likely keeps the same managed-club block (#3) here.
+Whether FMM22 has the per-person rows (#4) is not checked.
 
 ## Next
 
-1. Search for 25-byte rows whose two u16 clubs and score match results in the world
-   [fixtures](../fixtures.md) (join on the clubs, let the score come out).
-2. If it is there, give `match_slots` an FMM27 locator. Then the 0.84 MB in front of it on FMM22.
-
-## Found on truro-2026-11-16 (first mid-season FMM27 save)
-
-**The managed club's season goal tally.** At 41,605,245, a `[tid u32][goals u16]` list of 17
-entries (count u32 0x11 in front): Greenslade 13, Bogle 9, Hasani 5, Harvey 5, Starkie 4, …,
-every one equal to the player's goals across the season's 33 matches in `matches.json`. A
-second list follows (count 16: Greenslade 8, Jephcott 1, Law 4, …), assists by the look of it.
-Bytes in front name Truro (`35 0c`). Not yet known: whether every club has such a block
-(the world's season stats, TODO #10a) or only ours.
+Choose one page to work. #3 and #4 are the closest to read: #3 already matches our match
+table list for list; #4 has a known key (the person tid) and a day stamp.
