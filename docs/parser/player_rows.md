@@ -21,7 +21,7 @@ The rows run tid 401 to 44,958 and are 2.6 MB, the block's biggest table.
 | +0 | u32 | the player's tid, ascending |
 | +4 | 4 × u32 | four player-table indexes (0–36,202); each column is a **random permutation** of the players |
 | +20 | u16 `league_ability` | **ability on the player's league's scale**: within a league it tracks current ability (median r = 0.95 over 100 leagues; 0.954 in Truro's, 595 players), across leagues not at all (r = -0.04). Moves when ability moves (r = 0.75 between 8 Aug and 16 Nov). 0–190 |
-| +22 | u16 | set only on young players: every player aged 21 or under, part of the 22-year-olds, nobody older (born 18 Jul 2004 or later; 12,063 players on 16 Nov); 20–118; `ffff` otherwise |
+| +22 | u16 | an age-group score, probably (below); set only on young players: every player aged 21 or under, part of the 22-year-olds, nobody older (born 18 Jul 2004 or later; 12,063 players on 16 Nov); 20–118; `ffff` otherwise |
 | +24 | 6 × u32 | `ffff…` on 28,856 players, 100 on 7,389 (the whole Truro squad and its league), a few other values (74, 93, 57: percentages?) |
 | +48 | 6 × u32 | two player-table indexes, two 100s, then two indexes again |
 
@@ -94,6 +94,14 @@ Josiah Aboh, the mid-season youth intake, half a star at 35. Potential stars do 
 +22 (Nunn 83 shows 4 stars, Kinsey-Wellings 87 shows 3.5).
 
 ![Truro City, Club Squad - Coach Report, 16 Nov 2026](img/player_rows-fmm27-1.webp)
+
+**+22 is an age-group score (lead).** Within a birth year it follows ability for players born
+2007 or later (r = 0.89–0.92 per year, on 8 Aug and 16 Nov alike) and not for those born
+2004–2006 (r ≈ -0.1); within **nation and birth year** it follows ability for both (median
+0.88 and 0.77). The split is by birth year, not by age on the save's date, as youth
+international eligibility is. A score a nation's youth coach would pick an age-group squad by
+(two schemes: U19-ish born 2007+, U21-ish 2004–2006) fits that, the batch updates, and the
+drop at a birthday. Not named until a screen confirms it.
 
 **+22 over four saves.** Unchanged for every young player from 22 to 25 Jul; 70% unchanged
 from 25 Jul to 8 Aug; nearly all changed by 16 Nov, up and down. Not tied to the club having
