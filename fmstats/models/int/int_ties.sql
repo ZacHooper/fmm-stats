@@ -4,7 +4,10 @@
 -- rules) are played: on aggregate, then by the last leg's shoot-out. There is
 -- no away-goals rule: the save's two-legged ties level on aggregate went to
 -- extra time whichever side had scored more away. decided_by is the last
--- leg's ('90', 'ET' or 'pens').
+-- leg's ('90', 'ET' or 'pens'). A single-leg tie whose match was drawn is
+-- replayed (the English FA Cup's qualifying rounds): its two matches add up
+-- like legs, the replay settling it, and it is decided once the replay is
+-- played.
 with legs as (
     select
         matches.*,
@@ -40,7 +43,10 @@ oriented as (
         end as pens_a,
         case
             when home_team_tid = team_a_tid then away_pens else home_pens
-        end as pens_b
+        end as pens_b,
+        row_number() over (
+            partition by tie_id order by match_date
+        ) as match_number
     from legs
 ),
 
@@ -66,6 +72,7 @@ ties as (
         any_value(team_a_tid) as team_a_tid,
         any_value(team_b_tid) as team_b_tid,
         count(home_goals) as legs_played,
+        bool_or(match_number = 1 and goals_a = goals_b) as first_match_level,
         sum(goals_a) as goals_a,
         sum(goals_b) as goals_b,
         min(match_date) as first_match_date,
@@ -80,7 +87,18 @@ decided as (
         last_legs.pens_a,
         last_legs.pens_b,
         last_legs.decided_by,
-        ties.legs_played = ties.legs as is_decided
+        (
+            ties.legs_played = ties.legs
+            -- a drawn single match with no shoot-out waits for its replay
+            and not (
+                ties.legs = 1
+                and ties.first_match_level
+                and last_legs.pens_a is null
+            )
+        )
+        or (
+            ties.legs = 1 and ties.legs_played = 2 and ties.first_match_level
+        ) as is_decided
     from ties
     left join last_legs on ties.tie_id = last_legs.tie_id
 )

@@ -5,7 +5,7 @@
           it -- the cursor extract walks with (`extract.steps`), measured here without
           extracting anything, so a step put in the wrong place fails here first
   EMPTY   a table that is not there leaves the cursor where it was (the match table on a
-          0-match save, frem-2023-07-02; player_status, read on FMM27 only, on an FMM22 save)
+          0-match save, frem-2023-07-02; player_status and player_form, read on FMM27 only, on an FMM22 save)
 """
 import os
 import sys
@@ -37,7 +37,8 @@ def check(path):
         print(f"  not located: {', '.join(absent)}")
     # every table but the match table is in every save; the match table is empty only
     # between the rollover and the first match. player_status is read on FMM27 only.
-    allowed = {"matches"} | ({"player_status"} if HDR.save_format(mm) != HDR.FMM27 else set())
+    allowed = {"matches"} | ({"player_status", "player_form", "player_ability_scales"}
+                             if HDR.save_format(mm) != HDR.FMM27 else set())
     ok &= set(absent) <= allowed
     return ok
 

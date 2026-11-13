@@ -2,7 +2,8 @@
 -- rules for (dim_stage) carries the game's fixture label in site.matches: a
 -- stage kind and a non-empty stage name, and a leg when its round is
 -- two-legged. A knockout tie is one or two legs, and dim_match never holds
--- more matches of a tie than it has legs.
+-- more matches of a tie than it has legs, but for a single-leg tie's replay
+-- (its first match drawn: int_ties).
 with tie_matches as (
     select
         tie_id,
@@ -46,5 +47,15 @@ left join tie_matches
     on tie_rows.tie_id = tie_matches.tie_id
 where
     tie_rows.legs not in (1, 2)
-    or tie_rows.legs_played > tie_rows.legs
-    or tie_matches.n_matches > tie_rows.legs
+    or (
+        tie_rows.legs = 2
+        and (tie_rows.legs_played > 2 or tie_matches.n_matches > 2)
+    )
+    -- one leg, or a drawn one and its replay (decided once both are played)
+    or (
+        tie_rows.legs = 1
+        and (
+            tie_matches.n_matches > 2
+            or (tie_rows.legs_played = 2 and not tie_rows.is_decided)
+        )
+    )

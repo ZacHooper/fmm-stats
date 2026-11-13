@@ -24,17 +24,19 @@ The tables [tactic history](../tactic_history.md), [club seasons](../club_season
 
 ## 2. After the club titles
 
-| | from | to | size |
-|---|---|---|---|
-| FMM22 | 56,316,108 | 61,253,092 | 4.94 MB |
-| FMM27 | 61,806,283 | 67,009,361 | 5.20 MB |
+Now its own page: [the block after the club titles](end_block.md), ten framed tables on FMM27.
 
-- Opens `01 [club tid u16][first season year u16]`, then a long run of **empty slots**: 11 bytes
-  on FMM22 (`ffff` + 9 zeros), 12 on FMM27. Nothing is filled on any save, including
-  frem-2030-06-22 nine seasons in.
-- On FMM22 a small player-list block sits at 56,336,372 (`Jeppe Corfitzen` / `FC København` /
-  `Res Group 1`).
-- The rest, to the player lists, is not looked at: 00 29% / ff 53–57%.
+## Found on truro-2026-11-16 (first mid-season FMM27 save)
 
-**Next:** count the empty slots (a capacity, as the season and title pools have), then
-profile the rest by entropy.
+- **The 14-byte entries in front of the tactic history** hold 17 Truro players, each
+  `[tid u32][0][position u8][0][6][6 × 0]`, the position code being his best (rated 20) one:
+  DC 3, DMC 5, MC 7, AMC 10, AMR 11, ST 12, as the training table spells them. Not the
+  takers, the captains or the training focus (keepers, full-backs, Nunn and Jephcott are
+  missing). Open.
+- **Per-player match lines of our matches**: read: [player_form](../player_form.md).
+- **Relationships** (the screens below) are not found yet: Kinsey-Wellings's Manager, Dean
+  and Donnellan and Jephcott's Roberts, Harvey and Hasani do not sit together as tids
+  anywhere obvious.
+
+![Kinsey-Wellings, Player Relationships](../img/relationships-fmm27-1.png)
+![Jephcott, Player Relationships](../img/relationships-fmm27-2.png)

@@ -1,0 +1,109 @@
+{
+  "save": "truro-2026-11-16.fms",
+  "lines": 548,
+  "player": 6588,
+  "note": "Omar Bogle's Player Form page, 16 Nov 2026 (docs/parser/img/match_lines-fmm27-1.webp): matches 15-20 as the table shows them, newest last; the chart's goals, star and yellow card for 1-20",
+  "screen_last_six": [
+    {
+      "opponent": "Slough",
+      "rating": 7,
+      "goals": 0,
+      "assists": 1,
+      "substitution": 9,
+      "arrow": "green"
+    },
+    {
+      "opponent": "Ebbsfleet",
+      "rating": 7,
+      "goals": 0,
+      "assists": 0,
+      "substitution": 9,
+      "arrow": "green"
+    },
+    {
+      "opponent": "Billericay",
+      "rating": 9,
+      "goals": 2,
+      "assists": 1,
+      "substitution": 0,
+      "arrow": "green"
+    },
+    {
+      "opponent": "Bristol Rovers",
+      "rating": 7,
+      "goals": 0,
+      "assists": 0,
+      "substitution": 10,
+      "arrow": "green"
+    },
+    {
+      "opponent": "Folkestone",
+      "rating": 6,
+      "goals": 0,
+      "assists": 0,
+      "substitution": 10,
+      "arrow": "yellow"
+    },
+    {
+      "opponent": "Herne Bay",
+      "rating": 6,
+      "goals": 0,
+      "assists": 0,
+      "substitution": 10,
+      "arrow": "red"
+    }
+  ],
+  "chart": {
+    "matches": 20,
+    "no_bar": [
+      6,
+      14
+    ],
+    "goals": {
+      "2": 1,
+      "4": 1,
+      "5": 1,
+      "8": 2,
+      "9": 1,
+      "13": 1,
+      "17": 2
+    },
+    "star": [
+      8
+    ],
+    "yellow": [
+      13
+    ]
+  },
+  "coach_report": {
+    "note": "Club Squad - Coach Report, 16 Nov 2026 (docs/parser/img/player_ability_scales-fmm27-1.webp): ability stars of the players still at Truro",
+    "stars": {
+      "25434": 3.5,
+      "25700": 3.5,
+      "37343": 2.5,
+      "6588": 3.5,
+      "9081": 3.5,
+      "8438": 3.5,
+      "29417": 2.5
+    },
+    "youth_intake_stars": 0.5
+  },
+  "england_u21": {
+    "note": "England U21 Nation Squad screen, 16 Nov 2026 (docs/parser/img/player_ability_scales-fmm27-2.png): the eleven players on screen",
+    "nation_id": 139,
+    "tids": [
+      28423,
+      28822,
+      30591,
+      30689,
+      30952,
+      31452,
+      34146,
+      34358,
+      34933,
+      35074,
+      35729
+    ],
+    "top": 60
+  }
+}

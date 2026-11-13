@@ -20,3 +20,12 @@ After [last transfers](../last_transfers.md), up to the [name id-tables](../name
 1. Search for 25-byte rows whose two u16 clubs and score match results in the world
    [fixtures](../fixtures.md) (join on the clubs, let the score come out).
 2. If it is there, give `match_slots` an FMM27 locator. Then the 0.84 MB in front of it on FMM22.
+
+## Found on truro-2026-11-16 (first mid-season FMM27 save)
+
+**The managed club's season goal tally.** At 41,605,245, a `[tid u32][goals u16]` list of 17
+entries (count u32 0x11 in front): Greenslade 13, Bogle 9, Hasani 5, Harvey 5, Starkie 4, …,
+every one equal to the player's goals across the season's 33 matches in `matches.json`. A
+second list follows (count 16: Greenslade 8, Jephcott 1, Law 4, …), assists by the look of it.
+Bytes in front name Truro (`35 0c`). Not yet known: whether every club has such a block
+(the world's season stats, TODO #10a) or only ours.

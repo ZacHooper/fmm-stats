@@ -602,6 +602,24 @@ unit_tests:
         - {tie_id: a, team_a_tid: 1, team_b_tid: 2, goals_a: 2, goals_b: 2, pens_a: 3, pens_b: 4, decided_by: pens, is_decided: true, winner_tid: 2}
         - {tie_id: b, team_a_tid: 3, team_b_tid: 4, goals_a: 2, goals_b: 3, pens_a: null, pens_b: null, decided_by: '90', is_decided: true, winner_tid: 4}
         - {tie_id: c, team_a_tid: 5, team_b_tid: 6, goals_a: 3, goals_b: 0, pens_a: null, pens_b: null, decided_by: null, is_decided: false, winner_tid: null}
+  - name: ties_single_leg_replay
+    description: >
+      A single-leg tie drawn with no shoot-out waits for its replay; with the replay played its
+      two matches add up and the replay settles it (Truro v Dover, FA Cup 2026/27, 1-1 then 0-3).
+    model: int_ties
+    given:
+      - input: ref('int_matches')
+        rows:
+          - {tie_id: r, cid: 8, competition_season: 2026, stage_index: 0, round_index: 1, match_date: '2026-10-17', home_team_tid: 1, away_team_tid: 2, home_goals: 1, away_goals: 1, home_pens: null, away_pens: null, decided_by: '90'}
+          - {tie_id: r, cid: 8, competition_season: 2026, stage_index: 0, round_index: 1, match_date: '2026-10-21', home_team_tid: 2, away_team_tid: 1, home_goals: 0, away_goals: 3, home_pens: null, away_pens: null, decided_by: '90'}
+          - {tie_id: p, cid: 8, competition_season: 2026, stage_index: 0, round_index: 1, match_date: '2026-10-17', home_team_tid: 3, away_team_tid: 4, home_goals: 2, away_goals: 2, home_pens: null, away_pens: null, decided_by: '90'}
+      - input: ref('int_rounds')
+        rows:
+          - {cid: 8, competition_season: 2026, stage_index: 0, round_index: 1, legs: 1}
+    expect:
+      rows:
+        - {tie_id: r, team_a_tid: 1, team_b_tid: 2, goals_a: 4, goals_b: 1, is_decided: true, winner_tid: 1}
+        - {tie_id: p, team_a_tid: 3, team_b_tid: 4, goals_a: 2, goals_b: 2, is_decided: false, winner_tid: null}
   - name: standings_cumulative_by_matchday
     description: >
       A league stage's table after each matchday holds the totals of every match up to it, a

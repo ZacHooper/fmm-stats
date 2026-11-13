@@ -20,7 +20,8 @@ the [save file map](../savefile-map.md); the order the regions are worked is the
 | club records → player progress | 0.19 MB | 0.20 MB | each competition's record book | [record_books](record_books.md) |
 | player progress → training | 0.76 MB | 1.03 MB | padding, to prove | [progress_padding](progress_padding.md) |
 | team history → our matches | 2 KB | 2–43 KB | not known | [before_matches](before_matches.md) |
-| person stamps → tactic history, and after the club titles | 148 B + 4.94 MB | 64 B + 5.20 MB | the user's club block: set pieces / captain?, then an empty pool | [club_block](club_block.md) |
+| person stamps → tactic history | 148 B | 64 B | the user's club block: 17 players by position, set pieces? | [club_block](club_block.md) |
+| club titles → player lists | 4.94 MB | 5.31 MB | FMM27: ten framed tables (pools, match lines, a row per player, per-staff rows, a 100,000-slot pool) | [end_block](end_block.md) |
 | player lists → archive | 4 KB | 149 KB | the game's scheduled events | [scheduled_events](scheduled_events.md) |
 
 Unread *fields* inside tables that are read (award body bytes, derby bytes, the loan

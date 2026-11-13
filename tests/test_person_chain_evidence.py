@@ -10,7 +10,9 @@ against tables we already trust:
   - the staff rows' count is the staff table's and their walk ends on the club count;
   - the club rows' count is the club table's and their walk ends on a u16 equal to the
     player-attribute count;
-  - the chain is contiguous: person_index -> staff_rows -> club_rows, no byte between.
+  - the chain is contiguous: person_index -> staff_rows -> club_rows, no byte between;
+  - every club's last six results (club_rows.recent_scores, the club's goals first) and, on
+    FMM27, its matches played agree with the world fixture list.
 
     uv run python tests/test_person_chain_evidence.py
 """
@@ -31,6 +33,7 @@ from fmparser.tables.person_info import scrape_person_info  # noqa: E402
 from fmparser.tables.player_attributes import scrape_player_attributes  # noqa: E402
 from fmparser.tables.player_attributes import locate_player_attributes  # noqa: E402
 from fmparser.tables.save_header import FMM27, save_format  # noqa: E402
+from fmparser.tables import fixtures as FIX  # noqa: E402
 
 FIXTURE = os.path.join(ROOT, "tests", "fixtures", "person_chain_evidence.json")
 
@@ -72,7 +75,9 @@ def check_save(name, fx):
 
     for tid, want in fx.get("club_values", {}).items():
         for k, v in want.items():
-            check(rows[int(tid)][k] == v, f"club {tid} {k} = {v:,}")
+            check(rows[int(tid)][k] == v, f"club {tid} {k} = {v}")
+
+    check_recent_results(mm, rows, v27)
 
     print(" CHAIN")
     pi = person_index.locate_person_index(mm)
@@ -93,6 +98,46 @@ def check_save(name, fx):
     if "player_status" in fx:
         check_player_status(mm, fx["player_status"], end)
     return True
+
+
+def _result(f, home, v27):
+    """A fixture's pair as the club row stores it, the club's goals first: the score after
+    extra time; on FMM27 the shoot-out score instead when the match itself was level."""
+    h = f["home_extra_goals"] if f.get("home_extra_goals") is not None else f["home_goals"]
+    a = f["away_extra_goals"] if f.get("away_extra_goals") is not None else f["away_goals"]
+    if v27 and f.get("home_pens") is not None and h == a:
+        h, a = f["home_pens"], f["away_pens"]
+    return [h, a] if home else [a, h]
+
+
+def check_recent_results(mm, rows, v27):
+    """Every club's recent_scores against the world fixture list (an independent table),
+    joined on the club and the fixture's date order; on FMM27 matches_played too. FMM22's
+    fixture list lacks some lower leagues, so there the stored six must END with the
+    club's listed games."""
+    print(" RECENT RESULTS (club_rows) v the world fixture list")
+    games = {}
+    for f in sorted(FIX.fixtures(mm), key=lambda f: f["date"]):
+        if f["home_goals"] is None:
+            continue
+        games.setdefault(f["home_tid"], []).append(_result(f, True, v27))
+        games.setdefault(f["away_tid"], []).append(_result(f, False, v27))
+    agree = count = 0
+    for tid, listed in games.items():
+        got = rows[tid]["recent_scores"]
+        if v27:
+            agree += got == listed[-6:]
+            count += rows[tid]["matches_played"] == len(listed)
+        else:
+            m = min(len(got), len(listed))
+            agree += got[len(got) - m:] == listed[len(listed) - m:]
+    check(agree == len(games), f"recent_scores agree for {agree} of {len(games)} clubs")
+    if v27:
+        check(count == len(games), f"matches_played = played fixtures for {count} of "
+                                   f"{len(games)} clubs")
+    away = sum(1 for f in FIX.fixtures(mm) if f["home_goals"] is not None
+               and f["home_goals"] != f["away_goals"])
+    check(away > 0, f"{away} decided fixtures, so the club-first order is tested both ways")
 
 
 ARROWS = {"green-up": range(18, 21), "green": range(15, 18), "yellow": range(12, 15),

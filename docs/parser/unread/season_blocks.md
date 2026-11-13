@@ -24,3 +24,13 @@
 2. Frame the season-year blocks: look for a count and a cid in front of each, and check the
    cids against the [competitions](../competitions.md) and their dates against the
    [fixtures](../fixtures.md).
+
+## Found on truro-2026-11-16 (first mid-season FMM27 save)
+
+**The matchday squad and the captains.** From 28,210,521 (a byte 14 in front): 16 u32 tids, the Tactics – Captain
+screen's list in its order (Lavercombe, Love-Holmes, Law, Harrison, Kinsey-Wellings, Palfrey,
+Nunn, En-Neyah, Tweedy, Greenslade, Bogle, then five substitutes), an `ff` run, then six tids:
+Bogle, then the screen's five captains in order (Riley-Lowe, Harvey, Dean, Donnellan, Stone).
+Bogle first is probably the captain on the pitch, none of the five being in the XI.
+
+![Tactics - Captain, 16 Nov 2026](../img/captains-fmm27-1.png)
