@@ -1,6 +1,6 @@
-# Player achievements (block table 10)
+# player_achievements  ([`fmparser/tables/player_achievements.py`](../../fmparser/tables/player_achievements.py))
 
-Part of [the block after the club titles](end_block.md). FMM27, at block offset 2,907,675
+The last table of [the block after the club titles](unread/end_block.md) (its table 10). `extract.py` writes `player_achievements.json`, one row per used slot in stored order, with its `row`; FMM27 only. FMM27, at block offset 2,907,675
 on truro-2026-11-16: `[u32 100,000][100,000 × 24 B]`, then one byte `00`, then the player
 lists. 2.4 MB, most of it empty. **It is the Player Achievements screen**: one row per
 achievement, every player's in one log.
@@ -45,18 +45,15 @@ win, not a placing. The screen's category (World, Continental, Domestic, Major, 
 Adverse) and season text ("2026" for a one-off, "2026/27" for an award) are not stored; they
 follow from the kind and the competition. No date is stored.
 
-![Bowen: Manager Sacked](../img/player_achievements-fmm27-1.png)
-![Rice: Community Shield Winner](../img/player_achievements-fmm27-2.png)
-![Wint: three monthly awards](../img/player_achievements-fmm27-3.png)
-![Fernández: Community Shield Runner-Up](../img/player_achievements-fmm27-4.png)
-![Guirassy: Supercup Runner-Up, Footballer of the Year](../img/player_achievements-fmm27-5.png)
+![Bowen: Manager Sacked](img/player_achievements-fmm27-1.png)
+![Rice: Community Shield Winner](img/player_achievements-fmm27-2.png)
+![Wint: three monthly awards](img/player_achievements-fmm27-3.png)
+![Fernández: Community Shield Runner-Up](img/player_achievements-fmm27-4.png)
+![Guirassy: Supercup Runner-Up, Footballer of the Year](img/player_achievements-fmm27-5.png)
 
-## Next
+## Open
 
 - Where a player's first row is found: something per person must point at the head of his
-  chain (look for 866 values < 887 in a per-person table, e.g. `person_index.row_b`).
-- The screen lists newest first (Guirassy: Supercup Runner-Up above Footballer of the Year);
-  the chain runs oldest first.
-- Whether past seasons' achievements live here too: a save after rollover.
-- Then a parser table (`PLAYER_ACHIEVEMENTS_TABLE`) and a check on FMM22, where this block
-  is not mapped yet.
+  chain. Not needed to read the table, which is read whole.
+- Whether past seasons' achievements stay here after the rollover.
+- FMM22: the block after the club titles is not mapped, so the table is not located there.
