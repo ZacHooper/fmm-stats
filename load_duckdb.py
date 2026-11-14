@@ -118,9 +118,9 @@ def _cols_ddl(cols):
 # A retrain is: `fit_attribute_model.py --write`, run `--refresh-only`, done. The parser
 # scrapes; the database infers.
 #
-# The coefficients are keyed by GAME (`stg.snapshots.save_format`): the same record bytes do
-# not render to the same displayed value in FMM22 and FMM27, so each snapshot is decoded with
-# its own game's coefficients.
+# The coefficients are keyed by GAME (`stg.snapshots.save_format`) and each snapshot is
+# decoded with its own game's: FMM27's keeper attributes have their own fit, its outfield
+# attributes FMM22's.
 #
 # `raw.player_attributes` is a VIEW over `player_attributes_exact` (what the save states
 # outright) and this model (everything else), so every existing consumer is unchanged and the

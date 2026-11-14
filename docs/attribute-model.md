@@ -17,50 +17,68 @@ got into the store in the first place.
 
 ## One model per game
 
-The coefficients are keyed by **game** — the snapshot's `save_format` (`game` in
+The coefficients are keyed by **game**, the snapshot's `save_format` (`game` in
 `seeds/attribute_model.csv`, `stg.attribute_model`). `int.player_attribute_estimates` decodes
-each snapshot with its own game's set; a game or attribute the seed does not cover falls back to
-FMM22's rows, then `fmparser.model.FROZEN`. The record layout is the same in both games (FMM27's
-player record opens with FMM22's 78 bytes), but the same bytes do not render to the same
-displayed value.
+each snapshot with its own game's set. A game, or an attribute, the seed has no rows for falls
+back to FMM22's rows, then `fmparser.model.FROZEN`. The record layout is the same in both games
+(FMM27's player record opens with FMM22's 78 bytes).
 
-**FMM27 (2026-11-14): recalibrated, not refitted.** Truro's four snapshots give 54 distinct
-exact rows over 29 players — 48 outfield rows over 26 players, and 3 keepers — after collapsing
-the stale scrapbook entries a player who has not played carries into every snapshot (half the
-raw rows). Against FMM22 players in the same CA band (54–85), FMM22's coefficients are biased
-−0.20 on the nine outfield attributes; on Truro they are biased −0.46 and low on every one of
-the nine. FMM27 renders about a quarter-point higher. Held out one player at a time, on the 48
-outfield rows:
+### The labels: every scrapbook entry, aligned to its date
 
-| FMM27 model | params | exact |
-|---|---|---|
-| FMM22 coefficients unchanged | 0 | 70.1% |
-| one shared shift (+0.20) | 1 | 73.1% |
-| **FMM22 slopes, per-attribute intercept re-tuned** | **9** | **76.0%** (±1 87.1%) |
-| full refit, Truro alone (own + CA + intercept) | 27 | 64.1% |
+`int.player_attribute_labels` is the decoder's training set. It holds every scrapbook entry,
+from our club's lists AND the World Best XI pools (lists 0–30, 62, 64; [player_lists](parser/player_lists.md)),
+one row per (tid, entry date). Each is paired with the player's record on the snapshot nearest
+the entry's date (at most `attribute_label_max_gap_days`, 31), and **kept only where the
+record's seven plain attributes equal the entry's**. A plain byte is the displayed value, so
+seven matches say the record still shows the profile the entry copied. That one check also
+drops a reused tid.
 
-A full refit loses to doing nothing. The CA term cannot be re-learned from one squad: Truro's
-outfield CA sd is 8 against Frem's 24. The per-attribute shifts are stable across folds (every
-fold within 0.15 of the full-data value): Decisions +0.35, Dribbling, Tackling, Movement and
-Positioning +0.20, Shooting +0.15, Creativity +0.10, Crossing +0.05, Passing 0. No attribute
-scores worse than unchanged.
+The labels used to be our squad alone, paired with every snapshot's CURRENT bytes. A player who
+had not played carried a months-old entry into every snapshot, so half the rows were repeats
+and many were paired with bytes from a later profile. On Truro the new labels are **238
+entries over 188 players (29 keepers)**, against 106 rows over 29 players (3 keepers) before.
 
-The 70.1% here is not comparable with Frem's 59.4%: Truro's squad sits low in the range, where
-the decoder is strongest (83.6% exact at true 4–6 on Frem).
+**The stale labels manufactured an FMM27 bias.** On the old rows FMM22's coefficients
+under-predicted all nine outfield attributes on Truro, by −0.46 against −0.20 on Frem players
+of the same CA, which looked like FMM27 rendering a quarter-point higher. A per-attribute
+intercept recalibration scored 76.0% against 70.1% unchanged. On the aligned labels, FMM22's
+coefficients unchanged score **77.8% on our squad's rows**, and every recalibration scores
+lower (held out one player at a time, 205 outfield rows):
 
-**The five keeper attributes stay on FMM22's coefficients**, and on FMM27 they are badly off:
-0% exact on Handling, Kicking, Communication and Throwing on 5 distinct keeper rows over 3
-keepers. Three keepers support no fit at all (`--min-players`).
+| FMM27 outfield model | our squad (51) | World XI (154) | all |
+|---|---|---|---|
+| **FMM22 coefficients unchanged** | **77.8%** | 58.9% | **63.6%** |
+| per-attribute intercept re-tuned | 71.5% | 60.2% | 63.0% |
+| intercept + one shared CA correction | 72.5% | 60.4% | 63.4% |
+| full refit (5 folds by player) | | | 62.0% |
 
-To refit when there is more data:
+What bias remains is U-shaped in CA (−0.33 below CA 80, ≈0 from 80 to 150, −0.25 above):
+the decoder's FMM22 weakness at both extremes (see the diagnostic at the end), not a
+difference between games. **FMM27 has no outfield rows of its own.**
+
+**Keepers are where FMM27 gets its own coefficients.** 33 keeper rows over 29 keepers clear
+`--min-players`. Fitted on FMM27 (5 folds by player, nested selection):
+
+| | FMM22 (frozen 2024) | FMM27 fit | FMM27 ±1 |
+|---|---|---|---|
+| Handling | 0.0% | 48.5% | 100.0% |
+| Kicking | 3.0% | 48.5% | 90.9% |
+| Reflexes | 30.3% | 45.5% | 93.9% |
+| Communication | 3.0% | 12.1% | 39.4% |
+| Throwing | 72.7% | 93.9% | 100.0% |
+
+The FMM22 keeper coefficients are the 2024 frozen fit, so this is as much a better fit as a
+game difference. Frem's aligned labels have 276 keeper rows for the same refit on FMM22
+([`TODO.md`](TODO.md)). The refit also pins outfielders' keeper attributes to the floor they
+sit at (Kicking 34% → 97% exact on outfield rows, in sample).
 
 ```bash
-uv run python scripts/fit_attribute_model.py --db fm-truro.duckdb --recalibrate-from fmm22          # report
-uv run python scripts/fit_attribute_model.py --db fm-truro.duckdb --recalibrate-from fmm22 --write
-uv run python scripts/fit_attribute_model.py --db fm-truro.duckdb --write     # a full refit, from 400 rows
+uv run python scripts/fit_attribute_model.py --db fm-truro.duckdb               # report, every attribute
+uv run python scripts/fit_attribute_model.py --db fm-truro.duckdb \
+    --attributes Handling,Kicking,Reflexes,Communication,Throwing --write        # FMM27's keepers
 ```
 
-`--write` replaces only that game's rows in the seed.
+`--write` replaces only that game's rows (and with `--attributes`, only those attributes').
 
 ## Where it stands
 
@@ -393,10 +411,11 @@ uv run python load_duckdb.py --refresh-only --db fm-frem.duckdb             # ta
 uv run python tests/test_attribute_model.py --db fm-frem.duckdb             # guard the pair
 ```
 
-The fit refuses below 400 exact rows (`--min-rows` overrides, for pipeline smoke tests only —
-never to produce coefficients to keep). No save file and no re-extract is needed: the raw bytes
-are in `raw.players` and the exact values our own squad carries are in
-`raw.player_attributes_exact`.
+The fit refuses below 200 labelled rows (`--min-rows` overrides, for pipeline smoke tests only
+— never to produce coefficients to keep), and refits no attribute whose population has fewer
+than 20 players (`--min-players`), which is the guard that binds. No save file and no
+re-extract is needed: the raw bytes are in `stg.player_attributes` and the labels in
+`int.player_attribute_labels`.
 
 ## Two things worth doing before trusting any of this further
 

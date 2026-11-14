@@ -4,8 +4,8 @@
 -- plain 1-20 attribute columns: Teamwork's is exact, Aerial's matches about
 -- 71% of the time. The other entangled attributes come from their fitted
 -- coefficients in stg.attribute_model, each snapshot with its own game's
--- (stg.snapshots.save_format): the same bytes render differently in FMM22 and
--- FMM27. int.player_attributes chooses between these and the stated values.
+-- (stg.snapshots.save_format). int.player_attributes chooses between these
+-- and the stated values.
 {%- set spec = attribute_model() %}
 {%- set composites = var('composites') %}
 {%- set always_stated = var('exact_single') %}

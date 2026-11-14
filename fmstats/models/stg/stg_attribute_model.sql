@@ -1,5 +1,6 @@
--- The attribute decoder's coefficients, one row per (game, attribute, feature), with
--- the record bytes they read NAMED: raw.attribute_model gives each input as its
+-- The attribute decoder's coefficients, one row per (game, attribute,
+-- feature), with the record bytes they read NAMED: raw.attribute_model gives
+-- each input as its
 -- offset in the player record (own_offset / partner_offset, e.g. -34); here it
 -- becomes the raw.players_raw column that holds that byte (crossing_src). `seq`
 -- is the seeded order, the order the decode sums the terms in. `game` is the

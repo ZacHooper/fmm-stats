@@ -2,38 +2,23 @@
 """Refit the entangled-attribute model AGAINST THE STORE, and optionally write it back.
 
 This needs no save file and no re-extract: `stg.player_attributes` carries the raw record
-bytes and `int.player_attributes_exact` the values the save states outright
-(`scripts/_attribute_rows.py`). Our own squad has all 23 exact -- those rows are the ground
-truth, and there is one per player PER SNAPSHOT.
+bytes and `int.player_attribute_labels` the labels (`scripts/_attribute_rows.py`): every
+scrapbook entry, ours and the World Best XI pools', with all 23 attributes as the screen shows
+them, one row per entry, paired with the snapshot where the record still shows it.
 
     uv run python scripts/fit_attribute_model.py --db fm-frem.duckdb            # report only
     uv run python scripts/fit_attribute_model.py --db fm-frem.duckdb --write    # then refresh
 
-ONE MODEL PER GAME. The coefficients are keyed by save_format (`game` in the seed): FMM22
-and FMM27 render the same bytes differently. `--game` picks the snapshots fitted on and the
-rows `--write` replaces (default: the store's only game); other games' rows are kept.
+ONE MODEL PER GAME. The coefficients are keyed by save_format (`game` in the seed).
+`--game` picks the snapshots fitted on and the rows `--write` replaces (default: the store's
+only game); other games' rows are kept.
 
-A game with little data is RECALIBRATED rather than refitted:
+`--attributes` fits and writes only the named attributes, keeping that game's others -- and
+an attribute a game has no rows for decodes with FMM22's (the loader's fallback). FMM27 is
+FMM22's outfield coefficients with its own five goalkeeper attributes:
 
     uv run python scripts/fit_attribute_model.py --db fm-truro.duckdb \
-        --recalibrate-from fmm22 --write
-
-keeps that game's slopes and CA term and re-tunes each attribute's intercept on exact matches
--- one parameter per attribute. On Truro's first 48 distinct outfield rows a full refit scored
-64.1% held out by player, below the FMM22 coefficients unchanged (70.1%); the recalibration
-scored 76.2%. Switch to a full refit once a game has the 400 rows a full fit asks for.
-
-Two rules the 2024 fit could not follow with 28 players, and which this enforces:
-
-  * HOLD OUT BY PLAYER, not by row. The same player appears in up to 25 snapshots; splitting
-    rows at random leaks him into his own test set and inflates every number.
-  * SCORE THE INCUMBENT ON THE SAME HELD-OUT ROWS. A new model that looks better only because
-    the protocol changed is worse than useless, so the frozen coefficients are re-scored here
-    rather than compared against the number in model.py's docstring.
-
-`--write` replaces seeds/attribute_model.csv, which the loader seeds raw.attribute_model from
-on every load. Nothing takes effect until the views are rebuilt:
-    uv run python load_duckdb.py --refresh-only --db fm-frem.duckdb
+        --attributes Handling,Kicking,Reflexes,Communication,Throwing --write
 """
 import argparse
 import csv
@@ -197,10 +182,10 @@ def _shared_predict(own, partner, ca, gc, arg, has_partner):
     return np.floor(beta * blend + np.polyval(gc, ca) + alpha)
 
 
-def load(db, game, distinct=False):
+def load(db, game, our_club_only=False):
     con, _ = open_readonly(db, tag="fit_attribute_model")
     byte_cols = sorted(set(COLS.values()))
-    rows = exact_rows(con, byte_cols, ATTR_ORDER, POS, game=game, distinct=distinct)
+    rows = exact_rows(con, byte_cols, ATTR_ORDER, POS, game=game, our_club_only=our_club_only)
     bi = {c: 3 + i for i, c in enumerate(byte_cols)}
     ai = 3 + len(byte_cols)
     pi = ai + len(ATTR_ORDER)
@@ -269,21 +254,22 @@ def main():
     ap.add_argument("--write", action="store_true",
                     help="replace this game's rows in seeds/attribute_model.csv")
     ap.add_argument("--game", help="the save_format to fit (default: the store's only one)")
-    ap.add_argument("--recalibrate-from", metavar="GAME",
-                    help="keep GAME's seeded coefficients and re-tune only each attribute's "
-                         "intercept on this game's rows: the fit for a game with too little "
-                         "data for a full one")
+    ap.add_argument("--attributes",
+                    help="comma-separated: fit and write only these, keeping the game's others")
     ap.add_argument("--folds", type=int, default=5)
     ap.add_argument("--min-players", type=int, default=20,
                     help="refuse to refit an attribute whose own population has fewer distinct "
                          "players than this; keep the incumbent coefficients instead. The "
                          "learning curve is flat in ROWS and only bends in PLAYERS, so players "
                          "is the honest unit.")
-    ap.add_argument("--min-rows", type=int,
-                    help="refuse to fit below this (default 400; 40 distinct rows to "
-                         "recalibrate). One snapshot yields ~30 exact rows, which cannot "
-                         "support even the incumbent's 5-parameter shape; lower it only to "
-                         "smoke-test the pipeline, never to produce coefficients to keep.")
+    ap.add_argument("--our-club-only", action="store_true",
+                    help="fit on our club's scrapbook entries alone, not the World Best XI "
+                         "pools' too")
+    ap.add_argument("--min-rows", type=int, default=200,
+                    help="refuse to fit below this. Our squad alone yields ~30 exact rows a "
+                         "snapshot, which cannot support even the incumbent's 5-parameter "
+                         "shape; lower it only to smoke-test the pipeline, never to produce "
+                         "coefficients to keep.")
     a = ap.parse_args()
     if not os.path.exists(a.db):
         print(f"{a.db} not found")
@@ -295,11 +281,11 @@ def main():
             print(f"{a.db} holds {games}: pass --game")
             return 1
         a.game = games[0]
-    if a.recalibrate_from:
-        return recalibrate(a)
-    if a.min_rows is None:
-        a.min_rows = 400
-    rows, bi, ai, pi = load(a.db, a.game)
+    only = set(a.attributes.split(",")) if a.attributes else None
+    if only and only - set(MOD.FROZEN):
+        print(f"not decoded attributes: {sorted(only - set(MOD.FROZEN))}")
+        return 1
+    rows, bi, ai, pi = load(a.db, a.game, our_club_only=a.our_club_only)
     tids = np.array([r[0] for r in rows])
     uniq = np.array(sorted(set(tids.tolist())))
     folds = min(a.folds, len(uniq))
@@ -336,6 +322,8 @@ def main():
 
     out, tot = [], np.zeros(4)
     for attr, (own, partner, ffeats, fcoef) in MOD.FROZEN.items():
+        if only and attr not in only:
+            continue
         y = np.array([r[ai + ATTR_ORDER.index(attr)] for r in rows], float)
         keep = ~np.isnan(y)
         # NESTED selection. Choosing the feature set by the same CV score you then report is
@@ -448,12 +436,12 @@ def main():
               f"{int(pop.sum()):>7}  {label}")
         out.append((attr, own, partner, names, coef, ex, fex))
         tot += (fex, f1, ex, w1)
-    n = len(MOD.FROZEN)
+    n = len(out)
     print(f"\n{'MEAN':<15}{tot[0]/n:>9.1%}{tot[1]/n:>10.1%}{tot[2]/n:>8.1%}{tot[3]/n:>9.1%}")
     better = sum(1 for o in out if o[5] > o[6])
     print(f"\n{better} of {n} attributes improve on the frozen model.")
     if a.write:
-        _write(_rows_of(out), a.game)
+        _write(_rows_of(out), a.game, only)
     else:
         print("report only — pass --write to replace seeds/attribute_model.csv")
     return 0
@@ -497,123 +485,18 @@ def _read_seed():
         return list(csv.DictReader(f))
 
 
-def _write(rows, game):
-    """Replace `game`'s rows in the seed, keeping every other game's as they are."""
-    kept = [[r[k] for k in _HEADER] for r in _read_seed() if r["game"] != game]
+def _write(rows, game, only=None):
+    """Replace `game`'s rows in the seed (only `only`'s attributes, when given), keeping every
+    other row as it is."""
+    kept = [[r[k] for k in _HEADER] for r in _read_seed()
+            if r["game"] != game or (only and r["attribute"] not in only)]
     with open(SEED, "w", newline="") as f:
         w = csv.writer(f, lineterminator="\n")
         w.writerow(_HEADER)
         w.writerows(kept + [[game, *r] for r in rows])
     print(f"wrote {len(rows)} {game} coefficients to {os.path.relpath(SEED, ROOT)} "
-          f"({len(kept)} of other games kept)")
+          f"({len(kept)} others kept)")
     print("run:  uv run python load_duckdb.py --refresh-only --db <store>")
-
-
-def _base_spec(game):
-    """{attribute: [(feature, coef, own, partner, fitted)]} as the loader seeds `game`:
-    its own rows, else FMM22's, else fmparser.model.FROZEN."""
-    by = {}
-    for r in _read_seed():
-        by.setdefault(r["game"], {}).setdefault(r["attribute"], []).append(
-            (r["feature"], float(r["coef"]),
-             int(r["own_offset"]) if r["own_offset"] else None,
-             int(r["partner_offset"]) if r["partner_offset"] else None, r["fitted"]))
-    out = {}
-    for attr, (own, partner, feats, coef) in MOD.FROZEN.items():
-        out[attr] = (by.get(game, {}).get(attr) or by.get("fmm22", {}).get(attr)
-                     or [(f, float(c), own, partner, "frozen-2024-bucaspor-28")
-                         for f, c in list(zip(feats, coef)) + [("intercept", coef[-1])]])
-    return out
-
-
-def _linear(terms, rows, bi, pi):
-    """The pre-rounding decode of one attribute's seed terms, as the generated SQL sums it."""
-    own_off, partner_off = terms[0][2], terms[0][3]
-    out = np.zeros(len(rows))
-    for i, r in enumerate(rows):
-        own = MOD.uw(r[bi[COLS[own_off]]])
-        fam = r[pi:pi + len(POS)]
-        v = {"own": own, "CA": r[1], "PA": r[2], "own*CA": own * r[1] / 100.0,
-             "mean9": sum(r[bi[c]] for c in MEAN9) / 9.0, "intercept": 1.0,
-             "GK": fam[POS.index("GK")],
-             "partner": MOD.uw(r[bi[COLS[partner_off]]]) if partner_off is not None else 0.0}
-        v.update({q: fam[k] for k, q in enumerate(POS)})
-        v.update({f"NAT_{q}": (1.0 if fam[k] >= 20 else 0.0) for k, q in enumerate(POS)})
-        out[i] = sum(c * v[f] for f, c, *_ in terms)
-    return out
-
-
-def _decode(x):
-    """DuckDB's round() (half away from zero), clipped to the display range."""
-    return np.clip(np.where(x >= 0, np.floor(x + 0.5), np.ceil(x - 0.5)), 1, 20)
-
-
-def _best_shift(lin, y):
-    """The intercept shift that maximises EXACT matches; ties go to the smallest shift."""
-    hits = np.array([(_decode(lin + o) == y).sum() for o in _OFFSETS])
-    best = np.flatnonzero(hits == hits.max())
-    return float(_OFFSETS[best[np.argmin(np.abs(_OFFSETS[best]))]])
-
-
-def recalibrate(a):
-    """Keep `--recalibrate-from`'s coefficients, re-tune each attribute's intercept on this
-    game's rows, and score both held out one player at a time.
-
-    The CA term is not re-learned: the one shared CA shift (docs/attribute-model.md) needs a
-    spread of ability to fit, and a single career's squad has little (Truro's outfield CA sd
-    is 8 against Frem's 24). Identical rows count once (`distinct`)."""
-    min_rows = 40 if a.min_rows is None else a.min_rows
-    rows, bi, ai, pi = load(a.db, a.game, distinct=True)
-    base = _base_spec(a.recalibrate_from)
-    tids = np.array([r[0] for r in rows])
-    is_gk = np.array([r[pi + POS.index("GK")] == 20 for r in rows])
-    if len(rows) < min_rows:
-        print(f"only {len(rows)} distinct exact rows — not enough to recalibrate "
-              f"(need {min_rows})")
-        return 1
-    print(f"{a.game}: {len(rows)} distinct exact rows over {len(set(tids.tolist()))} players "
-          f"({int(is_gk.sum())} goalkeeper rows); {a.recalibrate_from} coefficients, "
-          f"intercepts re-tuned, held out one player at a time\n")
-    print(f"{'attribute':<15}{'base ex':>9}{'base ±1':>9}{'recal ex':>10}{'recal ±1':>10}"
-          f"{'shift':>8}{'n':>5}")
-    label = f"recal-{a.recalibrate_from}-{datetime.date.today().isoformat()}"
-    out, tot, n_attr = [], np.zeros(4), 0
-    for attr, terms in base.items():
-        y = np.array([np.nan if r[ai + ATTR_ORDER.index(attr)] is None
-                      else r[ai + ATTR_ORDER.index(attr)] for r in rows], float)
-        pop = ~np.isnan(y) & (is_gk if attr in GK_ATTRS else ~is_gk)
-        players = sorted(set(tids[pop].tolist()))
-        lin = _linear(terms, rows, bi, pi)
-        b = _decode(lin[pop])
-        bex, b1 = (b == y[pop]).mean(), (np.abs(b - y[pop]) <= 1).mean()
-        if len(players) < a.min_players:
-            print(f"{attr:<15}{bex:>8.1%}{b1:>9.1%}{'—':>9}{'—':>10}{'':>8}{int(pop.sum()):>5}"
-                  f"  kept (only {len(players)} players)")
-            out += [(attr, f, c, o, p, fit) for f, c, o, p, fit in terms]
-            continue
-        pred = np.empty(len(rows))
-        for t in players:
-            te, tr = pop & (tids == t), pop & (tids != t)
-            pred[te] = _decode(lin[te] + _best_shift(lin[tr], y[tr]))
-        rex = (pred[pop] == y[pop]).mean()
-        r1 = (np.abs(pred[pop] - y[pop]) <= 1).mean()
-        shift = _best_shift(lin[pop], y[pop])
-        print(f"{attr:<15}{bex:>8.1%}{b1:>9.1%}{rex:>9.1%}{r1:>10.1%}{shift:>+8.2f}"
-              f"{int(pop.sum()):>5}")
-        out += [(attr, f, c + (shift if f == "intercept" else 0.0), o, p, label)
-                for f, c, o, p, _ in terms]
-        tot += (bex, b1, rex, r1)
-        n_attr += 1
-    if n_attr:
-        print(f"\n{'MEAN':<15}{tot[0]/n_attr:>8.1%}{tot[1]/n_attr:>9.1%}"
-              f"{tot[2]/n_attr:>9.1%}{tot[3]/n_attr:>10.1%}   over the {n_attr} recalibrated")
-    if a.write:
-        _write([(attr, f, repr(float(c)), "" if o is None else o, "" if p is None else p, fit)
-                for attr, f, c, o, p, fit in out], a.game)
-    else:
-        print("report only — pass --write to replace this game's rows in "
-              "seeds/attribute_model.csv")
-    return 0
 
 
 if __name__ == "__main__":
