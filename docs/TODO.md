@@ -372,10 +372,13 @@ to test, not facts.
 Each nation's work-permit rules are read (`rule_files.work_permits()` →
 `work_permit_rules.json`, [rule_files](parser/rule_files.md#work-permits)): scheme 21 is the
 four UK nations' (the GBE), scheme 1 a cash test (Denmark, Austria, Ireland). Open, in order:
-- **Name the codes from a screen.** `appe` is the appeal (a Newcastle career's news items).
-  Open: its cost (£10K on screen, `wpca` 5,000 stored: an appeal offered at Truro tells a
-  derived cost from a stored one), `wopm`/`wtpm`/`ctrn`/`stWP`, `decd`, `wpdw`, and what
-  `wkFT` is beside `wkpm`; a Danish signing tests the 7,211 and `curr`.
+- **Test the English minimum fee.** No foreign free agent without UK history joined an English
+  club last summer, and every such signing paid at least £79,000: buy one for under £20,000
+  (`wopm` `wpca`) and one for over, and see which is refused.
+- **Name the codes from a screen.** `appe` is the appeal, a flat £10K at Newcastle and Truro
+  against `wpca` 5,000 stored. Open: how £10K comes from what is stored, `wopm`/`wtpm`/
+  `ctrn`/`stWP`, `decd`, `wpdw`, and what `wkFT` is beside `wkpm`; a Danish signing below
+  £829 a week tests the wage floor.
 - **Who needs one**: union membership per nation ([unions](parser/unions.md): look for a
   union id in the nation record), then a player's nationality against it.
 - **Load it** (`raw.work_permit_rules`) once a consumer exists: a recruitment flag on the

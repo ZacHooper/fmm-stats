@@ -145,13 +145,34 @@ carry an `appe` rule.
 **What is not established:**
 - The other rule codes. `wopm` probably a new work permit, `ctrn` a contract renewal, `stWP`
   perhaps a student or youth permit, `wtpm` unknown.
-- The appeal's cost. The screen offers the appeal at **£10K**; England's `appe` `wpca` is
-  5,000 and its `wopm` `wpca` 20,000. Neither is the screen's figure as stored, so either
-  the cost is derived (from the club, its division, or the player) or `cash` is not in
-  pounds. An appeal offered at Truro, in the National League South, would separate the two.
-- `decd` (0-4). Not days from the delay to the decision: on screen that took one day
-  (23 to 24 July) where England's `wopm` has `decd` 3, though when the deal was agreed is
-  not known. `wpcc` (1), `wpdw` (120), `wpaf` (1, a reference) are unknown.
+- The appeal's cost against what is stored. The appeal costs **£10K** at both Newcastle
+  (Premier League) and Truro (National League South), for the same player: a flat cost,
+  not one derived from the club or its division. England's `appe` `wpca` is 5,000 and its
+  `wopm` `wpca` 20,000; neither is £10K as stored, so `cash` is not plain pounds or the
+  game derives the cost from one of them (2 × 5,000, or half of 20,000).
+- `decd` (0-4). Not days to a decision: at Truro the delay and the refusal came the same
+  day (27 July), at Newcastle a day apart, where England's `wopm` has `decd` 3.
+  `wpcc` (1), `wpdw` (120), `wpaf` (1, a reference) are unknown.
+
+**Who needs one, from the data (inferred, not on a screen).** Measured across
+truro-2026-07-25 and truro-2026-11-16 (the summer window between them):
+- **England: a free transfer never gets a permit.** Of 1,474 foreign free agents with no
+  UK history (nationality and second nationality outside the UK and Ireland, no youth club
+  or career line in England, Scotland or Wales), 348 signed somewhere and **none** in
+  England; free agents with UK history did (44 of 78 who signed). The 20 such players who
+  joined English clubs were all permanent transfers for a fee, the smallest £79,000
+  (Sprekelmeyer to Cambridge United); caps and reputation did not decide it (Jang Jung-Woo,
+  0 caps, to Wrexham). That fits `wopm` `wpca` 20,000 as a **minimum fee**, but no fee
+  between £1 and £79,000 was paid, so "a fee of at least £20,000" and "any fee" are not
+  separated. Tshibangu was a free agent: refused at both clubs.
+- **Scheme 1 reads as a minimum wage, weekly, in the nation's currency.** Austria and
+  Ireland share `curr` 7 and both use the euro, so `curr` is a currency code of its own (7
+  euro; 6 and 21 then the Danish and Swedish krone). At the save's exchange rates the floors
+  are Denmark 7,211 DKK = £829 a week (£43.1K a year), Austria €662 = £569 (£29.6K),
+  Ireland €342 = £294 (£15.3K), Sweden's second division 3,575 SEK = £275 (£14.3K).
+  On truro-2026-11-16 no non-European player (nationality and second nationality outside
+  Europe) at a club in those four nations earns below his league's floor; Europeans do in
+  all four (EU players exempt). Weak evidence: almost every wage clears these floors anyway.
 - `curr`: 6, 7 and 21 are not [currency](currencies.md) uids (the Danish Krone is 23); and
   so whether Denmark's 7,211 is in kroner, pounds or something else.
 - What selects `wkpm` or `wkFT` for a nation.
@@ -164,9 +185,9 @@ ctrn, stWP 20), with a `wkFT` set like Scotland's. Denmark's is `info` 750, an i
 wtpm and ctrn, and `{cash 750}` with no `curr` on stWP: `work_permits()` gives `info` 750 on
 the first three and `cash` 750 on the fourth.
 
-> **Lead:** screens tie the rest down. The cost of an appeal at a club in another division
-> separates a derived cost from a stored one; a contract renewal's permit message would name
-> `ctrn`; a Danish signing's would test the 7,211. TODO, "Work permits".
+> **Lead:** screens tie the rest down. Buying a non-UK player with no UK history for a fee
+> under £20,000, and another over it, tests the minimum fee; a contract renewal's permit
+> message would name `ctrn`; a Danish signing's would test the wage floor. TODO, "Work permits".
 
 ## Evidence
 
@@ -191,6 +212,13 @@ Isaac Tshibangu, a DR Congo winger: a nation in no union with the UK, under sche
 ![Transfer delayed awaiting a work permit](img/work_permits-1.png)
 ![Deal falls through; appeal at the cost of £10K](img/work_permits-2.png)
 ![Appeal successful, transfer back on](img/work_permits-3.png)
+
+The same player at **Truro** (the career's own club, a save after truro-2026-07-25), 27 July
+2026: delayed awaiting a work permit, then refused the same day, with the appeal again at
+**£10K**: the cost does not change with the club or its division.
+
+![Truro: transfer delayed awaiting a work permit](img/work_permits-4.png)
+![Truro: deal falls through; appeal at the cost of £10K](img/work_permits-5.png)
 
 ### FMM22
 
