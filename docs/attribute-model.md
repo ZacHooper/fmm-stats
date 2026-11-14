@@ -83,7 +83,7 @@ uv run python scripts/fit_attribute_model.py --db fm-truro.duckdb \
 ### Checked on screen (truro-2026-07-25)
 
 Four players outside our squad, read off their Player Profile screens on 25 July 2026, none
-of them in the labels (`career-notes`-style evidence, not a fit):
+of them in the labels, so a check the fit never saw:
 
 | player | decoded attributes exact | misses |
 |---|---|---|
