@@ -47,6 +47,8 @@ Six schemas, chosen per file by `schema_for_fmm27` (`RULE_FILES_TABLE_FMM27`). K
 | `retm` | `team_rules` | a nation's team-count rules: `{comp, ntms, nxss}` |
 | `retm[].comp` | `comp_uid` | the competition's **uid**, as a u32 or a `{id 'comp', comp <uid>}` container; absent on a rule about a team or a nation |
 | `retm[].ntms` | `teams` | teams in the competition (on 18% of rules, every FMM22 save) |
+| `wkpm` | `work_permits` | a nation's work-permit rules ([Work permits](#work-permits)); `work_permits()` |
+| `wkFT` | `work_permits_wkft` | a second set of the same shape, on the UK nations' files only |
 | `retm[].nxss` | `nxss` | 0 or 1, unnamed: on FMM22 1 on 51 rules, the same 51 on all seven saves of both careers (Chile's 5250792 carries a 17-team rule at 0 and a 16-team rule at 1) |
 
 FMM27 adds tags on every schema (team rules: `FBkt`, `ReTT`, `DbSt`, `DbEd`, `ifmh`; the
@@ -94,6 +96,69 @@ nothing on any save.
 > u16 entries ending `01`) nor the dated record before each merged `_rules` (u16 day-of-year,
 > u16 year pairs) is decoded. TODO, "The data dictionary's state between the rule files".
 
+## Work permits
+
+A nation's `_rules` file carries its work-permit rules in `wkpm`, read with `WORK_PERMITS`
+on both games. `work_permits()` gives one row per rule, written to `work_permit_rules.json`.
+They are **national** rules: the Premier League's Rules screen (Loan Rules, Financial
+Regulations) shows none of them, and no competition-level set is non-empty except
+`swe_second_2018`'s.
+
+```
+wkpm  {id 'wkpm', wopm RULE, wtpm RULE, ctrn RULE, stWP RULE, appe RULE}   each rule optional
+RULE  {id <its code>, type <scheme>, info <int | {id 'info', cash, curr}>, decd,
+       wpca {id 'wpca', cash}, wpcc, wpdw, wpaf}
+```
+
+Most nations' sets are empty (`{id 'wkpm'}` alone): Germany, Spain, Italy, France, the
+Netherlands and 30-odd more. **Thirteen files carry rules** (FMM27, truro-2026-07-25):
+
+| file | rules (`rule`: `scheme`/`info`) |
+|---|---|
+| `eng_rules` | wopm 21/0 fee 20,000 · wtpm 21/0 · ctrn 21/0 · stWP 20 · appe 23/0 fee 5,000 |
+| `sco_rules` | wopm 21/0 · wtpm 21/0 · ctrn 21/0 · stWP 20 · appe 22/2,900 |
+| `wal_rules`, `nir_rules` | wopm 21/0 · wtpm 21/0 · ctrn 21/0 · stWP 20 (`wpdw` 120) |
+| `wmn_eng_rules` | England's, with `wpdw` 120 |
+| `dan_rules` | wopm, wtpm, ctrn, stWP: 1 with cash 7,211 (`curr` 6) |
+| `aut_rules` | wopm, wtpm, ctrn, stWP: 1 with cash 662 (`curr` 7) |
+| `irl_rules` | wopm, wtpm, ctrn: 1 with cash 342 (`curr` 7) |
+| `swe_second_2018` | wopm, wtpm, ctrn: 24 with cash 3,575 (`curr` 21) |
+| `nor_rules` | wopm 5 · wtpm 3/50 · ctrn 3/50 |
+| `aus_rules` | wopm 4/70 · wtpm 4/70 · ctrn 3/70 |
+| `rsa_rules` | wopm 0/40 · wtpm 3/70 · ctrn 3/75 · appe 2/90 |
+| `swi_rules` | wopm 25/1 |
+
+The four UK nations and `wmn_eng_rules` also carry `wkFT`: wopm, wtpm, ctrn 6/0 and appe 7/0,
+all with `wpdw` 120.
+
+**What is established.** That this is the work-permit block: the tag, and that `type`
+groups nations the way real permit regimes do. **Scheme 21 is on exactly the four UK nations**
+(and the English women's file), the one regime they share: the points-based Governing Body
+Endorsement. Scheme 1 carries a cash amount (Denmark, Austria, Ireland), which reads as a
+salary threshold; schemes 3 and 4 a small number (Norway 50, Australia 70, South Africa
+40-90), which reads as a percentage.
+
+**What is not established**, none of it tied to a screen yet:
+- The rule codes. `wopm` probably a new work permit, `ctrn` a contract renewal, `appe` an
+  appeal (England's carries a fee of 5,000 in `wpca`; an appeal to an exceptions panel is
+  part of the real GBE), `stWP` perhaps a student or youth permit, `wtpm` unknown.
+- `decd` (0-4; days to a decision?), `wpcc` (1), `wpdw` (120), `wpaf` (1, a reference).
+- `curr`: 6, 7 and 21 are not [currency](currencies.md) uids (the Danish Krone is 23); and
+  so whether Denmark's 7,211 is in kroner, pounds or something else.
+- What selects `wkpm` or `wkFT` for a nation.
+- Which players need a permit at all. That is per-player: his nationality against the
+  [unions](unions.md) (EU, EEA ...), whose membership is not found yet.
+
+**FMM22 differs.** frem-2030-06-30 has ten files with rules: no Sweden, Switzerland or
+English women's set, and **England's has no fee and no appeal** (wopm 21/0 `wpdw` 120, wtpm,
+ctrn, stWP 20), with a `wkFT` set like Scotland's. Denmark's is `info` 750, an int, on wopm,
+wtpm and ctrn, and `{cash 750}` with no `curr` on stWP: `work_permits()` gives `info` 750 on
+the first three and `cash` 750 on the fourth.
+
+> **Lead:** a screen ties the codes down. A work-permit message after a bid for a non-UK
+> player, the player's profile ("work permit required"), or an appeal, would name `wopm` and
+> `appe` and the GBE outcome; a Danish signing's would test the 7,211. TODO, "Work permits".
+
 ## Evidence
 
 `truro-2026-07-25`: 782 rule files read with FMM27's schemas and `team_counts()` gives 256
@@ -117,5 +182,9 @@ split rounds) to tie the unread tags to what the game shows.
 ## Output
 
 `output/<label>/competition_team_counts.json`, `{uid: teams}` from `team_counts()`, loaded
-into `raw.competition_team_counts`. The rule files' stage lists are not extracted: the
+into `raw.competition_team_counts`.
+
+`output/<label>/work_permit_rules.json`, one row per work-permit rule from `work_permits()`:
+`{file, set ('wkpm' | 'wkFT'), rule, scheme, info, cash, curr, fee, decd, wpcc, wpdw, wpaf}`.
+64 rows on truro-2026-07-25, 53 on every FMM22 save measured. Not loaded yet. The rule files' stage lists are not extracted: the
 archive members carry the same for the loaded competitions ([comp_rules](comp_rules.md)).

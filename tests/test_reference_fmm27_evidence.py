@@ -106,6 +106,14 @@ def main():
           f"rule files: {want['files']} read with FMM27's schemas")
     check(len(rule_files.team_counts(mm)) == want["team_counts"],
           f"team_counts: {want['team_counts']} competitions")
+    wp = rule_files.work_permits(mm)
+    check(len(wp) == want["work_permit_rules"], f"work_permits: {want['work_permit_rules']} rules")
+    uk = sorted({r["file"] for r in wp if r["scheme"] == 21})
+    check(uk == want["scheme_21"], f"scheme 21 on {want['scheme_21']} only")
+    for file, rule, fields in want["work_permits"]:
+        got = next((r for r in wp if r["file"] == file and r["set"] == "wkpm"
+                    and r["rule"] == rule), {})
+        check({k: got.get(k) for k in fields} == fields, f"{file} {rule}: {fields}")
 
     print("\nUNAVAILABILITY (player_attributes +78)")
     by_sid = {int.from_bytes(bytes.fromhex(r["sid"]), "little"): r for r in pa}

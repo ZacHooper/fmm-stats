@@ -11,6 +11,8 @@ Guard the data dictionary's rule files (fmparser/tables/rule_files.py) on real s
   TILING    the unread share of the span stays at or under 1%
   ARCHIVE   every configured comp_<uid>.dat member names a rule file the dictionary holds
   TEAMS     team_counts(): 3F Superliga (uid 6) and 3. Division (uid 2000016262) have 12
+  PERMITS   work_permits(): scheme 21 on exactly the four UK nations; Denmark's new permit
+            is scheme 1 with 750
 
     uv sync
     uv run python tests/test_rule_files.py
@@ -30,6 +32,7 @@ SKIP = 77
 N_RULE_FILES = 667
 MAX_UNREAD = 0.01
 TEAMS = {6: 12, 2000016262: 12}         # 3F Superliga, 3. Division -- both 12-team leagues
+UK = {"eng_rules", "sco_rules", "wal_rules", "nir_rules"}
 
 
 def saves():
@@ -83,6 +86,14 @@ def main() -> int:
             got = {uid: tc.get(uid) for uid in TEAMS}
             if got != TEAMS:
                 failures.append(f"{base}: team_counts {got}, want {TEAMS}")
+            wp = RF.work_permits(mm)
+            uk = {r["file"] for r in wp if r["scheme"] == 21}
+            if uk != UK:
+                failures.append(f"{base}: scheme 21 on {sorted(uk)}, want {sorted(UK)}")
+            dan = [(r["scheme"], r["info"]) for r in wp
+                   if r["file"] == "dan_rules" and r["rule"] == "wopm"]
+            if dan != [(1, 750)]:
+                failures.append(f"{base}: dan_rules wopm {dan}, want [(1, 750)]")
             names = archive_files(mm)
             held = {b.get("file") for b in files}
             if names is not None and names - held:

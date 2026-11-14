@@ -368,6 +368,18 @@ codes in the doc), `qurl` (which places go where), `relr` and `prmr` (who goes d
 data-dictionary doc (last at commit 7cc46b6) holds guesses at many tag meanings — hypotheses
 to test, not facts.
 
+### 8a. Work permits
+Each nation's work-permit rules are read (`rule_files.work_permits()` →
+`work_permit_rules.json`, [rule_files](parser/rule_files.md#work-permits)): scheme 21 is the
+four UK nations' (the GBE), scheme 1 a cash test (Denmark, Austria, Ireland). Open, in order:
+- **Name the codes from a screen**: a work-permit message after bidding for a non-UK player,
+  a profile's "work permit required", an appeal. Names `wopm`/`wtpm`/`ctrn`/`stWP`/`appe`,
+  `decd`, `wpdw`, and what `wkFT` is beside `wkpm`; a Danish signing tests the 7,211 and `curr`.
+- **Who needs one**: union membership per nation ([unions](parser/unions.md): look for a
+  union id in the nation record), then a player's nationality against it.
+- **Load it** (`raw.work_permit_rules`) once a consumer exists: a recruitment flag on the
+  shortlist ("needs a permit") is the obvious one.
+
 ### 10. Unnamed fields in records we already read
 Bytes the parser reads but cannot name yet.
 - **Frame the roll of honour by its count, and name the competition holders**

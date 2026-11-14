@@ -42,7 +42,17 @@
   },
   "rule_files": {
    "files": 782,
-   "team_counts": 256
+   "team_counts": 256,
+   "work_permit_rules": 64,
+   "scheme_21": ["eng_rules", "nir_rules", "sco_rules", "wal_rules", "wmn_eng_rules"],
+   "work_permits": [
+    ["eng_rules", "wopm", {"scheme": 21, "info": 0, "fee": 20000, "decd": 3, "wpcc": 1}],
+    ["eng_rules", "appe", {"scheme": 23, "fee": 5000, "wpaf": 1}],
+    ["eng_rules", "stWP", {"scheme": 20}],
+    ["dan_rules", "wopm", {"scheme": 1, "cash": 7211, "curr": 6, "decd": 4}],
+    ["nor_rules", "ctrn", {"scheme": 3, "info": 50}],
+    ["aus_rules", "wopm", {"scheme": 4, "info": 70}]
+   ]
   }
  },
  "raw": [

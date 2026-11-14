@@ -387,6 +387,23 @@ class _FourCC(Kind):
         return s.decode("latin-1").strip()
 
 
+class _RefU32(Kind):
+    """A type-0x02 reference that holds a number, not characters: the u32 its four bytes
+    spell (`curr` 07 00 00 00 reads 7)."""
+    label = "ref-u32"
+
+    def accepts(self, typ):
+        return typ == TYPE_REF
+
+    def read(self, value, typ):
+        # read_tree strips whitespace off a reference, so a byte such as 0x0a or 0x1c at
+        # either end would be lost: refuse rather than read a shorter number.
+        raw = value.encode("latin-1")
+        if len(raw) != 4:
+            raise TaggedSchemaError(f"reference {value!r} lost bytes to strip(); not a u32")
+        return int.from_bytes(raw, "big")
+
+
 class _String(Kind):
     label = "string"
 
@@ -445,7 +462,7 @@ class AnyOf(Kind):
         return next(k for k in self.kinds if k.accepts(typ)).read(value, typ)
 
 
-INT, FOURCC, STRING = _Int(), _FourCC(), _String()
+INT, FOURCC, STRING, REF_U32 = _Int(), _FourCC(), _String(), _RefU32()
 
 
 class Tag:

@@ -6,7 +6,7 @@ and a bare `<nat>_rules`, then a separator, a group count and a group of four ta
 container files (`_comps`, `_reserve_comps`, `_rules` and a competition file with a stage
 list) -- with the type codes the strict reader accepts only since the dictionary needed
 them: an f64 (`cash`), a u32 id of type 0x15 (`Ttea`) and a tag that is not four printable
-characters. Zero save dependency.
+characters. The `_rules` in the group carries a work-permit set (`wkpm`). Zero save dependency.
 """
 import os
 import struct
@@ -15,7 +15,8 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from fmparser.core import TreeError, read_tree, scan_tagged_blocks  # noqa: E402
+from fmparser.core import (TaggedSchemaError, TreeError, read_tree,  # noqa: E402
+                           scan_tagged_blocks)
 from fmparser.tables import comp_rules as CR, rule_files as RF  # noqa: E402
 
 from test_comp_rules_unit import container, lst, string, tag, u8, u32, fourcc  # noqa: E402
@@ -40,6 +41,24 @@ def group(files, declared=None):
     return struct.pack("<I", len(files) if declared is None else declared) + body
 
 
+def ref(t, n):
+    """A type-0x02 reference holding the u32 n (stored as n's four bytes, little-endian)."""
+    return tag(t, 0x02, struct.pack("<I", n))
+
+
+# Denmark's work permits as FMM27 stores them: a cash test with its `curr`, and the UK
+# shape's fee (`wpca`) and unnamed `wpcc`.
+WKPM = container("wkpm", [
+    u32("id", fourcc("wkpm")),
+    container("wopm", [ref("id", fourcc("wopm")), u8("decd", 4), u8("type", 1),
+                       container("info", [ref("id", fourcc("info")),
+                                          u32("cash", 7211), ref("curr", 6)])]),
+    container("appe", [ref("id", fourcc("appe")), u8("decd", 3), u8("type", 23), u8("info", 0),
+                       container("wpca", [ref("id", fourcc("wpca")), u32("cash", 5000)]),
+                       tag("wpcc", 0x03, b"\x01"), ref("wpaf", 1)]),
+])
+
+
 def region(declared=None):
     weird = b"\x20\x7d\x96\x16" + bytes([0x01, 0x03]) + b"\x00"      # tag #16967d20, u8 0
     comp = rule_file("den_premier", [
@@ -50,7 +69,7 @@ def region(declared=None):
                            tag("Ttea", 0x15, struct.pack("<I", 105180)),
                            u32("DBID", 105180)]),
     ])
-    rules = rule_file("den_rules", [container("dsrl", [weird])])
+    rules = rule_file("den_rules", [container("dsrl", [weird]), WKPM])
     retm = lst("retm", [
         container(None, [u8("nxss", 0), container("comp", [
             u32("id", fourcc("comp")), u32("comp", 2000016262)]), u8("ntms", 12)]),
@@ -98,6 +117,21 @@ def main() -> int:
 
     check(RF.team_counts(mm) == {2000016262: 12, 6: 12},
           f"team_counts {RF.team_counts(mm)}")
+
+    wp = RF.work_permits(mm)
+    check([(r["file"], r["rule"], r["scheme"], r["info"], r["cash"], r["curr"], r["fee"],
+            r["decd"], r["wpcc"], r["wpaf"]) for r in wp] == [
+        ("den_rules", "wopm", 1, None, 7211, 6, None, 4, None, None),
+        ("den_rules", "appe", 23, 0, None, None, 5000, 3, 1, 1)], f"work_permits {wp}")
+
+    # a reference whose low byte strip() eats (0x0a) is refused, not read short
+    try:
+        nl = container("info", [ref("id", fourcc("info")), u32("cash", 1), ref("curr", 0x0a)])
+        f, _ = read_tree(nl, 0, len(nl))
+        RF.PERMIT_CASH.read(f[2])
+        check(False, "a stripped reference read as a number")
+    except TaggedSchemaError:
+        pass
 
     t = RF.tiling(mm)
     check(t["n_rule_files"] == 5 and t["other_blocks"] == 0, f"tiling {t}")

@@ -42,6 +42,7 @@ Writes output/<label>/ (the label defaults to the save's file name without `.fms
     player_status.json           FMM27: per player (attribute-record order) the clubs
                                  interested in him, his morale and his form
     competition_team_counts.json each nation's team-count rules
+    work_permit_rules.json       each nation's work-permit rules, a row per rule
     formations.json              the formation catalog the staff records index
     formation_catalog.json       each catalog formation's 11 position codes
     team_selections.json         every team's matchday squad, in formation slot order
@@ -183,9 +184,11 @@ def read_clubs(mm) -> Files:
     return {"clubs.json": ({str(t): c for t, c in CL.scrape_clubs(mm).items()}, None)}
 
 
-def read_team_counts(mm) -> Files:
-    """Each nation's team-count rules from the rule files: {competition uid: teams}."""
-    return {"competition_team_counts.json": (by_key(RULE_FILES.team_counts(mm)), 1)}
+def read_rule_files(mm) -> Files:
+    """From the rule files: each nation's team-count rules, {competition uid: teams}, and
+    its work-permit rules, a row per rule."""
+    return {"competition_team_counts.json": (by_key(RULE_FILES.team_counts(mm)), 1),
+            "work_permit_rules.json": (RULE_FILES.work_permits(mm), 1)}
 
 
 def read_history(mm) -> Files:
@@ -362,7 +365,7 @@ def steps(no_archive: bool = False):
         Step("staff_rows", registered("staff_rows"), walked(T.scrape_staff_rows)),
         Step("club_rows", registered("club_rows"), one("club_rows.json", T.scrape_club_rows)),
         Step("player_status", registered("player_status"), read_player_status),
-        Step("rule_files", registered("rule_files"), read_team_counts),
+        Step("rule_files", registered("rule_files"), read_rule_files),
         Step("formations", registered("formations"), read_formations),
         Step("team_selections", registered("team_selections"),
              one("team_selections.json", T.scrape_team_selections, None)),
