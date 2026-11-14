@@ -209,6 +209,9 @@ def main():
     ap.add_argument("--upload", action="store_true",
                     help="rclone copy to R2 (site-data/fm-<career>-mart.duckdb)")
     ap.add_argument("--out", help="write here instead of temp file")
+    ap.add_argument("--skip-config-check", action="store_true",
+                    help="upload even when fmm.toml differs from the bucket's or the store "
+                         "was seeded from another fmm.toml (scripts/config_sync.py)")
     a = ap.parse_args()
 
     car = C.resolve_career(a.career)
@@ -217,6 +220,10 @@ def main():
         raise SystemExit(f"no store at {store} — build it first")
 
     con, used = _dbopen.open_readonly(store, tag="publish-mart")
+    if a.upload and not a.skip_config_check:
+        import config_sync
+        config_sync.require_config_in_sync()
+        config_sync.require_store_matches_config(con, car, store)
     con.close()
 
     dest = a.out or os.path.join(tempfile.gettempdir(), f"fm-{car.key}-mart.duckdb")

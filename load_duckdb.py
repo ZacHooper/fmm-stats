@@ -1877,14 +1877,20 @@ def seed_career(con, key=None):
               f"career keys left unset")
         return
     seed_eligible_origin_clubs(con, car)
-    for k, v in (("career_key", car.key), ("career_rating_method", car.rating_method),
-                 ("career_managed_tid", str(car.managed_tid)),
-                 ("career_rollover", "{:02d}-{:02d}".format(*car.rollover)),
-                 ("career_registration", car.registration),
-                 ("immersion_hide_ability", str(fmconfig.hide_ability()).lower())):
+    for k, v in career_app_config(car):
         con.execute("DELETE FROM raw.app_config WHERE key = ?", [k])
         if v is not None:
             con.execute("INSERT INTO raw.app_config VALUES (?, ?)", [k, v])
+
+
+def career_app_config(car):
+    """The raw.app_config (key, value) pairs a career seeds (None = the key is left unset).
+    scripts/config_sync.py compares a store against these before it is published."""
+    return (("career_key", car.key), ("career_rating_method", car.rating_method),
+            ("career_managed_tid", str(car.managed_tid)),
+            ("career_rollover", "{:02d}-{:02d}".format(*car.rollover)),
+            ("career_registration", car.registration),
+            ("immersion_hide_ability", str(fmconfig.hide_ability()).lower()))
 
 
 def seed_config_bundle(con):

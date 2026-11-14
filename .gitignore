@@ -6,6 +6,8 @@ career-notes/
 # Your own career's known-answer dbt tests (facts about your save). dbt reads this folder
 # when it exists; see fmstats/AGENTS.md.
 fmstats/known_answers/
+# A local copy scripts/config_sync.py pull replaced because it differed from the bucket's.
+*.replaced
 
 # Save files — large, personal, never commit
 *.fms

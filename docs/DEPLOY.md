@@ -143,7 +143,16 @@ Turn wifi **off** — that's the actual test.
 
 ## Refreshing after an import
 
+**The bucket's `config/fmm.toml` is canonical.** Each publish checks that the local `fmm.toml`
+is byte-identical to it, and that the store was seeded from it (the career keys in
+`raw.app_config` and the signing list in `raw.eligible_origin_clubs`), and refuses otherwise. A
+store built from a stale `fmm.toml` once published every Truro player as outside the signing
+rule. Fix a refusal with `scripts/config_sync.py pull` (or `push`, when the local edit is the one
+to keep), then `load_duckdb.py --refresh-only --career <key>`. Cloud sessions pull on every
+start (`.claude/hooks/session-start.sh`). `--skip-config-check` overrides both checks.
+
 ```bash
+uv run python scripts/config_sync.py pull                        # the canonical fmm.toml + notes
 uv run python scripts/export_data.py --upload                    # the app's data -> R2
 uv run python scripts/publish_duckdb.py --upload                 # compacted copy carries raw, mart, site
 uv run python scripts/publish_mart.py --upload                   # the mart alone, for analysis

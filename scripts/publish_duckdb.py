@@ -178,6 +178,9 @@ def main():
     ap.add_argument("--no-compact", action="store_true",
                     help="skip run-length compaction (publishes the full ~107 MB copy with "
                          "plain tables instead of expansion views); see compact() above")
+    ap.add_argument("--skip-config-check", action="store_true",
+                    help="upload even when fmm.toml differs from the bucket's or the store "
+                         "was seeded from another fmm.toml (scripts/config_sync.py)")
     a = ap.parse_args()
 
     if a.career:
@@ -192,6 +195,10 @@ def main():
     # mid-write (a .wal beside it, or written in the last 90s), copies to a temp path if a live
     # dashboard holds the write lock, otherwise just confirms the original is safe to copy.
     con, used = _open_readonly(store, tag="publish")
+    if a.upload and not a.skip_config_check:
+        import config_sync
+        config_sync.require_config_in_sync()
+        config_sync.require_store_matches_config(con, car, store)
     con.close()
 
     keep = bool(a.out)
