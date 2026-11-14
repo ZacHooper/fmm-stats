@@ -123,12 +123,22 @@ day (`start` in `fmm.toml`) bounds the match check; the signing rule is the care
    as it was last exported (the 2030-09-14 snapshot), so its matches carry no goals list and
    the Partnerships tab stays hidden there. A re-export from the full Frem store
    (`export_data.py --career frem --upload`) adds it.
-5. **The FMM27 decoder.** FMM27 decodes outfield attributes with FMM22's coefficients and has
-   its own five keeper attributes, fitted on 29 keepers
-   ([`attribute-model.md`](attribute-model.md#one-model-per-game)). Open: Communication, 12%
-   exact on FMM27 keepers; a full FMM27 outfield refit once the World Best XI pools and our
-   lists hold enough players to beat FMM22's coefficients held out (they score 63.6% against
-   a refit's 62.0% on 205 rows today).
+5. **The FMM27 decoder.** Live since 2026-11-14: FMM22's outfield coefficients, FMM27's own
+   five keeper attributes (29 keepers), labels from every scrapbook entry aligned to its
+   date ([`attribute-model.md`](attribute-model.md#one-model-per-game)). Checked on four
+   players' screens on truro-2026-07-25: outfield 11 of 18 exact, keepers 5 of 10. Next, in
+   order:
+   1. **Communication = Leadership ± 2.** Model it like Teamwork, from the plain Leadership
+      byte plus an offset (every keeper of 105 lies within 2), and find what sets the offset:
+      the hidden attributes and other plain bytes first. Until then, Leadership alone (never
+      off by more than 2) beats the fitted model, which missed Ashmore by 5.
+   2. **A player's best attributes read low** (Edser: every miss −1 or −2; Ashmore's keeper
+      attributes all −1). The World Best XI labels now cover the elite range the old fit
+      lacked; try a top-end correction on them, scored by CA band.
+   3. **Make the four screen checks known answers** (`known_answers/`, the values in
+      attribute-model.md), so a refit is checked against players outside the labels.
+   4. **A full FMM27 outfield refit**, once one beats FMM22's coefficients held out (63.6%
+      against 62.0% on 205 rows today).
 
 The store reads neither `comp_stages` nor `comp_honours` on either version (results come
 from the fixture list, stage names from the rule files and competition rounds), so

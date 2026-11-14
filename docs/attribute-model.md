@@ -80,6 +80,32 @@ uv run python scripts/fit_attribute_model.py --db fm-truro.duckdb \
 
 `--write` replaces only that game's rows (and with `--attributes`, only those attributes').
 
+### Checked on screen (truro-2026-07-25)
+
+Four players outside our squad, read off their Player Profile screens on 25 July 2026, none
+of them in the labels (`career-notes`-style evidence, not a fit):
+
+| player | decoded attributes exact | misses |
+|---|---|---|
+| Aramide Oteh (Ebbsfleet, ST) | 8 of 9 | Movement 8 vs 9 |
+| Toby Edser (Ebbsfleet, MC) | 3 of 9 | all LOW: Passing 11 vs 12, Movement 8 vs 10, four more −1 |
+| Will Buse (Ebbsfleet, GK) | 4 of 5 keeper | Communication 5 vs 8 |
+| Nathan Ashmore (Dagenham, GK) | 1 of 5 keeper | Handling, Kicking, Reflexes −1; Communication 8 vs 13 |
+
+Outfield 11 of 18 (61%), on the held-out rate; keepers 5 of 10 against the FMM22
+coefficients' 1 of 10. Every plain attribute and Aerial matched. Two known failures show:
+**a player's best attributes read low** (Edser, Ashmore), and **Communication**, below.
+
+### Communication is Leadership ± 2
+
+Communication's own byte carries almost nothing: on keepers it correlates +0.31 with the
+displayed value on FMM27 and +0.01 on FMM22. **Leadership**, a plain byte, correlates +0.96
+and +0.88, and on every one of 105 keepers (29 FMM27, 76 FMM22) Communication lies within 2
+of Leadership, the gap spread about evenly over −2..+2. Communication = Leadership alone is
+exact on ~20% and within ±1 on ~50%, with no miss beyond 2; the fitted model is 12% exact,
+39% within ±1 and missed Ashmore by 5. What sets the −2..+2 offset is open: not
+Communication's own byte (+0.20 / −0.15) and not CA (+0.15 / −0.28).
+
 ## Where it stands
 
 **Score every attribute on the population that HAS it.** A goalkeeping attribute is pinned at
