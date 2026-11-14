@@ -118,15 +118,22 @@ def _cols_ddl(cols):
 # A retrain is: `fit_attribute_model.py --write`, run `--refresh-only`, done. The parser
 # scrapes; the database infers.
 #
+# The coefficients are keyed by GAME (`stg.snapshots.save_format`): the same record bytes do
+# not render to the same displayed value in FMM22 and FMM27, so each snapshot is decoded with
+# its own game's coefficients.
+#
 # `raw.player_attributes` is a VIEW over `player_attributes_exact` (what the save states
 # outright) and this model (everything else), so every existing consumer is unchanged and the
 # `_est` flags still say which is which.
 ATTR_MODEL_DDL = """CREATE TABLE IF NOT EXISTS raw.attribute_model (
-        attribute VARCHAR NOT NULL, feature VARCHAR NOT NULL, coef DOUBLE NOT NULL,
-        own_offset INTEGER, partner_offset INTEGER, fitted VARCHAR
+        game VARCHAR NOT NULL, attribute VARCHAR NOT NULL, feature VARCHAR NOT NULL,
+        coef DOUBLE NOT NULL, own_offset INTEGER, partner_offset INTEGER, fitted VARCHAR
     )"""
 ATTR_MODEL_SEED = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seeds",
                                "attribute_model.csv")
+# The game the others fall back to: an attribute (or a whole game) the CSV does not cover
+# decodes with FMM22's coefficients, and one FMM22 lacks with fmparser.model.FROZEN.
+ATTR_MODEL_BASE_GAME = "fmm22"
 
 
 def _seed_attribute_model(con):
@@ -134,26 +141,34 @@ def _seed_attribute_model(con):
 
     The CSV is a definition, like seeds/value_model.csv: an edit reaches an existing store on
     the next `--refresh-only`. Its row order is the order the decode sums the terms in
-    (stg.attribute_model.seq), so it is inserted as written. An attribute the CSV does not
-    cover falls back to fmparser.model.FROZEN, the 2024 Bucaspor fit.
+    (stg.attribute_model.seq), so it is inserted as written. Every game the parser reads gets a
+    full set: an attribute the CSV gives no coefficients for in that game falls back to the
+    FMM22 rows, then to fmparser.model.FROZEN (the 2024 Bucaspor fit). The table is recreated,
+    not migrated: it is wholly reseeded here.
     """
     from fmparser import model as _MOD
-    con.execute("DELETE FROM raw.attribute_model")
-    rows = []
+    from fmparser.tables.save_header import FMM22, FMM27
+    con.execute("DROP TABLE IF EXISTS raw.attribute_model")
+    con.execute(ATTR_MODEL_DDL)
+    by_game = {}
     with open(ATTR_MODEL_SEED, newline="") as f:
         for r in csv.DictReader(f):
-            rows.append((r["attribute"], r["feature"], float(r["coef"]),
-                         int(r["own_offset"]) if r["own_offset"] else None,
-                         int(r["partner_offset"]) if r["partner_offset"] else None,
-                         r["fitted"]))
-    seeded = {r[0] for r in rows}
-    for attr, (own, partner, feats, coef) in _MOD.FROZEN.items():
-        if attr in seeded:
-            continue
-        for f, c in list(zip(feats, coef)) + [("intercept", coef[-1])]:
-            rows.append((attr, f, float(c), own, partner, "frozen-2024-bucaspor-28"))
-    rows = [r for r in rows if r[0] in _MOD.FROZEN]
-    con.executemany("INSERT INTO raw.attribute_model VALUES (?,?,?,?,?,?)", rows)
+            by_game.setdefault(r["game"], {}).setdefault(r["attribute"], []).append(
+                (r["feature"], float(r["coef"]),
+                 int(r["own_offset"]) if r["own_offset"] else None,
+                 int(r["partner_offset"]) if r["partner_offset"] else None,
+                 r["fitted"]))
+    frozen = {attr: [(f, float(c), own, partner, "frozen-2024-bucaspor-28")
+                     for f, c in list(zip(feats, coef)) + [("intercept", coef[-1])]]
+              for attr, (own, partner, feats, coef) in _MOD.FROZEN.items()}
+    base = by_game.get(ATTR_MODEL_BASE_GAME, {})
+    rows = []
+    for game in sorted({FMM22, FMM27} | set(by_game)):
+        own = by_game.get(game, {})
+        for attr in _MOD.FROZEN:
+            terms = own.get(attr) or base.get(attr) or frozen[attr]
+            rows += [(game, attr, *t) for t in terms]
+    con.executemany("INSERT INTO raw.attribute_model VALUES (?,?,?,?,?,?,?)", rows)
     return len(rows)
 
 
@@ -1931,7 +1946,6 @@ def create_views(con):
     """The stg/int models (the dbt project in transform/) and the compatibility views over
     them. The attribute coefficients are seeded first: int.player_attribute_estimates is generated
     from them. Returns the models built."""
-    con.execute(ATTR_MODEL_DDL)
     _seed_attribute_model(con)
     for name in RETIRED_VIEWS:
         con.execute(f"DROP VIEW IF EXISTS {name}")

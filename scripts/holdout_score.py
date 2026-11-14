@@ -8,12 +8,18 @@ Reads the coefficients out of one store and evaluates them against another store
 truth. Nothing is written and nothing is refitted -- if the numbers hold up, they hold up.
 
     uv run python scripts/holdout_score.py --fit fm-frem.duckdb --on fm-buca.duckdb
+    uv run python scripts/holdout_score.py --fit fm-frem.duckdb --on fm-truro.duckdb --game fmm22
+
+Coefficients are keyed by game. `--game` picks which of the --fit store's sets to score
+(default: the game of the --on store's snapshots), and only the --on store's snapshots of
+that store's own game are scored -- so `--game fmm22` on an FMM27 store asks how FMM22's
+coefficients do on FMM27 players.
 """
 import argparse, math, os, sys
 import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _attribute_rows import exact_rows                                        # noqa: E402
+from _attribute_rows import exact_rows, store_games                           # noqa: E402
 from fmparser.model import ATTR_ORDER, EXACT_SINGLE, aerial, teamwork         # noqa: E402
 from fmparser.tables.player_attributes import (                               # noqa: E402
     HIDDEN_OFFSETS, PLAIN_OFFSETS, SRC_OFFSETS)
@@ -28,13 +34,13 @@ _rhu = lambda x: math.floor(x + 0.5) if x >= 0 else math.ceil(x - 0.5)
 GK_ATTRS = ("Handling", "Kicking", "Reflexes", "Communication", "Throwing")
 
 
-def spec_from(db):
+def spec_from(db, game):
     import duckdb
     con = duckdb.connect(db, read_only=True)
     out, tags = {}, set()
     for a, f, c, o, p, fit in con.execute(
             "SELECT attribute,feature,coef,own_offset,partner_offset,fitted "
-            "FROM raw.attribute_model").fetchall():
+            "FROM raw.attribute_model WHERE game = ? ORDER BY rowid", [game]).fetchall():
         out.setdefault(a, {"own": o, "partner": p, "coef": {}})["coef"][f] = c
         tags.add(fit)
     con.close()
@@ -46,16 +52,26 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--fit", default="fm-frem.duckdb", help="store holding the coefficients")
     ap.add_argument("--on", required=True, help="store to score them against")
+    ap.add_argument("--game", help="which game's coefficients to score (default: the --on "
+                                   "store's game)")
     a = ap.parse_args()
     import duckdb
     for f in (a.fit, a.on):
         if not os.path.exists(f):
             print(f"SKIP: {f} not found")
             return 0
-    spec, tags = spec_from(a.fit)
-    print(f"coefficients: {', '.join(sorted(tags))}  (from {a.fit})")
-    print(f"scored on:    {a.on}, WITHOUT refitting\n")
     con = duckdb.connect(a.on, read_only=True)
+    on_games = store_games(con)
+    if len(on_games) != 1:
+        print(f"{a.on} holds {on_games}; scoring each needs its own run (not supported yet)")
+        return 1
+    game = a.game or on_games[0]
+    spec, tags = spec_from(a.fit, game)
+    if not spec:
+        print(f"SKIP: {a.fit} has no {game} coefficients")
+        return 0
+    print(f"coefficients: {game} {', '.join(sorted(tags))}  (from {a.fit})")
+    print(f"scored on:    {a.on} ({on_games[0]}), WITHOUT refitting\n")
     bc = sorted(set(COLS.values()))
     # drop the tid: the layout below starts at ca
     rows = [r[1:] for r in exact_rows(con, bc, ATTR_ORDER, POS)]

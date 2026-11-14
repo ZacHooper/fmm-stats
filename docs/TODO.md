@@ -123,9 +123,12 @@ day (`start` in `fmm.toml`) bounds the match check; the signing rule is the care
    as it was last exported (the 2030-09-14 snapshot), so its matches carry no goals list and
    the Partnerships tab stays hidden there. A re-export from the full Frem store
    (`export_data.py --career frem --upload`) adds it.
-5. **A decoder refit.** Try a refit of the attribute decoder with Truro's scrapbook rows to
-   see how far the data so far goes (Frem's coefficients score about as well on Truro
-   unrefitted, Passing the weakest at 38%); a proper refit needs more seasons.
+5. **The FMM27 decoder.** FMM27 has its own coefficients: FMM22's slopes with each outfield
+   intercept re-tuned on Truro, 70.1% → 76.0% exact held out by player
+   ([`attribute-model.md`](attribute-model.md#one-model-per-game)). Open: a full FMM27 refit
+   once Truro has 400 distinct exact rows (about 8 squads' worth of fresh scrapbook entries);
+   the five keeper attributes, 0% exact on FMM27's 3 keepers and still on FMM22's
+   coefficients, until there are 20 keepers to fit them on.
 
 The store reads neither `comp_stages` nor `comp_honours` on either version (results come
 from the fixture list, stage names from the rule files and competition rounds), so

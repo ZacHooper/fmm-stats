@@ -15,6 +15,53 @@ This is where it landed. Read
 [`docs/parser/player_attributes.md`](parser/player_attributes.md) first for how the raw bytes
 got into the store in the first place.
 
+## One model per game
+
+The coefficients are keyed by **game** — the snapshot's `save_format` (`game` in
+`seeds/attribute_model.csv`, `stg.attribute_model`). `int.player_attribute_estimates` decodes
+each snapshot with its own game's set; a game or attribute the seed does not cover falls back to
+FMM22's rows, then `fmparser.model.FROZEN`. The record layout is the same in both games (FMM27's
+player record opens with FMM22's 78 bytes), but the same bytes do not render to the same
+displayed value.
+
+**FMM27 (2026-11-14): recalibrated, not refitted.** Truro's four snapshots give 54 distinct
+exact rows over 29 players — 48 outfield rows over 26 players, and 3 keepers — after collapsing
+the stale scrapbook entries a player who has not played carries into every snapshot (half the
+raw rows). Against FMM22 players in the same CA band (54–85), FMM22's coefficients are biased
+−0.20 on the nine outfield attributes; on Truro they are biased −0.46 and low on every one of
+the nine. FMM27 renders about a quarter-point higher. Held out one player at a time, on the 48
+outfield rows:
+
+| FMM27 model | params | exact |
+|---|---|---|
+| FMM22 coefficients unchanged | 0 | 70.1% |
+| one shared shift (+0.20) | 1 | 73.1% |
+| **FMM22 slopes, per-attribute intercept re-tuned** | **9** | **76.0%** (±1 87.1%) |
+| full refit, Truro alone (own + CA + intercept) | 27 | 64.1% |
+
+A full refit loses to doing nothing. The CA term cannot be re-learned from one squad: Truro's
+outfield CA sd is 8 against Frem's 24. The per-attribute shifts are stable across folds (every
+fold within 0.15 of the full-data value): Decisions +0.35, Dribbling, Tackling, Movement and
+Positioning +0.20, Shooting +0.15, Creativity +0.10, Crossing +0.05, Passing 0. No attribute
+scores worse than unchanged.
+
+The 70.1% here is not comparable with Frem's 59.4%: Truro's squad sits low in the range, where
+the decoder is strongest (83.6% exact at true 4–6 on Frem).
+
+**The five keeper attributes stay on FMM22's coefficients**, and on FMM27 they are badly off:
+0% exact on Handling, Kicking, Communication and Throwing on 5 distinct keeper rows over 3
+keepers. Three keepers support no fit at all (`--min-players`).
+
+To refit when there is more data:
+
+```bash
+uv run python scripts/fit_attribute_model.py --db fm-truro.duckdb --recalibrate-from fmm22          # report
+uv run python scripts/fit_attribute_model.py --db fm-truro.duckdb --recalibrate-from fmm22 --write
+uv run python scripts/fit_attribute_model.py --db fm-truro.duckdb --write     # a full refit, from 400 rows
+```
+
+`--write` replaces only that game's rows in the seed.
+
 ## Where it stands
 
 **Score every attribute on the population that HAS it.** A goalkeeping attribute is pinned at
@@ -340,8 +387,8 @@ All at n=80 players, so all conditional on sample size; several may flip on the 
 ## How to run it
 
 ```bash
-uv run python scripts/fit_attribute_model.py --db fm-frem.duckdb            # report
-uv run python scripts/fit_attribute_model.py --db fm-frem.duckdb --write    # store coefficients
+uv run python scripts/fit_attribute_model.py --db fm-frem.duckdb            # report (fmm22)
+uv run python scripts/fit_attribute_model.py --db fm-frem.duckdb --write    # replace fmm22's rows
 uv run python load_duckdb.py --refresh-only --db fm-frem.duckdb             # take effect
 uv run python tests/test_attribute_model.py --db fm-frem.duckdb             # guard the pair
 ```

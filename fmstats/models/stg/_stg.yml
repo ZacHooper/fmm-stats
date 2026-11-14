@@ -17,11 +17,12 @@ models:
       - unique_combination: {arguments: {columns: [snapshot_date, slot]}}
   - name: stg_attribute_model
     description: >
-      The attribute decoder's coefficients, one row per (attribute, feature), with each input
-      named by the raw.players_raw column that holds it rather than its record offset.
+      The attribute decoder's coefficients, one row per (game, attribute, feature), with each
+      input named by the raw.players_raw column that holds it rather than its record offset.
+      `game` is the save_format whose snapshots they decode.
     data_tests:
       - rows_match_source: {arguments: {table: attribute_model}}
-      - unique_combination: {arguments: {columns: [attribute, feature]}}
+      - unique_combination: {arguments: {columns: [game, attribute, feature]}}
   - name: stg_club_details
     description: >
       Each club's own record per snapshot, with the save's 0xFFFF "none" read as NULL and

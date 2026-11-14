@@ -3,22 +3,23 @@
     the wrapped 0-255 source columns (named in stg.attribute_model); everything
     else is read straight off the stored record (stg.player_attributes, alias `record`). -#}
 
-{#- {attribute: {own, partner, coef: {feature: coefficient}}}, from
+{#- {game: {attribute: {own, partner, coef: {feature: coefficient}}}}, from
     stg.attribute_model in its seeded order (the sum's order, which floating
-    point makes part of the result). own / partner name the stg.player_attributes columns
-    the attribute reads. -#}
+    point makes part of the result). game is a save_format; own / partner name
+    the stg.player_attributes columns the attribute reads. -#}
 {% macro attribute_model() %}
     {%- set spec = {} -%}
     {%- if execute -%}
         {%- set rows = run_query(
-            "select attribute, feature, coef, own_column, partner_column from "
+            "select game, attribute, feature, coef, own_column, partner_column from "
             ~ ref('stg_attribute_model') ~ " order by seq") -%}
         {%- for r in rows -%}
-            {%- if r[0] not in spec -%}
-                {%- do spec.update({r[0]: {'own': r[3], 'partner': r[4],
-                                           'coef': {}}}) -%}
+            {%- if r[0] not in spec -%}{%- do spec.update({r[0]: {}}) -%}{%- endif -%}
+            {%- if r[1] not in spec[r[0]] -%}
+                {%- do spec[r[0]].update({r[1]: {'own': r[4], 'partner': r[5],
+                                                 'coef': {}}}) -%}
             {%- endif -%}
-            {%- do spec[r[0]].coef.update({r[1]: r[2]}) -%}
+            {%- do spec[r[0]][r[1]].coef.update({r[2]: r[3]}) -%}
         {%- endfor -%}
     {%- endif -%}
     {{ return(spec) }}
