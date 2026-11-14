@@ -7,7 +7,7 @@ records in id order from 0, and walked by declaration. Each record:
   [uid u32][id u16]                                       NATION_HEAD
   [len u32][name][\\0]  [len u32][nationality][\\0]  [len u32][code]
   [continent_id u16][capital_city_id u16][national_stadium_id u16]   NATION_TAIL
-  [23 B: rival nation, world ranking and points, unnamed flags]      NATION_TEAM
+  [23 B: EU flag, rival nation, world ranking and points, unnamed]   NATION_TEAM
   [u16 n][n x ranking u16]                                ranking_history, oldest first
   [u16 = 0]                                               NATION_GAP
   [u8 n][n x f32]                                         coefficients (UEFA, oldest first)
@@ -61,7 +61,7 @@ NATION_TAIL = Record("nation_tail", 6, (
 NATION_TEAM = Record("nation_team", 23, (
     Field(0, 1, UNKNOWN, U8),              # 0..3
     Field(1, 8, UNKNOWN, RAW),             # ff 7f d4 00 00 00 ff 7f on all but Denmark
-    Field(9, 1, UNKNOWN, U8),              # 0 / 1
+    Field(9, 1, "eu_flag", U8, note="the game's EU flag: 1 on the EU 27, the EEA, Switzerland and others (docs/parser/nations.md); two flagged nations need no work permit between them"),
     Field(10, 1, UNKNOWN, U8),             # 1..5
     Field(11, 2, "rival_nation_id", U16, note="0xffff = none"),
     Field(13, 2, UNKNOWN, U16),
@@ -118,6 +118,7 @@ def _nation(row: Dict[str, Any], offset: int) -> Dict[str, Any]:
         "capital_city_id": row["capital_city_id"],
         "national_stadium_id": row["national_stadium_id"],
         "offset": offset,
+        "eu_flag": bool(row["eu_flag"]),
         "rival_nation_id": rival if 0 < rival <= 4096 else None,
         "is_ranked": bool(row["is_ranked"]),
         "world_ranking": row["world_ranking"],
@@ -150,10 +151,10 @@ NATIONS_TABLE = TableDef(
 )
 
 
-# FMM27: fmm-editor's `StateOfDevelopment`, two unnamed values, `Region`, one more byte.
+# FMM27: fmm-editor's `StateOfDevelopment`, the EU flag, an unnamed u16, `Region`, one more byte.
 NATION_INFO_FMM27 = Record("nation_info_fmm27", 7, (
     Field(0, 1, "state_of_development", U8, note="fmm-editor's name"),
-    Field(1, 1, UNKNOWN, U8),
+    Field(1, 1, "eu_flag", U8, note="the game's EU flag: 1 on the EU 27, the EEA, Switzerland and others (docs/parser/nations.md); two flagged nations need no work permit between them"),
     Field(2, 2, UNKNOWN, U16),
     Field(4, 2, "region_id", U16, note="fmm-editor's `Region`"),
     Field(6, 1, UNKNOWN, U8),
@@ -188,6 +189,7 @@ def _nation_fmm27(row: Dict[str, Any], offset: int) -> Dict[str, Any]:
                                "capital_city_id", "national_stadium_id")}
     out["offset"] = offset
     out["state_of_development"] = row["state_of_development"]
+    out["eu_flag"] = bool(row["eu_flag"])
     out["region_id"] = row["region_id"]
     for prefix, sex in (("", "men"), ("women_", "women")):
         out[f"has_{sex}_team"] = bool(row[f"has_{sex}_team"])

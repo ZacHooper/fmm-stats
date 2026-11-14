@@ -176,8 +176,11 @@ truro-2026-07-25 and truro-2026-11-16 (the summer window between them):
 - `curr`: 6, 7 and 21 are not [currency](currencies.md) uids (the Danish Krone is 23); and
   so whether Denmark's 7,211 is in kroner, pounds or something else.
 - What selects `wkpm` or `wkFT` for a nation.
-- Which players need a permit at all. That is per-player: his nationality against the
-  [unions](unions.md) (EU, EEA ...), whose membership is not found yet.
+- Which players need a permit at all. Part of it is per nation: the
+  [EU flag](nations.md#eu-flag) (both nations flagged, no permit) is read; England, Scotland
+  and Wales are unflagged. The rest (an exemption list by nationality, the fee, wage,
+  reputation and ability thresholds a community account gives) is not in the save:
+  £12.5m, 45,001, 5,750 appear in no rule file except as prize money and ids.
 
 **FMM22 differs.** frem-2030-06-30 has ten files with rules: no Sweden, Switzerland or
 English women's set, and **England's has no fee and no appeal** (wopm 21/0 `wpdw` 120, wtpm,

@@ -379,8 +379,11 @@ four UK nations' (the GBE), scheme 1 a cash test (Denmark, Austria, Ireland). Op
   against `wpca` 5,000 stored. Open: how £10K comes from what is stored, `wopm`/`wtpm`/
   `ctrn`/`stWP`, `decd`, `wpdw`, and what `wkFT` is beside `wkpm`; a Danish signing below
   £829 a week tests the wage floor.
-- **Who needs one**: union membership per nation ([unions](parser/unions.md): look for a
-  union id in the nation record), then a player's nationality against it.
+- **Who needs one.** The nations' [EU flag](parser/nations.md#eu-flag) is read (both nations
+  flagged: no permit). Not in the save: the exemption list by nationality and the
+  fee/wage/reputation thresholds a community account gives (£12.5m, £45,001 a week, 5,750);
+  test them against each window's signings into England. Load `eu_flag` into
+  `mart.dim_nation` once a consumer exists.
 - **Load it** (`raw.work_permit_rules`) once a consumer exists: a recruitment flag on the
   shortlist ("needs a permit") is the obvious one.
 
