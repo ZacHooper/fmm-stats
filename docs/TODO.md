@@ -123,9 +123,12 @@ day (`start` in `fmm.toml`) bounds the match check; the signing rule is the care
    as it was last exported (the 2030-09-14 snapshot), so its matches carry no goals list and
    the Partnerships tab stays hidden there. A re-export from the full Frem store
    (`export_data.py --career frem --upload`) adds it.
-5. **A decoder refit.** Try a refit of the attribute decoder with Truro's scrapbook rows to
-   see how far the data so far goes (Frem's coefficients score about as well on Truro
-   unrefitted, Passing the weakest at 38%); a proper refit needs more seasons.
+5. **The FMM27 decoder.** FMM27 decodes outfield attributes with FMM22's coefficients and has
+   its own five keeper attributes, fitted on 29 keepers
+   ([`attribute-model.md`](attribute-model.md#one-model-per-game)). Open: Communication, 12%
+   exact on FMM27 keepers; a full FMM27 outfield refit once the World Best XI pools and our
+   lists hold enough players to beat FMM22's coefficients held out (they score 63.6% against
+   a refit's 62.0% on 205 rows today).
 
 The store reads neither `comp_stages` nor `comp_honours` on either version (results come
 from the fixture list, stage names from the rule files and competition rounds), so
@@ -461,19 +464,14 @@ one day (Denmark: 30 June in 2021-2023 -> 29 June in 2024-2027 -> 28/29 June in 
   section first): the misses are bias, not noise (`|mean signed error|` vs exact rate −0.91),
   and good players are under-predicted (83.6% exact at true 4–6, 22.4% at 16–20). Re-test two
   near-misses on the larger store: feet for Dribbling, height/weight for Shooting.
-- **Retrain on time-aligned rows.** Our squad's "exact" attributes are scrapbook entries
-  (`tables/player_lists.py`), dated by `scrapbook_date`, and a player who has not played this
-  season carries one up to two years old. The fit pairs an entry with the CURRENT save's
-  record bytes and CA (`scripts/_attribute_rows.py` joins `stg.player_attributes` to
-  `int.player_attributes_exact` on the snapshot), so some rows ask a 2024 entry to predict a
-  2026 player -- and the same stale entry is repeated in every store snapshot until he plays
-  again. Pair each distinct entry with the snapshot nearest its date, once per entry, as
-  `int.player_value_labels` does for values; the World Best XI entries would add elite
-  players to the labels the same way. Re-score on the held-out players
-  (`scripts/holdout_score.py`) before and after; expect a small change, but it is a flaw in the
-  labels, and the 94.8% label ceiling (`docs/ca-weighting.md`) was measured on the same rows.
-- **Goalkeepers** (7 at Frem) stay on frozen coefficients; they need more careers, not more
-  snapshots.
+- **Refit FMM22 on the aligned labels.** `int.player_attribute_labels` pairs each scrapbook
+  entry, the World Best XI pools' included, with the snapshot where the record still shows
+  it: on Frem that is about 2,470 entries over ~800 players, 276 of them keeper rows, against
+  the 1,515 stale, repeated squad rows the 2026-10-30 refit used. The FMM22 coefficients are
+  unchanged since (Frem's export is identical). Refit them (`fit_attribute_model.py --db
+  fm-frem.duckdb`, report first), the keepers above all -- on FMM27 the same move took them
+  from 21.8% to 49.7% exact. Re-measure the 94.8% label ceiling (`docs/ca-weighting.md`)
+  on these rows; it was measured on the old ones. Re-test the two near-misses on them too.
 
 ---
 

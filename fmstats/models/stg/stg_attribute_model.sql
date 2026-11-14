@@ -1,8 +1,10 @@
--- The attribute decoder's coefficients, one row per (attribute, feature), with
--- the record bytes they read NAMED: raw.attribute_model gives each input as its
+-- The attribute decoder's coefficients, one row per (game, attribute,
+-- feature), with the record bytes they read NAMED: raw.attribute_model gives
+-- each input as its
 -- offset in the player record (own_offset / partner_offset, e.g. -34); here it
 -- becomes the raw.players_raw column that holds that byte (crossing_src). `seq`
--- is the seeded order, the order the decode sums the terms in.
+-- is the seeded order, the order the decode sums the terms in. `game` is the
+-- save_format (stg.snapshots) whose snapshots these coefficients decode.
 
 with byte_columns as (
     select
@@ -18,6 +20,7 @@ with byte_columns as (
 
 select
     coefficients.rowid as seq,
+    coefficients.game,
     coefficients.attribute,
     coefficients.feature,
     coefficients.coef,

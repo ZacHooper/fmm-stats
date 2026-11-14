@@ -76,6 +76,14 @@ models:
             columns: [snapshot_date, tid]
             to: ref('int_player_info')
             to_columns: [snapshot_date, tid]
+  - name: int_player_attribute_labels
+    description: >
+      The attribute decoder's training rows: each scrapbook entry (ours and the World Best XI
+      pools') paired with the player's attribute record on the nearest snapshot within
+      var('attribute_label_max_gap_days'), kept only where the record's seven plain attributes
+      still equal the entry's. scripts/fit_attribute_model.py fits on it.
+    data_tests:
+      - unique_combination: {arguments: {columns: [tid, entry_date]}}
   - name: int_player_value_labels
     description: >
       The transfer-value model's training rows: each value the save states (a scrapbook

@@ -196,6 +196,10 @@ vars:
   value_contract_years_cap: 6
   value_label_max_gap_days: 31
   value_trusted_band: [1000000, 1000000000]
+  # The attribute decoder's labels (int_player_attribute_labels): a scrapbook entry paired with
+  # the player's attribute record on the snapshot at most attribute_label_max_gap_days from
+  # the entry's date.
+  attribute_label_max_gap_days: 31
   # The web app's marts (models/site). A league's skill_idx needs this many rated players.
   site_skill_min_players: 20
   # Squad registration, a house rule (the rule sets are seeds/registration_rules.csv;

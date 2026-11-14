@@ -13,6 +13,10 @@ which is the whole point of moving the model into the database. It is:
   1. the SQL evaluates THE COEFFICIENTS THE STORE HOLDS correctly (always), and
   2. a store still carrying the frozen seed reproduces fmparser/model.py exactly (only then).
 
+The coefficients are keyed by game (save_format), and each snapshot must be decoded with its
+own game's: the check evaluates every sampled row with the coefficients of the game its
+snapshot came from.
+
 Needs no save file and no extract -- the raw bytes are in the store.
 
     uv run python tests/test_attribute_model.py [--db fm-frem.duckdb]
@@ -50,16 +54,22 @@ def main(argv):
     import duckdb
     con = duckdb.connect(db, read_only=True)
 
-    spec, tags = {}, set()
-    for attr, feat, coef, own, partner, fitted in con.execute(
-            "SELECT attribute, feature, coef, own_column, partner_column, fitted "
-            "FROM stg.attribute_model").fetchall():
-        d = spec.setdefault(attr, {"own": own, "partner": partner, "coef": {}})
+    specs, tags = {}, {}
+    for game, attr, feat, coef, own, partner, fitted in con.execute(
+            "SELECT game, attribute, feature, coef, own_column, partner_column, fitted "
+            "FROM stg.attribute_model ORDER BY seq").fetchall():
+        d = specs.setdefault(game, {}).setdefault(
+            attr, {"own": own, "partner": partner, "coef": {}})
         d["coef"][feat] = coef
-        tags.add(fitted)
+        tags.setdefault(game, set()).add(fitted)
+    spec = next(iter(specs.values()), {})
     if not spec:
         return skip("stg.attribute_model is empty")
-    print(f"  coefficients in store: {', '.join(sorted(tags))}")
+    for game in sorted(tags):
+        print(f"  {game} coefficients in store: {', '.join(sorted(tags[game]))}")
+    if any(set(s) != set(spec) for s in specs.values()):
+        print("FAIL: the games' coefficient sets cover different attributes")
+        return 1
 
     # The decode reads the player's own attribute record (stg.player_attributes, keyed by
     # sid) and int.player_attribute_estimates holds its output for every player with one,
@@ -67,34 +77,40 @@ def main(argv):
     byte_cols = sorted(set(COLS.values()))
     fitted = sorted(spec)
     rows = con.execute(f"""
-        SELECT p.tid, r.ca, r.pa,
+        SELECT p.tid, r.ca, r.pa, s.save_format,
                {', '.join('r."' + c + '"' for c in byte_cols)},
                {', '.join(f'COALESCE(r.pos_{q.lower()}, 0)' for q in POS)},
                {', '.join('e."' + a + '"' for a in fitted)}
         FROM int.player_attribute_estimates e
         JOIN stg.persons p USING (snapshot_date, tid)
         JOIN stg.player_attributes r ON r.snapshot_date = p.snapshot_date AND r.sid = p.sid
+        JOIN stg.snapshots s ON s.snapshot_date = p.snapshot_date
         WHERE r.ca IS NOT NULL AND r.passing_src IS NOT NULL
         USING SAMPLE {SAMPLE} ROWS
     """).fetchall()
     if not rows:
         return skip("no attributed players in the store")
 
-    bi = {c: 3 + i for i, c in enumerate(byte_cols)}
-    pi = 3 + len(byte_cols)
+    bi = {c: 4 + i for i, c in enumerate(byte_cols)}
+    pi = 4 + len(byte_cols)
     ei = pi + len(POS)
 
     bad_sql, bad_frozen, n_sql, n_frozen = {}, {}, 0, 0
-    frozen_seed = all(t.startswith("frozen") for t in tags)
+    frozen_seed = all(t.startswith("frozen") for g in tags.values() for t in g)
+    games_seen = set()
     for r in rows:
         ca, pa = r[1], r[2]
+        if r[3] not in specs:
+            bad_sql.setdefault("(game)", []).append((r[0], r[3], "no coefficients"))
+            continue
+        games_seen.add(r[3])
         m9 = sum(r[bi[c]] for c in MEAN9) / 9.0
         fam = r[pi:pi + len(POS)]
         top = POS[max(range(len(POS)), key=lambda i: (fam[i], -i))] if max(fam) else ""
         fwd = 1.0 if top in ("ST", "AML", "AMR", "AMC") else (
               0.5 if top in ("ML", "MR", "MC", "DMC", "DML", "DMR") else 0.0)
         for j, attr in enumerate(fitted):
-            d = spec[attr]
+            d = specs[r[3]][attr]
             want = r[ei + j]
             own = MOD.uw(r[bi[d["own"]]])
             vals = {"own": own, "CA": ca, "PA": pa, "mean9": m9, "fwd": fwd,
@@ -126,7 +142,7 @@ def main(argv):
             print(f"  {a}: {len(d)} (tid, sql, expected) e.g. {d[:3]}")
     else:
         print(f"  OK  {n_sql:,} modelled values match an independent evaluation of the "
-              f"store's own coefficients")
+              f"store's own coefficients ({', '.join(sorted(games_seen))})")
 
     if frozen_seed:
         if bad_frozen:
