@@ -138,11 +138,20 @@ Endorsement. Scheme 1 carries a cash amount (Denmark, Austria, Ireland), which r
 salary threshold; schemes 3 and 4 a small number (Norway 50, Australia 70, South Africa
 40-90), which reads as a percentage.
 
-**What is not established**, none of it tied to a screen yet:
-- The rule codes. `wopm` probably a new work permit, `ctrn` a contract renewal, `appe` an
-  appeal (England's carries a fee of 5,000 in `wpca`; an appeal to an exceptions panel is
-  part of the real GBE), `stWP` perhaps a student or youth permit, `wtpm` unknown.
-- `decd` (0-4; days to a decision?), `wpcc` (1), `wpdw` (120), `wpaf` (1, a reference).
+**`appe` is the appeal**, on screen (Evidence, "Work permits"): a refused permit can be
+appealed, at a cost, and the appeal can succeed. Only England, Scotland and South Africa
+carry an `appe` rule.
+
+**What is not established:**
+- The other rule codes. `wopm` probably a new work permit, `ctrn` a contract renewal, `stWP`
+  perhaps a student or youth permit, `wtpm` unknown.
+- The appeal's cost. The screen offers the appeal at **£10K**; England's `appe` `wpca` is
+  5,000 and its `wopm` `wpca` 20,000. Neither is the screen's figure as stored, so either
+  the cost is derived (from the club, its division, or the player) or `cash` is not in
+  pounds. An appeal offered at Truro, in the National League South, would separate the two.
+- `decd` (0-4). Not days from the delay to the decision: on screen that took one day
+  (23 to 24 July) where England's `wopm` has `decd` 3, though when the deal was agreed is
+  not known. `wpcc` (1), `wpdw` (120), `wpaf` (1, a reference) are unknown.
 - `curr`: 6, 7 and 21 are not [currency](currencies.md) uids (the Danish Krone is 23); and
   so whether Denmark's 7,211 is in kroner, pounds or something else.
 - What selects `wkpm` or `wkFT` for a nation.
@@ -155,15 +164,33 @@ ctrn, stWP 20), with a `wkFT` set like Scotland's. Denmark's is `info` 750, an i
 wtpm and ctrn, and `{cash 750}` with no `curr` on stWP: `work_permits()` gives `info` 750 on
 the first three and `cash` 750 on the fourth.
 
-> **Lead:** a screen ties the codes down. A work-permit message after a bid for a non-UK
-> player, the player's profile ("work permit required"), or an appeal, would name `wopm` and
-> `appe` and the GBE outcome; a Danish signing's would test the 7,211. TODO, "Work permits".
+> **Lead:** screens tie the rest down. The cost of an appeal at a club in another division
+> separates a derived cost from a stored one; a contract renewal's permit message would name
+> `ctrn`; a Danish signing's would test the 7,211. TODO, "Work permits".
 
 ## Evidence
 
 `truro-2026-07-25`: 782 rule files read with FMM27's schemas and `team_counts()` gives 256
 competitions, tested by `tests/test_reference_fmm27_evidence.py`. No in-game screen is tied
 to a rule file yet.
+
+**Work permits.** Three news items from a Newcastle United career (FMM27, in-game 23-24 July
+2026), a save that is **not in the bucket**: the bytes are not checked, and the figures
+compared are truro-2026-07-25's `eng_rules`, which every save of a game's database shares
+unless its rule files differ (on FMM22, 27 of 667 differ between careers). The player is
+Isaac Tshibangu, a DR Congo winger: a nation in no union with the UK, under scheme 21.
+
+1. 23 July, "Tshibangu transfer delayed due to work permit": the transfer awaits "a
+   decision to grant a work permit".
+2. 24 July, "Tshibangu deal falls through": refused, and "You are able to hire an attorney
+   and appeal against this decision at the cost of £10K", with an Appeal button. This is
+   `appe`; the £10K matches neither `wpca` (5,000 on `appe`, 20,000 on `wopm`).
+3. 24 July, "Tshibangu transfer back on": "Your appeal was successful and the transfer is
+   now able to proceed".
+
+![Transfer delayed awaiting a work permit](img/work_permits-1.png)
+![Deal falls through; appeal at the cost of £10K](img/work_permits-2.png)
+![Appeal successful, transfer back on](img/work_permits-3.png)
 
 ### FMM22
 
