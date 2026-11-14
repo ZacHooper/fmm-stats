@@ -6,7 +6,8 @@
 -- place in his side's XI, NULL for substitutes, in the positions' codes
 -- (var('match_position_codes')). goals_conceded (a goalkeeper's goals
 -- against), sub_on_time (when a substitute came on, in the game's clock units,
--- about 250 a minute; NULL for a starter) and xg (expected goals) are FMM27's
+-- about 250 a minute; NULL for a starter), xg (expected goals) and xa
+-- (expected assists: the xG of the shots the player set up) are FMM27's
 -- and NULL on an FMM22 match.
 select
     cast(phase as date) as snapshot_date,
@@ -49,5 +50,6 @@ select
     end as position,
     conceded as goals_conceded,
     nullif(subon_time, {{ var('no_id32') }}) as sub_on_time,
-    cast(xg_x100 / 100.0 as decimal(5, 2)) as xg
+    cast(xg_x100 / 100.0 as decimal(5, 2)) as xg,
+    cast(xa_x100 / 100.0 as decimal(5, 2)) as xa
 from {{ source('raw', 'match_player_stats') }}

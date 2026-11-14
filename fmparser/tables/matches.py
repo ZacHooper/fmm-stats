@@ -296,7 +296,12 @@ TEAM_HEAD_FMM27 = Record("match_team_head_fmm27", 77, [
 # is a goalkeeper's goals against (Lavercombe 2 at Wigan). `subOn_time` is when a substitute
 # came on, in match time units of about 245-257 a minute; players brought on together share
 # one value. `xg_x100` is expected goals x 100: Maidenhead's slots sum to 27 (the screen's
-# 0.27), Truro's to 217 (the screen's 2.18: the screen sums unrounded values).
+# 0.27), Truro's to 217 (the screen's 2.18: the screen sums unrounded values). `xa_x100` is
+# expected assists x 100, the xG of the shots the player set up: a side's slots sum to at
+# most its xG (66 of 66 sides on truro-2026-11-16, within rounding), and the league totals
+# at 16 Nov sit just below the 2 Dec Player Statistics screen (Greenslade 4.03 -> 4.44,
+# Tweedy 3.83 -> 5.18, Roberts 2.94 -> 4.61, Bell 2.91 -> 3.44). Not yet matched against a
+# screen of the same day.
 _STATS_FMM27 = {
     0: "assists", 2: "conceded", 3: "condition", 4: "crossA", 5: "crossC", 8: "dribbles",
     10: "goals", 11: "headA", 12: "headW", 16: "intercept", 19: "subOn", 20: "sentOff",
@@ -310,6 +315,7 @@ PLAYER_SLOT_FMM27 = Record("match_player_slot_fmm27", 70, [
     Field(32, 2, "sid", HEX2, note="2 bytes here -- the PERSON record's sid is 4"),
     Field(46, 4, "tid", U32, note="0xffffffff = unused slot"),
     Field(66, 2, "xg_x100", U16, note="expected goals x 100"),
+    Field(68, 2, "xa_x100", U16, note="expected assists x 100"),
     Field(1,  1, UNKNOWN, RAW),
     Field(6,  2, UNKNOWN, RAW),
     Field(9,  1, UNKNOWN, RAW, note="7 on a booked player"),
@@ -322,7 +328,6 @@ PLAYER_SLOT_FMM27 = Record("match_player_slot_fmm27", 70, [
     Field(50, 2, UNKNOWN, RAW),
     Field(54, 3, UNKNOWN, RAW, note="+54 reads the side: 0 home, 1 away"),
     Field(58, 8, UNKNOWN, RAW, note="two u32, ffffffff on every slot read"),
-    Field(68, 2, UNKNOWN, RAW, note="u16; non-zero on players with key passes"),
 ])
 
 TEAM_TAIL_FMM27 = Record("match_team_tail_fmm27", 171, [

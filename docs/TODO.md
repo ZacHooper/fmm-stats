@@ -381,6 +381,10 @@ Bytes the parser reads but cannot name yet.
   offset (fmm-editor has no `Staff.cs`); `hidden_s27` is the one to identify next — 96% of
   staff read 1–4, distinctive enough for a small ground-truth set.
 - **Match event type `0x0e`**: 2 events, both reserve fixtures.
+- **FMM27 event `0x25` is an assist too**: on truro-2026-11-16 the slot's `assists` counts
+  `25` events as well as `24` (the 6-0 v 2210 on 3 Nov: Greenslade's and 9274's assists are
+  `25`s). `EVENT_TYPE_FMM27` doesn't name it, so a goal it follows has no `assist_tid`. Find
+  what separates it from `24` (a set piece? a pre-assist?) and name it.
 - **The world fixture's tie aggregate** ([fixtures](parser/fixtures.md)): read +9 / +14 as
   the tie's aggregate (second legs; `ff` otherwise) into `world_fixtures.json` and the store.
   An output change: re-record `tests/assert_identical.py`.
@@ -418,6 +422,12 @@ assists, cards, PoM, rating total; league / cup / continental / non-competitive 
 international). **Load it** (parser only so far): league records and top-scorer lists for
 every league, not just the games we watched. Still missing: xG (not in those rows) and the
 clubs' season stats. Use: xG in every league table and xG top-scorer lists.
+
+**xA per match is read** (slot +68, `xa_x100`, through to `site.match_players` and the
+stats table), but only our matches, like xG. Not yet matched to a same-day screen: confirm
+with the next save and a Player Statistics xA screenshot of that day (the 2 Dec screen has
+Tweedy 5.18, Roberts 4.61, Greenslade 4.44, Bell 3.44, Niall McAndrew of Maidenhead 2.93).
+The world-wide search below should look for xA next to xG.
 
 What the screens show:
 - **FMM27, Team and Player Statistics** (league screen, xG / xDiff / Goals;

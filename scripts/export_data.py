@@ -458,7 +458,7 @@ def main():
     pfields = ["season", "tid", "opponent_tid", "date", "competition", "rating", "rating_adj",
                "goals", "assists", "minutes", "started", "potm", "position", "passA", "passC",
                "keyPass", "tackA", "tackW", "intercept", "headA", "headW", "crossA", "crossC",
-               "dribbles", "shotA", "shotO", "mistakes", "yellow", "xg", "conceded", "ccc",
+               "dribbles", "shotA", "shotO", "mistakes", "yellow", "xg", "xa", "conceded", "ccc",
                "cccScored"]
     prename = {"date": "match_date", "potm": "is_player_of_match_award", "passA": "passes", "passC": "passes_completed",
                "keyPass": "key_passes", "tackA": "tackles", "tackW": "tackles_won",
@@ -536,7 +536,7 @@ def main():
                                          "ORDER BY season, competition"), finish_fields),
         "note": "Only the managed club's matches are richly parsed, so these are our records. "
                 "Match detail lives in a fixed-size ring buffer the game overwrites as a "
-                "season runs, so an early game may be absent from a late save. xg, conceded "
+                "season runs, so an early game may be absent from a late save. xg, xa, conceded "
                 "(a goalkeeper's goals against), ccc / cccScored (clear-cut chances, and those "
                 "he scored from) and a goal's assist_tid are recorded by FMM27 saves only: "
                 "null on an FMM22 match."})

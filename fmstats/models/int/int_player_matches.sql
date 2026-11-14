@@ -12,7 +12,7 @@
 -- full-time place in his side's XI, NULL for substitutes. is_player_of_match
 -- is the game's own Player of the Match (int_our_matches.player_of_match).
 -- person_id is NULL for a player the snapshot holds no person record for.
--- xg and goals_conceded are FMM27's, NULL on an FMM22 match, and so are
+-- xg, xa and goals_conceded are FMM27's, NULL on an FMM22 match, and so are
 -- clear_cut_chances (the clear-cut-chance events naming him) and
 -- clear_cut_scored (those followed by his own goal in the same minute).
 {%- set minutes = var('match_minutes') %}
@@ -134,6 +134,7 @@ select
     placed.condition,
     placed.yellows,
     placed.xg,
+    placed.xa,
     placed.goals_conceded,
     case
         when snapshots.save_format = 'fmm27'
