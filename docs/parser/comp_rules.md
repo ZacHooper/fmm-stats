@@ -251,6 +251,42 @@ rules").
 > **Quirk:** a stub (0 fields) is a loaded competition, not a missing one. Read its structure
 > from the dictionary's rule file instead; nothing does so today.
 
+## FMM22 against FMM27: the Champions Cup
+
+FMM27 carries the 2024 format: a 36-team league phase instead of eight groups of four.
+`scripts/diff_rule_files.py` diffs one rule file between two saves, matching stages by their
+code and rounds by their round name. FMM22's `eur_champions_cup_2021` (frem-2030-06-30,
+19,490 bytes) against FMM27's `eur_champions_cup_2024` (truro-2026-07-25, 28,747 bytes),
+competition 1301394 in both:
+
+| | FMM22 | FMM27 |
+|---|---|---|
+| stages | `chpr`, `bppr` (qualifying paths), `grou`, `cup ` | `chpr`, `bppr`, **`leag`**, `cup ` |
+| stage 2 | `type` 2 groups, `ngps` 8, `ntms` 32, `nrds` 2 | `type` 1 league, `ntms` 36, `nrds` 0 |
+| matches per team | 6 (a double round robin of four) | `exlg {stag 2, mnmt 8, mxmt 8}`: 8 |
+| fixtures | from the groups (`gpdt`, `vlgr`) | `cftp`, a fixture template (37 × `t001`…), and a `sche` per matchday |
+| qualification | `qurl`: top 2 to the First Knockout Round; 3rd to the EURO Cup (1301396) | `qurl`: top 8 to the Round of 16 (stage 3); `tppr`: the next 16 to the Knock-out Playoff |
+| `sort` | `[3, 18, 29, 0, 1, 39, 2, 16, 20, 7]` | `[0, 1, 39, 2, 16, 20, 7]`: the head-to-head codes gone |
+| knockout rounds | First Knockout Round (164), QF, SF, Final | **Knock-out Playoff** (2000547676), **Round of 16** (2000223074), QF, SF, Final: names only FMM27's round table holds |
+| prize money | final `lspz` 5,000,000 | 4,290,000; `apmn`/`wnpz` carry `curr` 7 (the euro) |
+
+**The keys did not change.** Both files share their tags; what differs is the format the tags
+describe. The encoding changed in three ways:
+- a round-name reference became a pair plus a `DBID` (`stnm 164` → `{stgn (n, n), DBID n}`);
+- a draw date became a fixture-date list (`drdt {dyow, dyom, mont, year}` → `drdt {fxds [...]}`),
+  and the top-level `fxds` (48 dates) is gone, with `AfxD`, `FxCD`, `ftcl`, `hstn`, `hssd`,
+  `strl`, `apmn` and `CRps` (56 entries) new at the top;
+- FMM22 writes empty lists (`vsdp`, `itvm`, `fnrg`, `lgto`, `lgfx`, `natl` …) that FMM27 omits,
+  and FMM27 drops `desc` and `SubF`.
+
+**Every key the new format uses exists in FMM22**, in other competitions, except two: `cdes`
+(on FMM27's rounds, 0-2) and `hssd` (top level). Across FMM22's dictionary `exlg` (with
+`mnmt`/`mxmt`) is in 85 files (Argentina's leagues), `tppr` in 89, `cftp` in 3 (`cze_first`,
+`ser_super`, `inter_concacaf_nations_league_qual`), `sche`, `ctmp`, `wrnk`/`lrnk`, `AfxD` and
+`CRps` in many. The FMM22 engine reads a league with a fixed number of matches per team, a
+fixture template and a play-off band; whether it runs FMM27's Champions Cup file in place of
+its own is untested. The two FMM27 round names would need ids FMM22's round table has.
+
 ## Output
 
 `output/<label>/competition_rounds.json`: one row per (competition, stage, round) for every

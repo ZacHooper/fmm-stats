@@ -368,6 +368,14 @@ codes in the doc), `qurl` (which places go where), `relr` and `prmr` (who goes d
 data-dictionary doc (last at commit 7cc46b6) holds guesses at many tag meanings — hypotheses
 to test, not facts.
 
+### 8b. FMM27's Champions Cup format on FMM22
+[comp_rules](parser/comp_rules.md#fmm22-against-fmm27-the-champions-cup) diffs the two
+games' Champions Cup files (`scripts/diff_rule_files.py`): the keys are shared, and every key
+the 2024 league phase uses is in FMM22's dictionary except `cdes` and `hssd`. Open: what
+those two do; whether FMM22 runs the FMM27 file (the knockout's two new round names have no
+FMM22 id); the Conference Cup's diff. The EURO Cup (`eur_uefa_cup_2021` / `_2024`) changed the same way:
+`grou` became `leag`, and its knockout opens with the same Knock-out Playoff and Round of 16. Writing a save is outside this repo's read-only toolchain.
+
 ### 8a. Work permits
 Each nation's work-permit rules are read (`rule_files.work_permits()` →
 `work_permit_rules.json`, [rule_files](parser/rule_files.md#work-permits)): scheme 21 is the
