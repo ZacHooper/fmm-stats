@@ -18,6 +18,12 @@ NAME_REF for a name held in a container -- and read through those declarations
 +76 (`stage_index`); element k of its `rnds` is the round `fix_man.dat` carries at +77
 (`round_index`). `scripts/audit/audit_records.py --map` prints the schemas.
 
+A STAGE also carries its rules, read into `stage_rule_rows`: round robins (`nrds`),
+points (`pwin`, `pdrw`), tie-breakers (`sort`), promotion and relegation (`prmr`, `relr`:
+PLACE_RULE), where bands of the table go (`qurl`, and `tppr` for the play-off band:
+QUAL_RULE) and matches per team (`exlg`: MATCH_COUNT). Checked against the rules screens
+(docs/parser/comp_rules.md).
+
 A name id is either the scalar value of `stnm` or the `stgn` child of an `stnm` container;
 both forms occur, and a scalar may be stored as a PAIR of equal u32s. Name ids resolve
 through the round-name catalog in the main save (`tables/rounds.py`). Verified against the
@@ -31,7 +37,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from ..core import archive as A
 from .save_header import FMM27, save_format
 from ..core import (
-    FOURCC, INT, PAD, RAW, STRING, U16, U32, UNKNOWN, AnyOf, Field, ListOf, Nested, Record, Tag,
+    FOURCC, INT, INT_LIST, PAD, RAW, STRING, U16, U32, UNKNOWN, AnyOf, Field, ListOf, Nested, Record, Tag,
     TaggedRecord, TaggedSchemaError, TaggedTableDef, TaggedTableError)
 
 __all__ = [
@@ -45,9 +51,11 @@ __all__ = [
     "STAGE",
     "MEMBER_PATTERN",
     "competition_rounds",
+    "competition_stage_rules",
     "locate_comp_rules",
     "scrape",
     "stage_rows",
+    "stage_rule_rows",
 ]
 
 MEMBER_PATTERN = re.compile(r"^comp_(\d+)\.dat$")
@@ -98,6 +106,55 @@ NAME_REF = TaggedRecord("comp_rules_name_ref", [
 
 NAME_ID = AnyOf(INT, Nested(NAME_REF, pick="name_id"))
 
+# A competition reference held in a container: `{id 'comp', comp <uid>, DBID}`.
+COMP_LINK = TaggedRecord("comp_rules_comp_link", [
+    Tag("id",   "ref_code", FOURCC, note="'comp', 'jcom'"),
+    Tag("comp", "comp_uid", INT,    required=True,
+        note="competition uid (competitions.uid); may be a repeated pair"),
+], unread=("DBID",))
+
+COMP_ID = AnyOf(INT, Nested(COMP_LINK, pick="comp_uid"))
+
+# Promotion (`prmr`) and relegation (`relr`): the n places that go up or down, and where.
+# Read from the rules screens (docs/parser/comp_rules.md): Championship `prmr {nrpl 2,
+# mnpl 3, comp 11}` "Top 2 teams win promotion to Premier Division" (3 with the play-off
+# winner); Bundesliga `relr {nrpl 2, comp 23, mnpl 2, mxpl 3}` "Bottom 2 ... relegated".
+PLACE_RULE = TaggedRecord("comp_rules_place_rule", [
+    Tag("id",   "ref_code",   FOURCC, note="'prmr' or 'relr'"),
+    Tag("nrpl", "places",     INT, required=True, note="the places that go up or down"),
+    Tag("mnpl", "min_places", INT, note="the fewest, where a play-off decides more"),
+    Tag("mxpl", "max_places", INT, note="the most, with the play-off"),
+    Tag("comp", "comp_uid",   COMP_ID, note="the competition they go to"),
+], unread=("mnpc", "mncc", "mxcc"))
+
+# One qualification rule (an element of `qurl`, or `tppr`): a band of the table goes to a
+# stage (`stag`, a stage_index) of this competition or of another (`comp`). The band is the
+# top `nrpl`, or positions `topp`..`btpl` (0-based); `tppr` is the next `nrpl` after the
+# promotion places. Screens: Superliga `{nmsn 108, stag 1, nrpl 6}` "Top 6 teams qualify for
+# Championship Group"; National League South `tppr {nrpl 6, nmsn 21, stag 1}` "Teams placed
+# 2nd-7th qualify for Playoff".
+QUAL_RULE = TaggedRecord("comp_rules_qual_rule", [
+    Tag("id",   "ref_code",    FOURCC, note="'tppr' on a tppr; absent on a qurl element"),
+    Tag("stag", "to_stage_index", INT, note="the stage they go to"),
+    Tag("nmsn", "to_name_id",  NAME_ID, note="that stage's or round's name (round-name catalog)"),
+    Tag("nrpl", "places",      INT, note="the top n (on tppr: the n after promotion)"),
+    Tag("topp", "top_pos",     INT, note="first position of the band, 0-based"),
+    Tag("btpl", "bottom_pos",  INT, note="last position of the band, 0-based"),
+    Tag("comp", "to_comp_uid", COMP_ID, note="another competition; absent for this one"),
+], unread=("nssn", "type", "fate", "UnTE", "hdst", "ExIn", "jcom", "StWF", "nsfl", "pspl",
+           "UdiQ"))
+
+# One element of `exlg`: how many matches the teams of a band play in stage `stag`
+# (`mnmt`..`mxmt`). FMM27's Champions Cup league phase: `{stag 2, mnmt 8, mxmt 8}`, eight
+# matches each, its schedule from a fixture template (`cftp`).
+MATCH_COUNT = TaggedRecord("comp_rules_match_count", [
+    Tag("stag", "stage_index", INT, required=True),
+    Tag("mnmt", "min_matches", INT),
+    Tag("mxmt", "max_matches", INT),
+    Tag("topp", "top_pos",     INT, note="first position of the band it applies to, 0-based"),
+    Tag("btpl", "bottom_pos",  INT),
+], unread=("comp", "cnfx", "Per%", "TrRU", "lpTS", "hpTS", "prss"))
+
 ROUND = TaggedRecord("comp_rules_round", [
     Tag("stnm", "round_name_id", NAME_ID,
         note="151 'Third Qualifying Round', 17 'Quarter Final', 20 'Final' ..."),
@@ -125,12 +182,23 @@ STAGE = TaggedRecord("comp_rules_stage", [
         note="2000016479 'League Path', 236 'Preliminary Phase', 73 'Group Stage' ..."),
     Tag("ngps", "n_groups",      INT,    note="groups in a group stage"),
     Tag("rnds", "rounds",        ListOf(ROUND), note="the knockout rounds, in order"),
+    Tag("nrds", "round_robins",  INT,
+        note="times each pair meets: 2 = home and away; 0 where `exlg` sets the matches"),
+    Tag("pwin", "points_win",    INT, note="points for a win, where set (3)"),
+    Tag("pdrw", "points_draw",   INT, note="points for a draw, where set (1)"),
+    Tag("sort", "sort_codes",    INT_LIST,
+        note="tie-breakers after points, in order (codes in docs/parser/comp_rules.md)"),
+    Tag("prmr", "promotion",     Nested(PLACE_RULE)),
+    Tag("relr", "relegation",    Nested(PLACE_RULE)),
+    Tag("qurl", "qualification", ListOf(QUAL_RULE), note="where bands of the table go"),
+    Tag("tppr", "playoff_places", Nested(QUAL_RULE), note="the play-off band after promotion"),
+    Tag("exlg", "match_counts",  ListOf(MATCH_COUNT), note="matches per team, by band"),
 ], unread=(
-    'strq', 'tems', 'ftac', 'advs', 'sort', 'subr', 'prio', 'sche', 'rank', 'nrds', 'srnd',
-    'ctll', 'ttac', 'qurl', 'relr', 'grrl', 'gnty', 'gpdt', 'strs', 'vlgr', 'sblt', 'exfp',
-    'prmr', 'edtv', 'lgrl', 'fxor', 'RLtm', 'stfl', 'ngrt', 'clyc', 'tppr', 'mxtm', 'mntm',
-    'pfpr', 'przm', 'sths', 'exlg', 'pspl', 'rkli', 'rvtm', 'TrSt', 'shsn', 'ByTm', 'shnt',
-    'rfpr', 'OPpr', 'pwin', 'pdrw', 'comp', 'rndt', 'AlOO', 'sch?', 'tfpr', 'mtrl', 'pdad',
+    'strq', 'tems', 'ftac', 'advs', 'subr', 'prio', 'sche', 'rank', 'srnd',
+    'ctll', 'ttac', 'grrl', 'gnty', 'gpdt', 'strs', 'vlgr', 'sblt', 'exfp',
+    'edtv', 'lgrl', 'fxor', 'RLtm', 'stfl', 'ngrt', 'clyc', 'mxtm', 'mntm',
+    'pfpr', 'przm', 'sths', 'pspl', 'rkli', 'rvtm', 'TrSt', 'shsn', 'ByTm', 'shnt',
+    'rfpr', 'OPpr', 'comp', 'rndt', 'AlOO', 'sch?', 'tfpr', 'mtrl', 'pdad',
     'ptsd', 'btpr', 'acod', 'shrd', 'shpo', 'lwpz', 'drpz', 'hspp', 'TlCh', 'gcfp', 'dasn',
     'desc', 'hdst', 'pris', 'stsp', 'sthU', 'clyb', 'tvDd', 'FtEx', 'swtm', 'FtDt', 'jcom',
     'StSi', 'srbh', 'tmPL', 'plfd', 'MnGt', 'MxGt', 'seed', 'mstc', 'mxlg', 'ppnw', 'ppnd',
@@ -261,13 +329,46 @@ def stage_rows(uid: int, fields: List) -> List[Dict[str, Any]]:
     return rows
 
 
-def competition_rounds(mm: Any) -> List[Dict[str, Any]]:
-    """Every loaded competition's stage/round structure, ordered by (uid, stage, round)."""
+_STAGE_RULE_KEYS = ("round_robins", "points_win", "points_draw", "sort_codes", "promotion",
+                    "relegation", "qualification", "playoff_places", "match_counts")
+
+
+def stage_rule_rows(uid: int, fields: List) -> List[Dict[str, Any]]:
+    """One row per stage: its format and where its places go (`_STAGE_RULE_KEYS`), read
+    through the declared STAGE schema; nested rules drop their absent keys."""
+    if not fields or all(tag != "stgs" for tag, _, _ in fields):
+        return []
+    try:
+        stages = FILE.read(fields)["stages"]
+    except TaggedSchemaError as e:
+        raise TaggedTableError(f"comp_rules: competition {uid}: {e}") from e
+
+    def tidy(v: Any) -> Any:
+        if isinstance(v, dict):
+            return {k: tidy(x) for k, x in v.items() if x is not None and k != "ref_code"}
+        if isinstance(v, list):
+            return [tidy(x) for x in v]
+        return v
+    return [{"uid": uid, "stage_index": st["stage_index"], "stage_code": st["stage_code"],
+             **{k: tidy(st[k]) for k in _STAGE_RULE_KEYS}} for st in stages]
+
+
+def _per_member(mm: Any, rows_of) -> List[Dict[str, Any]]:
     ents = A.members(mm)
     rows: List[Dict[str, Any]] = []
     members = sorted((int(m.group(1)), name) for name in ents
                      if (m := MEMBER_PATTERN.match(name)))
     table = comp_rules_table(mm)
     for uid, name in members:
-        rows.extend(stage_rows(uid, scrape(A.read_member(mm, ents[name]), table)))
+        rows.extend(rows_of(uid, scrape(A.read_member(mm, ents[name]), table)))
     return rows
+
+
+def competition_stage_rules(mm: Any) -> List[Dict[str, Any]]:
+    """Every loaded competition's stage rules, ordered by (uid, stage)."""
+    return _per_member(mm, stage_rule_rows)
+
+
+def competition_rounds(mm: Any) -> List[Dict[str, Any]]:
+    """Every loaded competition's stage/round structure, ordered by (uid, stage, round)."""
+    return _per_member(mm, stage_rows)

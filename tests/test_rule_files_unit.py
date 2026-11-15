@@ -64,7 +64,9 @@ def region(declared=None):
     comp = rule_file("den_premier", [
         u32("comp", 6),
         lst("stgs", [container(None, [
-            u32("id", fourcc("leag")), u8("indx", 0), u8("type", 1), u8("ntms", 12)])]),
+            u32("id", fourcc("leag")), u8("indx", 0), u8("type", 1), u8("ntms", 12),
+            u8("nrds", 2), lst("sort", [bytes([0x01, 0x11, c]) for c in (0, 1, 5)]),
+            container("relr", [u32("id", fourcc("relr")), u8("nrpl", 2), u8("comp", 7)])])]),
         container("przm", [f64("cash", 150000.0),
                            tag("Ttea", 0x15, struct.pack("<I", 105180)),
                            u32("DBID", 105180)]),
@@ -113,6 +115,9 @@ def main() -> int:
     dsrl = next(v for t, _, v in files[3].fields if t == "dsrl")
     check(dsrl == [("#16967d20", 0x03, 0)], f"non-printable tag {dsrl}")
     check(CR.stage_rows(6, comp.fields)[0]["stage_code"] == "leag", "stage rows")
+    sr = CR.stage_rule_rows(6, comp.fields)[0]
+    check((sr["round_robins"], sr["sort_codes"], sr["relegation"])
+          == (2, [0, 1, 5], {"places": 2, "comp_uid": 7}), f"stage rules {sr}")
     check(RF.RULE_FILES_TABLE.read(files[1])["file"] == "den_comps", "nation read")
 
     check(RF.team_counts(mm) == {2000016262: 12, 6: 12},

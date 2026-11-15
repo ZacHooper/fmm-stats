@@ -66,6 +66,8 @@ Writes output/<label>/ (the label defaults to the save's file name without `.fms
     player_scrapbook.json        every scrapbook entry of the 66 player lists
     world_fixtures.json          the archive's world fixture list
     competition_rounds.json      the archive's competition stage/round structures
+    competition_stage_rules.json each loaded competition's stage rules: round robins,
+                                 points, tie-breakers, promotion, relegation, qualification
     summary.json                 the save, its header date and title, counts
 
 The save's header date is the snapshot's identity; a save whose header does not read is
@@ -250,7 +252,7 @@ def read_scrapbook(mm) -> Files:
 
 def read_archive(no_archive: bool) -> Callable[[Any], Files]:
     """The zstd archive at the save's tail: the world fixture list and every competition's
-    stage/round structure.
+    stage/round structure and stage rules.
 
     The fixture list is a two-calendar-year rolling window of matches already played, so it
     enriches this snapshot only; it carries no competition field (a fixture's stage and
@@ -271,12 +273,14 @@ def read_archive(no_archive: bool) -> Callable[[Any], Files]:
             world = []
         try:
             rounds = CRU.competition_rounds(mm)
+            stage_rules = CRU.competition_stage_rules(mm)
         except ImportError:
-            rounds = []                          # --no-archive; refused above otherwise
+            rounds, stage_rules = [], []         # --no-archive; refused above otherwise
         except Exception as e:
             print(f"  NOTE: competition rules unavailable ({type(e).__name__}: {e})")
-            rounds = []
-        return {"world_fixtures.json": (world, None), "competition_rounds.json": (rounds, None)}
+            rounds, stage_rules = [], []
+        return {"world_fixtures.json": (world, None), "competition_rounds.json": (rounds, None),
+                "competition_stage_rules.json": (stage_rules, 1)}
     return read
 
 

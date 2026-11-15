@@ -12,6 +12,9 @@ Guard the competition rules (fmparser/tables/comp_rules.py) on real saves.
             Champions Cup  League Path / Second, Third Qualifying Round, Playoff
             3F Superliga   Preliminary Phase, Championship Group
             Sydbank Pokalen  Third Round (round 2), Quarter/Semi Final two-legged
+  RULES     the stage rules against the rules screens (docs/parser/comp_rules.md):
+            Superliga, Belgian Pro League A, Championship and Bundesliga stage 0 -- round
+            robins, points, tie-breakers, promotion, relegation, qualification, play-off
 
     uv sync
     uv run python tests/test_comp_rules.py
@@ -26,6 +29,24 @@ sys.path.insert(0, ROOT)
 from fmparser.core import archive as A                              # noqa: E402
 from fmparser.core import TaggedTableError                     # noqa: E402
 from fmparser.tables import comp_rules as CR, rounds as R  # noqa: E402
+
+# (uid, stage_index) -> the stage rules the rules screens show (docs/parser/comp_rules.md)
+RULES = {
+    (6, 0): {"round_robins": 2, "sort_codes": [0, 1, 5], "qualification": [
+        {"to_stage_index": 1, "to_name_id": 108, "places": 6},
+        {"to_stage_index": 2, "to_name_id": 171, "top_pos": 6, "bottom_pos": 11}]},
+    (1, 0): {"round_robins": 2, "sort_codes": [2, 0, 1, 13, 5],
+             "relegation": {"places": 1, "comp_uid": 2}, "qualification": [
+        {"to_stage_index": 1, "to_name_id": 108, "top_pos": 0, "bottom_pos": 3},
+        {"to_stage_index": 2, "to_name_id": 172, "top_pos": 4, "bottom_pos": 7}]},
+    (12, 0): {"round_robins": 2, "points_win": 3, "points_draw": 1,
+              "sort_codes": [0, 1, 3, 2, 5, 22],
+              "promotion": {"places": 2, "min_places": 3, "comp_uid": 11},
+              "relegation": {"places": 3, "comp_uid": 13},
+              "playoff_places": {"to_stage_index": 1, "to_name_id": 238, "places": 4}},
+    (22, 0): {"sort_codes": [0, 14, 1, 3, 5],
+              "relegation": {"places": 2, "min_places": 2, "max_places": 3, "comp_uid": 23}},
+}
 
 SAVES = os.environ.get("FM_SAVES_DIR", os.path.expanduser("~/fm-saves"))
 SKIP = 77
@@ -64,6 +85,7 @@ def main() -> int:
         return SKIP
     failures = []
     ground_seen = False
+    rules_seen = 0
     for p in paths:
         with open(p, "rb") as f:
             mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
@@ -98,9 +120,20 @@ def main() -> int:
                     if got != (stage, rnd, legs):
                         failures.append(f"{os.path.basename(p)} {k}: got {got}, "
                                         f"want {(stage, rnd, legs)}")
+            stage_rules = {(r["uid"], r["stage_index"]): r for r in CR.competition_stage_rules(mm)}
+            rules_seen += sum(k in stage_rules for k in RULES)
+            for k, want in RULES.items():
+                got = stage_rules.get(k)
+                if got is None:
+                    continue
+                bad = {f: (got[f], v) for f, v in want.items() if got[f] != v}
+                if bad:
+                    failures.append(f"{os.path.basename(p)} stage rules {k}: (got, want) {bad}")
             print(f"  {os.path.basename(p)}: {len(rows)} rows, "
                   f"{len({r['uid'] for r in rows})} competitions")
             mm.close()
+    if not rules_seen:
+        failures.append("no save loads any of the stage-rule ground-truth competitions")
     if not ground_seen:
         print("  NOTE: no Frem save with every ground-truth competition loaded")
     for f in failures:

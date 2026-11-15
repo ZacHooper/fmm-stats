@@ -355,18 +355,22 @@ merged `_rules`. Diff two saves.
 ## Parser — understanding: naming what is read
 
 ### 8. Decode the competition rules
-Entry, advancement, promotion and relegation (`strq`, `advs`, `relr`, `prmr`) for every
-competition in the dictionary, not just the ~70 the archive loads. Every configured archive
-member names its dictionary file (`file`), and its stage list equals that file's (73 of 73),
-so the two join. Leads from the rules screens ([comp_rules](parser/comp_rules.md)): a round's
-`date` is a rule, not a date (the Pokalen final's `{spld 'ascension'}` is 30 May 2030), `dat2`
-is the second leg's, `drdt` the draw (`{time 1230, dyow 2, dyom 24, mont 7}` on a Monday 22
-July draw), and `wnpz` / `lspz` / `apmn` carry prize money (`cash`, `curr`). The disciplinary
-rules on the same screens (bans after 2 or 3 yellow cards, the Superliga's points system)
-are not located. Decoded from screens but not read yet: `nrds` (rounds), `sort` (tie-breakers,
-codes in the doc), `qurl` (which places go where), `relr` and `prmr` (who goes down or up, and where). The deleted
-data-dictionary doc (last at commit 7cc46b6) holds guesses at many tag meanings — hypotheses
-to test, not facts.
+The stage rules are read ([comp_rules](parser/comp_rules.md), `competition_stage_rules.json`):
+round robins, points, tie-breakers, promotion, relegation, qualification, the play-off band
+and matches per team, for the ~70-80 competitions the archive loads. Open:
+- **Load them** and use them: `mart.league_tables` sorts by points, goal difference and goals,
+  where `sort_codes` says each league's order (Spain's head to head first: TODO, "League
+  tables outside Denmark"); promotion and relegation places could mark the tables.
+- **Every competition, not just the loaded ones**: the dictionary's 453 rule files read with
+  the same schemas; join them to competitions by `file` (every configured member names its
+  file, 73 of 73).
+- **Not read yet**: entry rules (`strq`, `ftac`, `advs`); a round's `date` is a rule, not a
+  date (the Pokalen final's `{spld 'ascension'}` is 30 May 2030), `dat2` the second leg's,
+  `drdt` the draw (`{time 1230, dyow 2, dyom 24, mont 7}` on a Monday 22 July draw); prize
+  money in `wnpz` / `lspz` / `apmn` / `przm` (`cash`, `curr`: `curr` 7 is the euro). The
+  disciplinary rules (bans after 2 or 3 yellow cards, the Superliga's points system) are not
+  located; the nation's `dsrl` is the lead. The deleted data-dictionary doc (last at commit
+  7cc46b6) holds guesses at many tag meanings — hypotheses to test, not facts.
 
 ### 8b. FMM27's Champions Cup format on FMM22
 [comp_rules](parser/comp_rules.md#fmm22-against-fmm27-the-champions-cup) diffs the two

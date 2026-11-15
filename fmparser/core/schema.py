@@ -448,6 +448,22 @@ class ListOf(Kind):
         return out
 
 
+class IntList(Kind):
+    """A list (0x0b) whose elements are tagless integers: `sort`'s tie-breaker codes."""
+    label = "list of int"
+
+    def accepts(self, typ):
+        return typ == TYPE_LIST
+
+    def read(self, value, typ):
+        out = []
+        for tag, etyp, ev in value:
+            if tag is not None or etyp not in _INT_TYPES:
+                raise TaggedSchemaError("list element is not a tagless integer")
+            out.append(INT.read(ev, etyp))
+        return out
+
+
 class AnyOf(Kind):
     """The first alternative whose type code matches."""
 
@@ -462,7 +478,7 @@ class AnyOf(Kind):
         return next(k for k in self.kinds if k.accepts(typ)).read(value, typ)
 
 
-INT, FOURCC, STRING, REF_U32 = _Int(), _FourCC(), _String(), _RefU32()
+INT, FOURCC, STRING, REF_U32, INT_LIST = _Int(), _FourCC(), _String(), _RefU32(), IntList()
 
 
 class Tag:
