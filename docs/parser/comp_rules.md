@@ -54,16 +54,27 @@ A name id is stored either as `stnm`'s own value or as the `stgn` child of an `s
 Every other tag a member carries is listed in the schema's `unread` set (seen, deliberately
 not read); `tests/test_comp_rules.py` fails on a tag that is in neither.
 
-**Unread stage tags whose meaning a rules screen shows** (Evidence, below). Not read by the
-parser yet; TODO, "Decode the competition rules".
+**The stage rules** (`stage_rule_rows`, `competition_stage_rules.json`): what a rules screen
+shows about a stage, read on both games and checked against the screens (Evidence, below;
+`tests/test_comp_rules.py` on FMM22, `tests/test_reference_fmm27_evidence.py` on FMM27).
 
-| tag | what it is | the screen |
-|---|---|---|
-| `nrds` | round-robin rounds: 2 = teams play each other twice | "22 games (teams play each other twice)" for 12 teams |
-| `sort` | the table's tie-breakers after points, a list of codes in order | "League Sorting Rules" |
-| `relr` | relegation: `{nrpl <n>, comp <uid>}`, the bottom n go down to that competition; `mnpl`/`mxpl` a minimum and maximum where a play-off decides | "Relegation": Belgium `{nrpl 1, comp 2}` "Bottom team is relegated to Pro League B"; Championship `{nrpl 3, comp 13}` bottom 3 to League One; Bundesliga `{nrpl 2, comp 23, mnpl 2, mxpl 3}` bottom 2 to Bundesliga 2 (a third through the 16th-place play-off) |
-| `prmr` | promotion: `{nrpl <n>, comp <uid>}` | "Promotion": Championship `{nrpl 2, mnpl 3, comp 11}`, "Top 2 teams win promotion to Premier Division" (3 with the play-off winner) |
-| `qurl` | where places go: `{nmsn <stage name id>, stag <stage index>, nrpl <n>}` = the top n; `topp`/`btpl` = a band of positions, 0-based; `comp` = another competition | "Qualification" |
+| tag | field | what it is | the screen |
+|---|---|---|---|
+| `nrds` | `round_robins` | times each pair meets: 2 = home and away; 0 where `exlg` sets the matches | "22 games (teams play each other twice)" for 12 teams |
+| `pwin`, `pdrw` | `points_win`, `points_draw` | points for a win and a draw, where the file sets them (3, 1) | "Points For Win: 3", "Points For Draw: 1" |
+| `sort` | `sort_codes` | the table's tie-breakers after points, a list of codes in order (below) | "League Sorting Rules" |
+| `prmr` | `promotion` | `{places, min_places, max_places, comp_uid}`: the top `nrpl` go up to `comp`; `mnpl`/`mxpl` where a play-off decides more | Championship `{nrpl 2, mnpl 3, comp 11}`, "Top 2 teams win promotion to Premier Division" (3 with the play-off winner) |
+| `relr` | `relegation` | the same shape, the bottom `nrpl` going down | Belgium `{nrpl 1, comp 2}` "Bottom team is relegated to Pro League B"; Championship `{nrpl 3, comp 13}`; Bundesliga `{nrpl 2, comp 23, mnpl 2, mxpl 3}` bottom 2 to Bundesliga 2 (a third through the 16th-place play-off) |
+| `qurl` | `qualification` | a list of rules `{to_stage_index, to_name_id, places, top_pos, bottom_pos, to_comp_uid}`: the top `nrpl`, or positions `topp`..`btpl` (0-based), go to stage `stag` of this competition or of `comp` | "Qualification": Superliga top 6 to the Championship Group, 7th-12th to the Relegation Stage |
+| `tppr` | `playoff_places` | one rule of the same shape: the `nrpl` places after promotion go to the play-off stage | National League South "Teams placed 2nd-7th qualify for Playoff"; Championship 3rd-6th |
+| `exlg` | `match_counts` | `[{stage_index, min_matches, max_matches, top_pos, bottom_pos}]`: how many matches the teams (or a band of them) play | FMM27's Champions Cup league phase: 8 each ([below](#fmm22-against-fmm27-the-champions-cup)); no screen yet |
+
+A competition or stage-name reference is either a number or a container (`{id 'comp', comp
+<uid>, DBID}`, `{id 'nmsn', stgn <id>, DBID}`; `COMP_LINK`, `NAME_REF`), and either may be a
+repeated pair; the reader resolves all three to the number. Sub-tags not read: `mnpc`,
+`mncc`, `mxcc` on promotion/relegation; `nssn`, `type`, `fate`, `UnTE`, `hdst`, `ExIn`,
+`jcom`, `StWF`, `nsfl`, `pspl`, `UdiQ` on a qualification rule; `comp`, `cnfx`, `Per%`,
+`TrRU`, `lpTS`, `hpTS`, `prss` on a match count.
 
 `sort` codes, as the screens and the store's tables show them:
 
@@ -107,7 +118,7 @@ members of frem-2030-06-22; later years on competitions whose next edition is se
 ![Rules, scrolled: Relegation, Bottom 4 teams are relegated to Regional Premier Divs](img/comp_rules-fmm27-2.jpg)
 
 Two stages: the league phase (index 0, 24 teams) and the play-off (index 1, 6 teams, three
-rounds). The screen is the league stage's tags, all unread by the parser (above):
+rounds). The screen is the league stage's tags; the stage rules read all but the dates (above):
 
 | on screen | raw bytes (member offset) | tag |
 |---|---|---|
@@ -251,7 +262,49 @@ rules").
 > **Quirk:** a stub (0 fields) is a loaded competition, not a missing one. Read its structure
 > from the dictionary's rule file instead; nothing does so today.
 
+## FMM22 against FMM27: the Champions Cup
+
+FMM27 carries the 2024 format: a 36-team league phase instead of eight groups of four.
+`scripts/diff_rule_files.py` diffs one rule file between two saves, matching stages by their
+code and rounds by their round name. FMM22's `eur_champions_cup_2021` (frem-2030-06-30,
+19,490 bytes) against FMM27's `eur_champions_cup_2024` (truro-2026-07-25, 28,747 bytes),
+competition 1301394 in both:
+
+| | FMM22 | FMM27 |
+|---|---|---|
+| stages | `chpr`, `bppr` (qualifying paths), `grou`, `cup ` | `chpr`, `bppr`, **`leag`**, `cup ` |
+| stage 2 | `type` 2 groups, `ngps` 8, `ntms` 32, `nrds` 2 | `type` 1 league, `ntms` 36, `nrds` 0 |
+| matches per team | 6 (a double round robin of four) | `exlg {stag 2, mnmt 8, mxmt 8}`: 8 |
+| fixtures | from the groups (`gpdt`, `vlgr`) | `cftp`, a fixture template (37 × `t001`…), and a `sche` per matchday |
+| qualification | `qurl`: top 2 to the First Knockout Round; 3rd to the EURO Cup (1301396) | `qurl`: top 8 to the Round of 16 (stage 3); `tppr`: the next 16 to the Knock-out Playoff |
+| `sort` | `[3, 18, 29, 0, 1, 39, 2, 16, 20, 7]` | `[0, 1, 39, 2, 16, 20, 7]`: the head-to-head codes gone |
+| knockout rounds | First Knockout Round (164), QF, SF, Final | **Knock-out Playoff** (2000547676), **Round of 16** (2000223074), QF, SF, Final: names only FMM27's round table holds |
+| prize money | final `lspz` 5,000,000 | 4,290,000; `apmn`/`wnpz` carry `curr` 7 (the euro) |
+
+**The keys did not change.** Both files share their tags; what differs is the format the tags
+describe. The encoding changed in three ways:
+- a round-name reference became a pair plus a `DBID` (`stnm 164` → `{stgn (n, n), DBID n}`);
+- a draw date became a fixture-date list (`drdt {dyow, dyom, mont, year}` → `drdt {fxds [...]}`),
+  and the top-level `fxds` (48 dates) is gone, with `AfxD`, `FxCD`, `ftcl`, `hstn`, `hssd`,
+  `strl`, `apmn` and `CRps` (56 entries) new at the top;
+- FMM22 writes empty lists (`vsdp`, `itvm`, `fnrg`, `lgto`, `lgfx`, `natl` …) that FMM27 omits,
+  and FMM27 drops `desc` and `SubF`.
+
+**Every key the new format uses exists in FMM22**, in other competitions, except two: `cdes`
+(on FMM27's rounds, 0-2) and `hssd` (top level). Across FMM22's dictionary `exlg` (with
+`mnmt`/`mxmt`) is in 85 files (Argentina's leagues), `tppr` in 89, `cftp` in 3 (`cze_first`,
+`ser_super`, `inter_concacaf_nations_league_qual`), `sche`, `ctmp`, `wrnk`/`lrnk`, `AfxD` and
+`CRps` in many. The FMM22 engine reads a league with a fixed number of matches per team, a
+fixture template and a play-off band; whether it runs FMM27's Champions Cup file in place of
+its own is untested. The two FMM27 round names would need ids FMM22's round table has.
+
 ## Output
+
+`output/<label>/competition_stage_rules.json`: one row per (competition, stage) for every
+configured member, `{uid, stage_index, stage_code, round_robins, points_win, points_draw,
+sort_codes, promotion, relegation, qualification, playoff_places, match_counts}`, the nested
+rules without their absent keys. 175 rows on truro-2026-07-25, 156 on frem-2030-06-30. Not
+loaded yet.
 
 `output/<label>/competition_rounds.json`: one row per (competition, stage, round) for every
 configured member, `{uid, stage_index, stage_code, stage_type, stage_teams, stage_name_id,

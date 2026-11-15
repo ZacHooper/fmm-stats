@@ -59,7 +59,7 @@ schema. `rule_files_table(mm)` picks the declaration; `schema_for_fmm27` the sch
 from typing import Any, Dict, List, Tuple
 
 from ..core import (
-    FOURCC, INT, STRING, AnyOf, ListOf, Nested, Tag, TaggedBlock, TaggedRecord,
+    FOURCC, INT, REF_U32, STRING, AnyOf, ListOf, Nested, Tag, TaggedBlock, TaggedRecord,
     TaggedTableDef, scan_tagged_blocks)
 from ..save import cache_key
 from .save_header import FMM27, save_format
@@ -72,7 +72,9 @@ __all__ = [
     "NATION_RULES",
     "RULE_FILES_TABLE",
     "STAGELESS_COMP",
+    "PERMIT_RULE",
     "TEAM_RULE",
+    "WORK_PERMITS",
     "RegionNotFound",
     "all_blocks",
     "find_region",
@@ -82,6 +84,7 @@ __all__ = [
     "schema_for",
     "team_counts",
     "tiling",
+    "work_permits",
 ]
 
 # ---- the schemas ---------------------------------------------------------------------------
@@ -117,6 +120,43 @@ TEAM_RULE = TaggedRecord("rule_file_team_rule", [
 ], unread=('umox', 'igmt', 'mntm', 'mxtm', 'type', 'pare', 'team', 'Bktm', 'nati', 'Cexi',
            'STpr', 'spst'))
 
+# A nation's work-permit rules (`wkpm`; `wkFT` on the four UK nations and the English
+# women's file, the same shape). Not named by the game: the reading below is from which
+# nations carry which `type` (docs/parser/rule_files.md, "Work permits"). `type` 21 is the
+# four UK nations' scheme only; `type` 1 carries a cash amount (Denmark, Austria, Ireland);
+# `type` 3/4 a small number (Norway 50, Australia 70).
+PERMIT_CASH = TaggedRecord("rule_file_permit_cash", [
+    Tag("id",   "ref_code", FOURCC,  required=True, note="'info' or 'wpca'"),
+    Tag("cash", "cash",     INT,     required=True, note="an amount; its currency is `curr`"),
+    Tag("curr", "curr",     REF_U32, note="unnamed: 6 Denmark, 7 Austria and Ireland, 21 "
+                                          "Sweden; not a currencies uid (DKK is 23). FMM27 only"),
+])
+
+PERMIT_RULE = TaggedRecord("rule_file_permit_rule", [
+    Tag("id",   "ref_code",   FOURCC, required=True, note="the rule's own code, repeated"),
+    Tag("type", "scheme",     INT,    required=True,
+        note="the kind of test: 21 the UK nations', 1 a cash amount, 3/4 a small number ..."),
+    Tag("info", "info",       AnyOf(INT, Nested(PERMIT_CASH)),
+        note="the scheme's parameter: an int, or a PERMIT_CASH"),
+    Tag("decd", "decd",       INT, note="unnamed, 0-4; days to a decision?"),
+    Tag("wpca", "fee",        Nested(PERMIT_CASH, pick="cash"),
+        note="a cash amount: England's wopm 20,000 and appe 5,000"),
+    Tag("wpcc", "wpcc",       INT, note="unnamed, 1 where present (UK nations)"),
+    Tag("wpdw", "wpdw",       INT, note="unnamed, 120 where present (UK nations)"),
+    Tag("wpaf", "wpaf",       REF_U32, note="unnamed, 1 on England's appe"),
+])
+
+WORK_PERMITS = TaggedRecord("rule_file_work_permits", [
+    Tag("id",   "ref_code", FOURCC, required=True, note="'wkpm' or 'wkFT'"),
+    Tag("wopm", "wopm", Nested(PERMIT_RULE), note="probably a new work permit"),
+    Tag("wtpm", "wtpm", Nested(PERMIT_RULE)),
+    Tag("ctrn", "ctrn", Nested(PERMIT_RULE), note="probably a contract renewal"),
+    Tag("stWP", "stwp", Nested(PERMIT_RULE)),
+    Tag("appe", "appe", Nested(PERMIT_RULE), note="probably an appeal: a fee on England's"),
+], note="a nation's work-permit rules; empty (`id` alone) on most nations")
+
+PERMIT_RULE_CODES = ("wopm", "wtpm", "ctrn", "stWP", "appe")
+
 NATION_COMPS = TaggedRecord("rule_file_nation_comps", _head("<nat>_comps") + [
     Tag("retm", "team_rules", ListOf(TEAM_RULE), note="team-count rules; team_counts()"),
 ], unread=_TRAILER + ('dvlv', 'cmps', 'dfdl', 'desc', 'ind1', 'ftac', 'year', 'updy'),
@@ -129,15 +169,22 @@ NATION_RESERVE_COMPS = TaggedRecord(
         'u21t'),
     note="a nation's reserve and youth competitions")
 
+_PERMIT_TAGS = [
+    Tag("wkpm", "work_permits",      Nested(WORK_PERMITS), note="work_permits()"),
+    Tag("wkFT", "work_permits_wkft", Nested(WORK_PERMITS),
+        note="a second set, on the UK nations and wmn_eng; what selects it is unknown"),
+]
+
 NATION_RULES = TaggedRecord("rule_file_nation_rules", _head("<nat>_rules") + [
     Tag("retm", "team_rules", ListOf(TEAM_RULE), note="the merged copy of _comps' retm"),
-], unread=_TRAILER + (
+] + _PERMIT_TAGS, unread=_TRAILER + (
     'updy', 'fxrl', 'dsrl', 'trwi', 'year', 'sswn', 'lnrl', 'trrl', 'stdr', 'wdft', 'mdft',
-    'wkpm', 'tfxt', 'TrCm', 'mdsw', 'prsw', 'CnRl', 'dvlv', 'cmps', 'fles', 'rsvl',
+    'tfxt', 'TrCm', 'mdsw', 'prsw', 'CnRl', 'dvlv', 'cmps', 'fles', 'rsvl',
     'dfdl', 'rsno', 'rsvt', 'pspd', 'trsd', 'pmdf', 'Draf', 'ifdr', 'hlps', 'desc', 'snft',
-    'BclT', 'ReTT', 'Lpsd', 'wkFT', 'NtSr', 'ifdy', 'ind1', 'ftac', 'u23t', 'u18t', 'PtSm',
+    'BclT', 'ReTT', 'Lpsd', 'NtSr', 'ifdy', 'ind1', 'ftac', 'u23t', 'u18t', 'PtSm',
     'ifsd', 'RgFr', 'u19t', 'u21t'),
-    note="a nation's rules: fixtures (fxrl), discipline (dsrl), transfer windows (trwi) ...; "
+    note="a nation's rules: fixtures (fxrl), discipline (dsrl), transfer windows (trwi), "
+         "work permits (wkpm) ...; "
          "the merged bare copy also carries its _comps and _reserve_comps tags")
 
 STAGELESS_COMP = TaggedRecord("rule_file_stageless_comp", _head("wal_cymru"),
@@ -172,7 +219,7 @@ NATION_RESERVE_COMPS_FMM27 = TaggedRecord(
 
 NATION_RULES_FMM27 = TaggedRecord("rule_file_nation_rules_fmm27", _head_fmm27("<nat>_rules") + [
     Tag("retm", "team_rules", ListOf(TEAM_RULE_FMM27), note="the merged copy of _comps' retm"),
-], unread=NATION_RULES.unread + ('fxry', 'ngid', 'ngiv'))
+] + _PERMIT_TAGS, unread=NATION_RULES.unread + ('fxry', 'ngid', 'ngiv'))
 
 CONTINENT_RULES_FMM27 = TaggedRecord("rule_file_continent_rules_fmm27", _head_fmm27("afr") + [
     Tag("retm", "team_rules", ListOf(TEAM_RULE_FMM27)),
@@ -312,6 +359,45 @@ def team_counts(mm: Any) -> Dict[int, int]:
             if rule["comp_uid"] is not None and rule["teams"] is not None and not rule["nxss"]:
                 out[rule["comp_uid"]] = rule["teams"]
     return out
+
+
+def work_permits(mm: Any) -> List[Dict[str, Any]]:
+    """One row per work-permit rule a rule file carries: {file, set ('wkpm' or 'wkFT'),
+    rule (wopm, wtpm, ctrn, stWP, appe), scheme, info, cash, curr, fee, decd, wpcc, wpdw,
+    wpaf}. `info` is the int parameter, or None where the parameter is cash (`cash`, `curr`).
+
+    Read from every rule file that carries the tag: the nations' `_rules` and a few
+    competition files (`swe_second_2018`; most competition files' sets are empty). A
+    nation's `_rules` is stored twice, merged and in its group; the copies are identical
+    and give one set of rows."""
+    rows: List[Dict[str, Any]] = []
+    seen: Dict[Tuple[str, str], Any] = {}
+    for b in rule_files_table(mm).blocks(mm):
+        name = b.get("file")
+        for set_tag in ("wkpm", "wkFT"):
+            value = b.get(set_tag)
+            if value is None:
+                continue
+            if (name, set_tag) in seen:
+                if seen[(name, set_tag)] != value:
+                    raise ValueError(f"{name}: the two copies' {set_tag} differ")
+                continue
+            seen[(name, set_tag)] = value
+            ws = WORK_PERMITS.read(value)
+            for code in PERMIT_RULE_CODES:
+                r = ws[code.lower()]
+                if r is None:
+                    continue
+                info = r["info"]
+                cash = info if isinstance(info, dict) else None
+                rows.append({
+                    "file": name, "set": set_tag, "rule": code, "scheme": r["scheme"],
+                    "info": None if cash else info,
+                    "cash": cash["cash"] if cash else None,
+                    "curr": cash["curr"] if cash else None,
+                    "fee": r["fee"], "decd": r["decd"], "wpcc": r["wpcc"],
+                    "wpdw": r["wpdw"], "wpaf": r["wpaf"]})
+    return rows
 
 
 # ---- checks: the framing and the share of the span that is read ------------------------------

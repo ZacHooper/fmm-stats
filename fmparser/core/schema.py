@@ -387,6 +387,23 @@ class _FourCC(Kind):
         return s.decode("latin-1").strip()
 
 
+class _RefU32(Kind):
+    """A type-0x02 reference that holds a number, not characters: the u32 its four bytes
+    spell (`curr` 07 00 00 00 reads 7)."""
+    label = "ref-u32"
+
+    def accepts(self, typ):
+        return typ == TYPE_REF
+
+    def read(self, value, typ):
+        # read_tree strips whitespace off a reference, so a byte such as 0x0a or 0x1c at
+        # either end would be lost: refuse rather than read a shorter number.
+        raw = value.encode("latin-1")
+        if len(raw) != 4:
+            raise TaggedSchemaError(f"reference {value!r} lost bytes to strip(); not a u32")
+        return int.from_bytes(raw, "big")
+
+
 class _String(Kind):
     label = "string"
 
@@ -431,6 +448,22 @@ class ListOf(Kind):
         return out
 
 
+class IntList(Kind):
+    """A list (0x0b) whose elements are tagless integers: `sort`'s tie-breaker codes."""
+    label = "list of int"
+
+    def accepts(self, typ):
+        return typ == TYPE_LIST
+
+    def read(self, value, typ):
+        out = []
+        for tag, etyp, ev in value:
+            if tag is not None or etyp not in _INT_TYPES:
+                raise TaggedSchemaError("list element is not a tagless integer")
+            out.append(INT.read(ev, etyp))
+        return out
+
+
 class AnyOf(Kind):
     """The first alternative whose type code matches."""
 
@@ -445,7 +478,7 @@ class AnyOf(Kind):
         return next(k for k in self.kinds if k.accepts(typ)).read(value, typ)
 
 
-INT, FOURCC, STRING = _Int(), _FourCC(), _String()
+INT, FOURCC, STRING, REF_U32, INT_LIST = _Int(), _FourCC(), _String(), _RefU32(), IntList()
 
 
 class Tag:

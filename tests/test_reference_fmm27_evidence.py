@@ -22,7 +22,7 @@ sys.path.insert(0, ROOT)
 from tests.harness import find_save, skip  # noqa: E402
 
 from fmparser.save import Save  # noqa: E402
-from fmparser.tables import (clubs, competitions, nations, officials,  # noqa: E402
+from fmparser.tables import (clubs, comp_rules, competitions, nations, officials,  # noqa: E402
                              player_attributes, rounds, rule_files, stadiums, staff,
                              staff_roles, tables_for)
 from fmparser.tables.save_header import FMM27, save_format  # noqa: E402
@@ -106,6 +106,18 @@ def main():
           f"rule files: {want['files']} read with FMM27's schemas")
     check(len(rule_files.team_counts(mm)) == want["team_counts"],
           f"team_counts: {want['team_counts']} competitions")
+    sr = {(r["uid"], r["stage_index"]): r for r in comp_rules.competition_stage_rules(mm)}
+    for uid, stage, fields in want["stage_rules"]:
+        got = sr.get((uid, stage), {})
+        check({k: got.get(k) for k in fields} == fields, f"stage rules {uid}/{stage}: {fields}")
+    wp = rule_files.work_permits(mm)
+    check(len(wp) == want["work_permit_rules"], f"work_permits: {want['work_permit_rules']} rules")
+    uk = sorted({r["file"] for r in wp if r["scheme"] == 21})
+    check(uk == want["scheme_21"], f"scheme 21 on {want['scheme_21']} only")
+    for file, rule, fields in want["work_permits"]:
+        got = next((r for r in wp if r["file"] == file and r["set"] == "wkpm"
+                    and r["rule"] == rule), {})
+        check({k: got.get(k) for k in fields} == fields, f"{file} {rule}: {fields}")
 
     print("\nUNAVAILABILITY (player_attributes +78)")
     by_sid = {int.from_bytes(bytes.fromhex(r["sid"]), "little"): r for r in pa}

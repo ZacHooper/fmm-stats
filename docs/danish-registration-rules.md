@@ -151,7 +151,10 @@ Note the Turneringsregler make FIFA rules binding via a separate circular.
 
 - **Foreign-player cap / non-EU quota.** Nothing in the Turneringsregler. An
   earlier claim in this thread ("no cap beyond homegrown, work permit for
-  non-EU") is **unsourced**. [NOT VERIFIED]
+  non-EU") is **unsourced**. [NOT VERIFIED] The game itself does carry a Danish
+  work-permit rule: `dan_rules`' `wkpm`, a cash test (7,211 on FMM27, 750 on FMM22) on new
+  permits, renewals and more, meaning not established
+  ([rule_files](parser/rule_files.md#work-permits)).
 - **Domestic loan limits.** See §5. [NOT RETRIEVED]
 
 ---

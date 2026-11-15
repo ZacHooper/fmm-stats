@@ -42,7 +42,27 @@
   },
   "rule_files": {
    "files": 782,
-   "team_counts": 256
+   "team_counts": 256,
+   "stage_rules": [
+    [5123055, 0, {"round_robins": 2, "points_win": 3, "points_draw": 1, "sort_codes": [0, 1, 2, 3],
+                  "promotion": {"places": 1, "min_places": 1, "max_places": 2, "comp_uid": 109201},
+                  "relegation": {"places": 4, "comp_uid": 158186},
+                  "playoff_places": {"to_stage_index": 1, "to_name_id": 21, "places": 6}}],
+    [1301394, 2, {"stage_code": "leag", "round_robins": 0, "sort_codes": [0, 1, 39, 2, 16, 20, 7],
+                  "qualification": [{"to_stage_index": 3, "to_name_id": 2000223074, "places": 8}],
+                  "playoff_places": {"to_stage_index": 3, "to_name_id": 2000547676, "places": 16},
+                  "match_counts": [{"stage_index": 2, "min_matches": 8, "max_matches": 8}]}]
+   ],
+   "work_permit_rules": 64,
+   "scheme_21": ["eng_rules", "nir_rules", "sco_rules", "wal_rules", "wmn_eng_rules"],
+   "work_permits": [
+    ["eng_rules", "wopm", {"scheme": 21, "info": 0, "fee": 20000, "decd": 3, "wpcc": 1}],
+    ["eng_rules", "appe", {"scheme": 23, "fee": 5000, "wpaf": 1}],
+    ["eng_rules", "stWP", {"scheme": 20}],
+    ["dan_rules", "wopm", {"scheme": 1, "cash": 7211, "curr": 6, "decd": 4}],
+    ["nor_rules", "ctrn", {"scheme": 3, "info": 50}],
+    ["aus_rules", "wopm", {"scheme": 4, "info": 70}]
+   ]
   }
  },
  "raw": [

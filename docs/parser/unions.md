@@ -2,7 +2,8 @@
 
 The six **nation unions**: European Union, European Economic Area, the African, Caribbean
 and Pacific group, the Overseas Territories Act, the Turkic states and EFTA. Probably what
-work-permit and foreign-player rules are written against. Stored between
+work-permit and foreign-player rules are written against; the nations' work-permit rules
+themselves are in the [rule files](rule_files.md#work-permits), and name no union. Stored between
 [awards](awards.md) and [derbies](derbies.md).
 
 ## Layout

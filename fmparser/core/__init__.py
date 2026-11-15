@@ -24,6 +24,8 @@ from .primitives import (
 from .schema import (
     FOURCC,
     INT,
+    INT_LIST,
+    REF_U32,
     REGISTRY,
     STRING,
     TAGGED_REGISTRY,
@@ -135,6 +137,8 @@ __all__ = [
     "TAGGED_REGISTRY",
     "INT",
     "FOURCC",
+    "INT_LIST",
+    "REF_U32",
     "STRING",
     "AnyOf",
     "ListOf",

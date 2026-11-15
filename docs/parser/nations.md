@@ -34,7 +34,7 @@ continents' frame, and the nation ids from in-game screens agree (Evidence).
 | | `capital_city_id` | u16 → [cities](cities.md) | Denmark → 58, Copenhagen | FMM22 |
 | | `national_stadium_id` | u16 → [stadiums](stadiums.md) | Denmark → 177, Parken | FMM22 |
 | `NATION_INFO_FMM27` (7 B) +0 | `state_of_development` | u8 | name from fmm-editor | |
-| +1 | | u8 | unnamed | |
+| +1 | `eu_flag` | u8 | the game's **EU flag**: 1 on 41 nations, the EU 27, the EEA, Switzerland and more ([EU flag](#eu-flag)) | England 0, Ireland 1 (Evidence) |
 | +2 | | u16 | unnamed | |
 | +4 | `region_id` | u16 | fmm-editor's `Region` | |
 | +6 | | u8 | unnamed | |
@@ -80,14 +80,36 @@ record  [uid u32][id u16][name][nationality][code]       names terminated 00
 
 - `name` and `nationality` end `00` (FMM27: `ff`).
 - No `NATION_INFO_FMM27`, no presence flags, no women's team.
-- The one team is `NATION_TEAM`, 23 B with the fields in a different order: +11
-  `rival_nation_id` u16, +18 `is_ranked` u8, +19 `world_ranking` u16, +21 `ranking_points`
-  u16; +0..+17 otherwise unnamed (`UNKNOWN`), +1..+8 the colours (Quirks).
+- The one team is `NATION_TEAM`, 23 B with the fields in a different order: +9 `eu_flag`
+  u8 (FMM27's info +1; 32 nations), +11 `rival_nation_id` u16, +18 `is_ranked` u8, +19
+  `world_ranking` u16, +21 `ranking_points` u16; +0..+17 otherwise unnamed (`UNKNOWN`),
+  +1..+8 the colours (Quirks).
 - `ranking_history`, `[u16 n][n × u16]`: past world rankings; 0 entries on an unranked
   nation. Order **unverified**: the module docstring says oldest first, but Denmark's last
   entry is 24 while it is 22nd today. FMM27 has none.
 - The coefficients follow the ranking history and a `u16 = 0` gap, then a `u8 = 0` gap, the
   languages and 11 unnamed bytes (`NATION_END`): the languages come last, not after the tail.
+
+## EU flag
+
+`eu_flag` marks the nations the game treats as one free-movement area. A player needs no work
+permit to join a club when his nationality and the club's nation are both flagged (a
+community account of the game's permit rules, matched by the wages measured in
+[rule_files](rule_files.md#work-permits): Europeans fall below Denmark's permit wage floor,
+non-Europeans do not). It is not built from the [unions](unions.md); each nation carries it.
+
+| | FMM27 (41) | FMM22 (32) |
+|---|---|---|
+| the EU 27 | all | all (`Czech Republic`, `Holland`) |
+| EEA, Switzerland | Iceland, Liechtenstein, Norway, Switzerland | the same |
+| Faroe Islands | yes | yes |
+| France's overseas regions | French Guiana, Guadeloupe, Martinique, Mayotte, Réunion, St Martin | no |
+| Gibraltar, N.Ireland, Bosnia & Herzegovina | yes | no |
+| England, Scotland, Wales | no | no |
+
+The UK nations are unflagged on both games, so an EU player needs a permit at an English club;
+Northern Ireland is flagged on FMM27 only. Bosnia & Herzegovina is not in the EU, the EEA or a
+free-movement agreement; why the game flags it is unknown.
 
 ## Evidence
 
@@ -96,6 +118,14 @@ record  [uid u32][id u16][name][nationality][code]       names terminated 00
 ff`, uid 765, id 139. The person table's ids from in-game screens agree: 163 Ireland
 (Donnellan, En-Neyah), 43 Tanzania (Starkie). Tested by
 `tests/test_reference_fmm27_evidence.py`.
+
+**The EU flag.** England's info block, 43 bytes into its record at byte 14,760,562, reads
+`01 00 00 00 0e 00 00`: state of development 1, `eu_flag` **0**, region 14. Ireland's (record
+163 at 14,765,066; the block at 14,765,107) reads `01 01 00 00 0e 00 00`: the same region, `eu_flag` **1**. The 41
+flagged nations are the set in [EU flag](#eu-flag); no EU member is unflagged. On FMM22
+(frem-2023-07-02) the team record's +9 is 0 for England (byte 12,799,970) and 1 for Ireland
+(12,804,451), and the 32 flagged nations are the same on frem-2030-06-30 and
+bucaspor-2023-04-01. Tested by `tests/test_nations_eu_flag_evidence.py`.
 
 **The ranking history**, `truro-2026-07-25` against `truro-2026-08-08`. On 07-25 every team's
 history is empty: the two bytes after `ranking_points` read `00 00`. By 08-08 one ranking update
