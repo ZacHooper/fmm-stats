@@ -354,27 +354,6 @@ merged `_rules`. Diff two saves.
 
 ## Parser — understanding: naming what is read
 
-### 8. Decode the competition rules
-The stage rules are read ([comp_rules](parser/comp_rules.md), `competition_stage_rules.json`):
-round robins, points, tie-breakers, promotion, relegation, qualification, the play-off band
-and matches per team, for the ~70-80 competitions the archive loads.
-
-**Decided (2026-11-15): the rules stay out of the store.** They are reference data,
-byte-identical in every save of a career, and the stats gain little from them; their value
-is for reading and editing the game's competitions (8b). Loading stays possible: a raw table
-from `competition_stage_rules.json`, `int_standings` ranking by `sort_codes` (which fixes
-Spain, TODO 13) and a `zone` column from the promotion, play-off and relegation bands. Open:
-- **Every competition, not just the loaded ones**: the dictionary's 453 rule files read with
-  the same schemas; join them to competitions by `file` (every configured member names its
-  file, 73 of 73).
-- **Not read yet**: entry rules (`strq`, `ftac`, `advs`); a round's `date` is a rule, not a
-  date (the Pokalen final's `{spld 'ascension'}` is 30 May 2030), `dat2` the second leg's,
-  `drdt` the draw (`{time 1230, dyow 2, dyom 24, mont 7}` on a Monday 22 July draw); prize
-  money in `wnpz` / `lspz` / `apmn` / `przm` (`cash`, `curr`: `curr` 7 is the euro). The
-  disciplinary rules (bans after 2 or 3 yellow cards, the Superliga's points system) are not
-  located; the nation's `dsrl` is the lead. The deleted data-dictionary doc (last at commit
-  7cc46b6) holds guesses at many tag meanings — hypotheses to test, not facts.
-
 ### 8b. Modding: FMM27's Champions Cup format on FMM22
 The rule-file work's main use is editing the game's competitions.
 [comp_rules](parser/comp_rules.md#fmm22-against-fmm27-the-champions-cup) diffs the two

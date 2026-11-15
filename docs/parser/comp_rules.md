@@ -256,8 +256,8 @@ Spain's First Division (`comp_67.dat`, `sort` at 2,515): `01 11 03 | 01 11 00 | 
 
 The disciplinary rules (EURO Cup: a ban after 3 yellow cards; the Pokalen: after every 2; the
 Superliga: a points system, a ban after 19, 17 more, then every 16) and the Superliga's loan
-rules are not read; where they are stored is not established (TODO, "Decode the competition
-rules").
+rules are not read; where they are stored is not established (the nation's `dsrl` is the
+lead).
 
 > **Quirk:** a stub (0 fields) is a loaded competition, not a missing one. Read its structure
 > from the dictionary's rule file instead; nothing does so today.
