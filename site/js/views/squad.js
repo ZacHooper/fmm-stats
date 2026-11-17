@@ -104,8 +104,11 @@ export async function view() {
       age: D.age(p.dob),
       status,
       loanedIn: loanedIn.has(p.tid),
-      origin: D.S.ours.origin?.[String(p.tid)] || null,
-      capital: (D.S.ours.capital_eligible || []).includes(p.tid),
+      // Our squad's origin/capital come from core.json's `ours` maps; anyone else (a shortlisted
+      // player) carries them on his all.json row — see loadProfiles. Capital is true/false, or
+      // null when that row never arrived.
+      origin: extra.shortlist ? originName(p) : (D.S.ours.origin?.[String(p.tid)] || null),
+      capital: extra.shortlist ? p.capitalEligible : (D.S.ours.capital_eligible || []).includes(p.tid),
       dev: D.S.ours.development?.[String(p.tid)] || null,
       // The profile tail: in core.json for our squad; a shortlisted player has it only once his
       // profile row has been fetched, so his columns read blank until then.
@@ -148,7 +151,9 @@ export async function view() {
   async function buildShortlistRows() {
     const entries = await D.loadShortlist();
     const withTid = entries.filter((e) => e.tid != null);
-    await D.loadPlayersByTid(withTid.map((e) => e.tid));
+    // loadProfiles, not loadPlayersByTid: a target at a division rival is already resolved from
+    // core.json, but without the origin/capital pair and profile tail his columns read from.
+    await D.loadProfiles(withTid.map((e) => e.tid));
     const out = [];
     for (const e of withTid) {
       const p = D.S.players.get(e.tid);
@@ -334,11 +339,16 @@ export async function view() {
     capital: {
       label: "Capital", group: "Contract",
       help: "Career-origin club inside Region Hovedstaden — the self-imposed signing rule. Existing squad members are grandfathered.",
-      sort: (r) => (r.capital ? 1 : 0), render: (r) => (r.capital ? pill("✓", "good") : null),
+      // A squad member is ✓ or blank (grandfathered either way); a shortlisted player is asked
+      // the real question — would he qualify if signed — so he reads "outside", or "?" if unknown.
+      sort: (r) => (r.capital === true ? 1 : r.capital === false ? -1 : 0),
+      render: (r) => (r.capital === true ? pill("✓", "good")
+        : !r.shortlist ? null
+        : r.capital === false ? pill("outside", "flat") : pill("?", "flat")),
       // Render-only, and its `sort` is a display rank rather than a value, so the filter has to
       // be told what it is actually choosing between — same shape recruit.js's column uses.
       filterType: "set",
-      filterValue: (r) => (r.capital ? "Eligible" : "Outside"),
+      filterValue: (r) => (r.capital === true ? "Eligible" : r.capital === false || !r.shortlist ? "Outside" : null),
     },
     ...(regKit ? regKit.columns : {}),
     ...metricColumns(D, { agg: D.S.matchAgg }),
@@ -598,6 +608,12 @@ const strongFoot = (l, r) => (l == null || r == null ? null
 
 /** One column per field of the profile tail (`row.prof`, null for a shortlisted player whose
  *  profile hasn't been fetched), so anything the profile sheet shows can be sorted and filtered. */
+/** A non-squad player's origin club by name, from his all.json row. */
+function originName(p) {
+  if (p.originClubTid == null) return null;
+  return D.S.clubs.get(p.originClubTid)?.name || `#${p.originClubTid}`;
+}
+
 function profileColumns() {
   const pv = (f) => (r) => (r.prof ? f(r.prof) ?? null : null);
   const numCol = (label, group, f, help) => ({ label, group, align: "num", help, get: pv(f) });
