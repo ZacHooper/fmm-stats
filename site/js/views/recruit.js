@@ -136,9 +136,10 @@ async function shortlistPanel() {
       drawList();
       // Club/value aren't stored on the shortlist entry itself (it's just a player reference),
       // and a shortlisted target found outside the ladder/squad may never have been resolved
-      // into S.players this session — fetch exactly those tids (cheap: the Worker's ?tid=
+      // into S.players this session (or, at a ladder club, only with core.json's short row) —
+      // fetch exactly those tids (cheap: the Worker's ?tid=
       // filter, not the full 1.3 MB all.json) and redraw once they land.
-      await D.loadPlayersByTid(rows.map((r) => r.tid).filter((t) => t != null));
+      await D.loadProfiles(rows.map((r) => r.tid).filter((t) => t != null));
       drawList();
     } catch (e) { status.textContent = `offline (${e.message})`; drawList(); }
   }
