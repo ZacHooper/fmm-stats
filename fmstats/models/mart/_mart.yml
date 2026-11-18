@@ -1576,6 +1576,8 @@ models:
         description: '{{ doc("n_teams") }}'
       - name: level_ca
         description: '{{ doc("level_ca") }}'
+      - name: is_level_estimated
+        description: '{{ doc("is_level_estimated") }}'
       - name: is_scored
         description: '{{ doc("is_scored") }}'
       - name: tier_weight

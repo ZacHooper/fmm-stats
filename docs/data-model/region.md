@@ -15,7 +15,10 @@ every nationality counted. A tier is **scored** when its leagues have matches in
 game plays out only the top of the pyramid (England: Premier League to National League
 North/South). `tier_weight` is a tier's level above the first unscored tier's, over the lowest
 scored tier's, so the lowest scored tier weighs 1 and the gaps follow the data (England's top
-step is the widest).
+step is the widest). Below the scored tiers the save holds few or no players for
+most clubs, so an unscored tier's level is extrapolated: the scored tiers fall by a
+near-constant ratio per tier (about 14% in England), and the line through their log levels is
+carried on down. The weights' floor is that line one tier below the lowest scored tier.
 
 ## Clubs: Elo
 `fact_club_elo` (a Python model) rates every team in the home nation's leagues match by

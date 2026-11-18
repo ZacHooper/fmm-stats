@@ -1,8 +1,9 @@
 {# Regional strength: tier levels, club Elo and the region scores (fact_tier_level_snapshot, fact_club_elo, fact_club_region_snapshot, fact_region_*). #}
 
 {% docs level_ca %}
-The tier's level: the median CA of its teams' best var('region_regulars') players, every
-nationality counted. Warehouse-only, like CA: presentation carries the weight and counts made
+The tier's level: on a scored tier the median CA of its teams' best var('region_regulars')
+players, every nationality counted; below them, extrapolated from the scored tiers'
+(`is_level_estimated`). Warehouse-only, like CA: presentation carries the weight and counts made
 from it, never the number.
 {% enddocs %}
 
@@ -13,8 +14,8 @@ game holds only for the leagues it plays out.
 
 {% docs tier_weight %}
 What an appearance in the tier is worth in the regional appearance score: the tier's level
-above the first unscored tier's (0 where there is none), over the lowest scored tier's, so the
-lowest scored tier weighs 1. NULL on an unscored tier.
+above the extrapolated level one tier below the lowest scored tier, over the lowest scored
+tier's, so the lowest scored tier weighs 1. NULL on an unscored tier.
 {% enddocs %}
 
 {% docs rating_event %}
@@ -127,4 +128,10 @@ The game's regions (`dim_region`) the row covers.
 
 {% docs league_names %}
 The names of the tier's leagues (several where it has parallel divisions).
+{% enddocs %}
+
+{% docs is_level_estimated %}
+The tier's level is extrapolated, not measured: below the scored tiers the save holds few or no
+players for most clubs, so the scored tiers' near-constant fall in level per tier is carried on
+down.
 {% enddocs %}

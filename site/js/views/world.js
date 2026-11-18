@@ -513,11 +513,12 @@ function indexCell(v) {
   return el(`span.${d > 0 ? "up" : "down"}`, { text: `${d > 0 ? "+" : "−"}${num(Math.abs(d), 1)}%` });
 }
 /** A tier's name for a column: its league, or its parallel divisions with the shared words once
- *  ("Enterprise National League North / South"). */
+ *  ("Enterprise National League North / South"); a tier of more than two, by its number. */
 function tierLabel(t) {
   const names = t?.leagues || [];
   if (names.length === 1) return names[0];
   if (!names.length) return `Tier ${t?.tier}`;
+  if (names.length > 2) return `Tier ${t.tier} · ${names.length} leagues`;
   const words = names.map((n) => n.split(" "));
   let k = 0;
   while (words.every((w) => w[k] != null && w[k] === words[0][k])) k++;
@@ -722,7 +723,8 @@ function regionAppsView(R, scored) {
     el("p.note", { html: "Every appearance this season and before by a player from the region's "
       + "youth systems, for a club in a division the game plays out, weighted by how good that "
       + `division is: <b>${weights}</b>. The weights come from the gap between each division's `
-      + "typical regular and the first division below the ones played out. A finished season is "
+      + "typical regular and the level the divisions' trend puts one division below the ones "
+      + "played out. A finished season is "
       + "its career-history lines; the season in progress grows with every save, so its share "
       + "settles only when it ends." }),
   ]);
@@ -731,7 +733,7 @@ function regionAppsView(R, scored) {
 function clubEloView(R, H) {
   const regionOf = new Map(R.regions.map((r) => [r.id, r]));
   const ourTids = new Set(D.S.ours.clubs || []);
-  const clubs = R.clubs.filter((c) => c.scored && c.elo != null).map((c, i) => ({
+  const clubs = R.clubs.filter((c) => c.elo != null).map((c, i) => ({
     ...c, rank: i + 1, regionName: regionOf.get(c.region)?.name || DASH, hist: H.regionClub(c.tid),
     sub: regionOf.get(c.region)?.name, _search: `${c.name} ${regionOf.get(c.region)?.name || ""} ${c.league || ""}`.toLowerCase(),
   }));
@@ -753,7 +755,10 @@ function clubEloView(R, H) {
       region: { label: "Region", get: (r) => r.regionName },
       league: { label: "League", get: (r) => r.league },
       tier: { label: "Tier", align: "num", get: (r) => r.tier },
-      elo: { label: "Elo", align: "num", get: (r) => r.elo, cls: "strong" },
+      elo: { label: "Elo", align: "num", get: (r) => r.elo, cls: "strong",
+             render: (r) => (r.scored ? num(r.elo) : el("span.dim", {
+               text: num(r.elo), title: "A division the game doesn't play out: the rating starts from "
+                 + "the trend of the divisions above and moves only in cup ties" })) },
       dElo: { label: "± season", align: "num", get: (r) => delta(H, r.hist.elo), render: (r) => deltaCell(delta(H, r.hist.elo)),
               help: "Elo change over the last season" },
       trend: { label: "Trend", get: (r) => r.elo, render: (r) => sparkline(r.hist.elo, { w: 64, h: 16 }), help: "Elo across every snapshot" },
@@ -775,7 +780,10 @@ function clubEloView(R, H) {
       + "gap between two divisions follows the gap between their typical regulars) and gains or "
       + "loses points with every league and cup match against another club in our nation's "
       + "leagues — more for a win it wasn't expected to get, and more for a bigger margin. "
-      + "A struggling club can sink below the best of the division under it, but not two below.",
+      + "A struggling club can sink below the best of the division under it, but not two below. "
+      + "Below the divisions the game plays out (greyed), the save holds too few players to "
+      + "measure a division, so its starting point follows the trend of the ones above — each "
+      + "division down is about 14% weaker — and the rating moves only in cup ties.",
   });
   [regionSel, tierSel].forEach((sel) => sel.addEventListener("change", () => node.redrawTable()));
   return panelWrap(`Club Elo · ${clubs.length} clubs`, node);
