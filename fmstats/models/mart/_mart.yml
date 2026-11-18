@@ -1684,7 +1684,9 @@ models:
       - name: is_under_21
         description: '{{ doc("is_under_21") }}'
       - name: team_tid
-        description: '{{ doc("team_tid") }}'
+        description: 'The team he plays for: the borrowing club''s on a loan, else his own first or B team; NULL when only a reserve side lists him. {{ doc("team_tid") }}'
+      - name: is_on_loan
+        description: '{{ doc("is_on_loan") }}'
       - name: tier
         description: 'His team''s tier; NULL outside the home nation''s men''s leagues. {{ doc("tier") }}'
       - name: level_tier
@@ -1705,6 +1707,27 @@ models:
         description: '{{ doc("age_group") }}'
       - name: n_players
         description: '{{ doc("n_players") }}'
+      - name: nation_share
+        description: '{{ doc("nation_share") }}'
+      - name: nation_share_index
+        description: '{{ doc("nation_share_index") }}'
+  - name: fact_region_playing_snapshot
+    description: >
+      Where each region's players play on each snapshot: per scored tier, all ages and
+      under-21s, and the region's share of the nation's.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, home_region_id, tier, age_group]}}
+    columns:
+      - name: snapshot_date
+        description: '{{ doc("snapshot_date") }}'
+      - name: home_region_id
+        description: '{{ doc("home_region_id") }}'
+      - name: tier
+        description: '{{ doc("tier") }}'
+      - name: age_group
+        description: '{{ doc("age_group") }}'
+      - name: n_players
+        description: 'Players from the region playing for a team in the tier. {{ doc("n_players") }}'
       - name: nation_share
         description: '{{ doc("nation_share") }}'
       - name: nation_share_index

@@ -777,6 +777,12 @@ def main():
         levels.setdefault(r["home_region_id"], {}).setdefault(r["age_group"], []).append(
             [r["level_tier"], num(r["n_players"]), f3(r["nation_share"]),
              f3(r["nation_share_index"])])
+    playing = {}
+    for r in s.rows("SELECT * FROM site.region_playing WHERE snapshot_date = ? "
+                    "ORDER BY home_region_id, age_group, tier", [d]):
+        playing.setdefault(r["home_region_id"], {}).setdefault(r["age_group"], []).append(
+            [r["tier"], num(r["n_players"]), f3(r["nation_share"]),
+             f3(r["nation_share_index"])])
     seasons = {}
     for r in s.rows("SELECT * FROM site.region_seasons ORDER BY home_region_id, season"):
         seasons.setdefault(r["home_region_id"], []).append({
@@ -796,6 +802,7 @@ def main():
                 "training_median": flt(1)(r["training_facilities_median"]),
                 "training_good": num(r["n_good_training_facilities"]),
                 "levels": levels.get(r["home_region_id"], {}),
+                "playing": playing.get(r["home_region_id"], {}),
                 "seasons": seasons.get(r["home_region_id"], [])}
                for r in s.rows("SELECT * FROM site.regions WHERE snapshot_date = ? "
                                "ORDER BY elo_mean DESC", [d])]
@@ -823,6 +830,18 @@ def main():
         base = f"{r['level_tier']}_{r['age_group']}"
         row[f"{base}_n"], row[f"{base}_share"], row[f"{base}_index"] = (
             r["n_players"], r["nation_share"], r["nation_share_index"])
+    # where they play, per tier: "p<tier>_<age group>_<measure>"
+    playing_fields = {f"p{t['tier']}_{g}_{m}": (f3 if m != "n" else num)
+                      for t in tiers_now if t["scored"] for g in ("all", "under_21")
+                      for m in ("n", "share", "index")}
+    for r in s.rows("SELECT * FROM site.region_playing"):
+        row = level_rows.setdefault((r["snapshot_date"], r["home_region_id"]),
+                                    {"snapshot_date": r["snapshot_date"],
+                                     "home_region_id": r["home_region_id"]})
+        base = f"p{r['tier']}_{r['age_group']}"
+        row[f"{base}_n"], row[f"{base}_share"], row[f"{base}_index"] = (
+            r["n_players"], r["nation_share"], r["nation_share_index"])
+    level_fields.update(playing_fields)
     for (_, rid), row in level_rows.items():
         per = region_hist.setdefault(rid, {})
         for f, conv in level_fields.items():
@@ -860,9 +879,11 @@ def main():
                 "[index, value, ...] change points (a null value: absent from then on). "
                 "Regions: each region of our nation (a foreign nation's clubs in its leagues "
                 "as one row, `nation_group`), by its clubs' Elo and facilities, the players "
-                "its youth systems produced at each scored tier's level or better "
-                "(`levels`: [tier, players, share of the nation's, share against day 1], all "
-                "and under_21) and their tier-weighted appearances by season (`seasons`); "
+                "its youth systems produced: where they play (`playing`: [tier, players, share "
+                "of the nation's, share against day 1] per tier, the borrowing club's on a "
+                "loan, reserve sides left out) and how good they are (`levels`: the same at "
+                "each tier's typical-regular level or better, wherever they play), all and "
+                "under_21, and their tier-weighted appearances by season (`seasons`); "
                 "`tiers` the weights; `clubs` each team's Elo. `history.regions` and "
                 "`history.region_clubs` chart them over the snapshots."})
 

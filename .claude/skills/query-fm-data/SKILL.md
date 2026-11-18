@@ -59,8 +59,10 @@ ORDER BY tot.goals DESC LIMIT 5;
     `fact_tier_level_snapshot` (each tier's level and weight; `level_ca` is
     raw ability, never quote it), `fact_club_elo` (every home-nation team's Elo, match by
     match), `fact_club_region_snapshot`, `fact_region_snapshot` (Elo and facilities per region),
-    `fact_player_origin_snapshot`, `fact_region_level_snapshot` (players at each tier's level by
-    origin region) and `fact_region_season` (tier-weighted appearances).
+    `fact_player_origin_snapshot` (each player's origin region, the team he plays for with
+    loans resolved, and his talent tier), `fact_region_playing_snapshot` (where a region's
+    players play, per tier), `fact_region_level_snapshot` (players at each tier's typical-
+    regular level, wherever they play) and `fact_region_season` (tier-weighted appearances).
   * **Season splits**: `fact_player_season_stats`, the Player History screen's This Season
     panel for every player on every snapshot, by block (`club_season`, `league`, `cup`, ...),
     and `fact_player_season_split`, each season's split as its last snapshot holds it (every
