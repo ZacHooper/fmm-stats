@@ -214,3 +214,8 @@ season.
 The languages the nation speaks, best first: a list of `{language, proficiency}`, proficiency
 0-100 (the highest where the save lists a language twice).
 {% enddocs %}
+
+{% docs weather_id %}
+The region's weather, as the save numbers it; NULL on most regions, which name none (0xFFFF).
+The weather table is not read.
+{% enddocs %}

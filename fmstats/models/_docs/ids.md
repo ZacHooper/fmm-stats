@@ -58,8 +58,9 @@ own ground, else its club's (a reserve side stores none).
 {% enddocs %}
 
 {% docs region_id %}
-The region the city lies in, as the save numbers it; NULL where the record names none
-(0xFFFF). No region table is read, so the id is not resolved to a name.
+A region of a nation, the game's own subdivision (South-West, London; Sikasso for Mali): the
+key of `dim_region`, and on a city the region it lies in. NULL where the record names none
+(0xFFFF).
 {% enddocs %}
 
 {% docs continent_id %}

@@ -224,3 +224,20 @@ The player's condition on his match line, in percent (45-100 in the store). Unve
 moment of the match it is read at. NULL where the save stores none (an unused substitute in a
 friendly or reserve match).
 {% enddocs %}
+
+{% docs season_stats_block %}
+Which line of the This Season panel: `club_season` (the history list's current-season line:
+league, cup and continental, plus matches for a club's B team), `league`, `cup` (every
+domestic cup summed), `continental`, `non_competitive` (friendlies and reserve matches) or
+`international`. The parser's and the raw table's name for it.
+Synonyms: `fact_player_season_stats.block`.
+{% enddocs %}
+
+{% docs rating_total %}
+The match ratings summed over the row's appearances, as stored; the average is this over
+appearances.
+{% enddocs %}
+
+{% docs player_of_match_awards %}
+Player-of-the-match awards, the panel's PoM.
+{% enddocs %}

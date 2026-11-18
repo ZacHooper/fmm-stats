@@ -447,8 +447,8 @@ Bytes the parser reads but cannot name yet.
 **The players' half is read**: [player_season_stats](parser/player_season_stats.md), the
 Player History "This Season" panel for every player in the world, both games (apps, goals,
 assists, cards, PoM, rating total; league / cup / continental / non-competitive /
-international). **Load it** (parser only so far): league records and top-scorer lists for
-every league, not just the games we watched. Still missing: xG (not in those rows) and the
+international), loaded as `mart.fact_player_season_stats`. **Use it**: league records and
+top-scorer lists for every league, not just the games we watched. Still missing: xG (not in those rows) and the
 clubs' season stats. Use: xG in every league table and xG top-scorer lists.
 
 **xA per match is read** (slot +68, `xa_x100`, through to `site.match_players` and the
@@ -529,6 +529,25 @@ table:
 ---
 
 ## Stats
+
+### 13a. Regional strength: what is still open
+The models are built ([`data-model/region.md`](data-model/region.md)); the site does not show
+them yet. Open:
+- **Welsh clubs in the English pyramid** sit in five Welsh regions of one club each
+  (Cardiff, Clwyd, ...), which swing the region tables. Decide: fold a foreign nation's
+  regions into one row per nation, or leave them out of the region scores (they still set the
+  nation's Elo bar).
+- **A part-season against a whole one.** `fact_region_season`'s live season is compared with
+  a finished season; its `nation_share_index` settles only at the season's end.
+- **Small counts are noisy**: the South West has 2 players at Premier League level, so one
+  player moves that index by half.
+- **Elo settings** (`var('region_elo')`) were chosen on four months of matches: revisit after
+  the first full season, checking that a club still never sits above one two tiers higher.
+- **Counties and population**: map each ground to a ceremonial county by point-in-polygon on
+  ONS boundaries (public data, safe in git; the club-to-county result stays local), with an
+  override list for clubs with no ground (Saltash, Torpoint); then per-head figures.
+- **Reserve leagues** are left out of the tiers; consider them once the scores settle.
+- **A site page** for the region scores.
 
 ### 13. League tables outside Denmark
 `mart.standings` (and the old `mart.league_tables`) rebuild tables from the fixture list and

@@ -11,6 +11,7 @@ The semantic model of the game, one doc per area. Conceptual only: names are not
 | [`contract-transfer.md`](contract-transfer.md) | contracts, transfers, loans, at-club vs under-contract |
 | [`nation.md`](nation.md) | the nation as a place and as a side, call-ups, rankings |
 | [`reference.md`](reference.md) | position, role, city, stadium, currency |
+| [`region.md`](region.md) | regional strength: tier levels, club Elo, and how good each region's clubs and players are |
 
 ## Overview
 
@@ -70,6 +71,14 @@ date).
 | `fact_transfer` | ✓ | | ✓ (from / to) | | | | |
 | `fact_loan_spell` | ✓ | ✓ (borrowing) | ✓ (parent) | | | | |
 | `fact_nation_snapshot` | | | | | | ✓ | |
+| `fact_player_season_stats` | ✓ | | | | | | the This Season panel's block |
+| `fact_tier_level_snapshot` | | | | | ✓ (tier) | | |
+| `fact_club_elo` | | ✓ (+ opponent) | | ✓ | | | |
+| `fact_club_region_snapshot` | | ✓ | ✓ | | ✓ (tier) | | region |
+| `fact_player_origin_snapshot` | ✓ | ✓ | ✓ (origin) | | ✓ (tier) | | region |
+| `fact_region_snapshot` | | | | | | | region |
+| `fact_region_level_snapshot` | | | | | ✓ (tier) | | region |
+| `fact_region_season` | | | | | | | region |
 | `fact_call_up` | ✓ | ✓ (national side) | | | | | |
 
 `dim_match` itself references round, teams, stadium and referee. `dim_team` belongs to a

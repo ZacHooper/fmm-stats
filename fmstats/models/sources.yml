@@ -24,6 +24,8 @@ sources:
       - name: position_role_map
       - name: stadiums
       - name: cities
+      - name: regions
+      - name: player_season_stats
       - name: languages
       - name: currencies
       - name: nations
