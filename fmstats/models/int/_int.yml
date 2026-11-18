@@ -211,6 +211,27 @@ models:
       Each city once, as its latest snapshot gives it.
     data_tests:
       - unique_combination: {arguments: {columns: [city_id]}}
+  - name: int_regions
+    description: >
+      Each region once, as its latest snapshot gives it.
+    data_tests:
+      - unique_combination: {arguments: {columns: [region_id]}}
+  - name: int_player_season_stats
+    description: >
+      The This Season panel per person and snapshot, joined from the attribute record's sid
+      to the person record that names it.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, person_id, block]}}
+  - name: int_club_regions
+    description: >
+      Each club's region on each snapshot, from its ground's city.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, club_tid]}}
+  - name: int_home_team_tiers
+    description: >
+      Each team in a men's league of the career's home nation on each snapshot, with its tier.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, team_tid]}}
   - name: int_stadiums
     description: >
       Each stadium once: uid and city, which do not change between snapshots.

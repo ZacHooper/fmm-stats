@@ -108,6 +108,11 @@ check against a screenshot.
      (~1 min). It downloads the copy `publish_duckdb.py` last uploaded, expands its compacted
      `raw` tables back into the loader's shape, and prints its snapshots. Do NOT run
      `rebuild.py` for this: it re-extracts every save.
+   - **It names a table the published copy predates** (it exits 1 and prints the
+     `rebuild.py --only ...` command): the copy was published before the loader read that
+     table, so every model built on it would leave out those snapshots. Re-run with
+     `--reload --force` to re-extract them (~1 min each), then publish the store again
+     (`publish_duckdb.py --upload`) so the next pull has it.
    - **Check it's current:** the printed snapshots should cover every `active=1` row in
      `seeds/manifest.csv` for the career. A missing one (published before its import) gets
      loaded like a new save: fetch `<save>.fms.gz` from `<r2_remote>/saves/<key>/`, gunzip,

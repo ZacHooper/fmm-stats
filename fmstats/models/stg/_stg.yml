@@ -129,6 +129,19 @@ models:
     data_tests:
       - rows_match_source: {arguments: {table: cities}}
       - unique_combination: {arguments: {columns: [snapshot_date, city_id]}}
+  - name: stg_regions
+    description: >
+      The region table per snapshot, a weather id of "none" read as NULL.
+    data_tests:
+      - rows_match_source: {arguments: {table: regions}}
+      - unique_combination: {arguments: {columns: [snapshot_date, region_id]}}
+  - name: stg_player_season_stats
+    description: >
+      The This Season panel per snapshot: one row per player attribute record and block with
+      an appearance, renamed to the warehouse's words.
+    data_tests:
+      - rows_match_source: {arguments: {table: player_season_stats}}
+      - unique_combination: {arguments: {columns: [snapshot_date, sid, block]}}
   - name: stg_languages
     description: >
       The language table per snapshot, with its home nation (NULL for none).

@@ -15,7 +15,10 @@ Only `raw` is copied. `stg`/`int`/`mart`/`site` are dbt's, rebuilt by the next l
 `load_duckdb.py --refresh-only`, so the store is current with this checkout's models.
 
 The copy is only as new as the last `publish_duckdb.py --upload`: compare its
-`raw.extracts` with `seeds/manifest.csv`, and load any snapshot it lacks. `scripts/rebuild.py`
+`raw.extracts` with `seeds/manifest.csv`, and load any snapshot it lacks. A copy published
+before the loader learned a table (raw.regions, raw.player_season_stats) has none of it, and the
+models built on that table would hold only the snapshots loaded since: this names every such
+table and, with `--reload`, re-extracts the copy's snapshots so they gain it. `scripts/rebuild.py`
 remains the path with no published copy, or after a parser change.
 """
 import argparse
@@ -42,6 +45,11 @@ def restore(published, store):
         "SELECT table_name FROM information_schema.tables "
         "WHERE table_catalog = 'pub' AND table_schema = 'raw' "
         "AND NOT starts_with(table_name, '_') ORDER BY table_name").fetchall()]
+    # the loader's snapshot tables the published copy predates: empty here for every snapshot
+    lacking = [n for (n,) in con.execute(
+        "SELECT table_name FROM duckdb_columns() WHERE database_name = current_database() "
+        "AND schema_name = 'raw' AND column_name = 'phase' ORDER BY table_name").fetchall()
+        if n not in names]
     for t in names:
         exists = con.execute(
             "SELECT count(*) FROM duckdb_tables() WHERE database_name = current_database() "
@@ -59,7 +67,7 @@ def restore(published, store):
     con.execute("DETACH pub")
     con.execute("CHECKPOINT")
     con.close()
-    return len(names), [s for (s,) in snaps]
+    return len(names), [s for (s,) in snaps], lacking
 
 
 def main():
@@ -68,6 +76,9 @@ def main():
     ap.add_argument("--career")
     ap.add_argument("--force", action="store_true",
                     help="replace an existing local store")
+    ap.add_argument("--reload", action="store_true",
+                    help="re-extract every snapshot when the published copy lacks a table the "
+                         "loader writes (scripts/rebuild.py --only each label)")
     a = ap.parse_args()
     if a.career:
         os.environ["FM_CAREER"] = a.career
@@ -91,13 +102,24 @@ def main():
         for p in (partial, partial + ".wal"):
             if os.path.exists(p):
                 os.remove(p)
-        n, snaps = restore(published, partial)
+        n, snaps, lacking = restore(published, partial)
         if os.path.exists(store + ".wal"):
             os.remove(store + ".wal")
         os.replace(partial, store)
     print(f"wrote {store}: {n} raw tables, {len(snaps)} snapshots")
     for s in snaps:
         print(f"  {s}")
+    if lacking:
+        print(f"\nthe published copy predates {', '.join('raw.' + t for t in lacking)}: "
+              "they are empty for every snapshot above, and the models built on them would "
+              "hold only snapshots loaded from now on.")
+        cmd = [sys.executable, "scripts/rebuild.py", "--career", car.key,
+               *[x for s in snaps for x in ("--only", s)]]
+        if not a.reload:
+            print("re-extract them (pass --reload to do it now):\n  " + " ".join(cmd[1:]))
+            return 1
+        print("re-extracting every snapshot...", flush=True)
+        return subprocess.run(cmd, cwd=REPO).returncode
     print("models are not built: the next load_duckdb.py builds them "
           f"(or: load_duckdb.py --refresh-only --career {car.key})")
     return 0

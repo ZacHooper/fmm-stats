@@ -395,6 +395,24 @@ DDL = [
         latitude DOUBLE, longitude DOUBLE, attraction INTEGER, region_id INTEGER
     )""",
 
+    # The regions of each nation (fmparser.tables.regions), what a city's region_id points
+    # at. natural key: (season, phase, id)
+    """CREATE TABLE IF NOT EXISTS raw.regions (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL,
+        id INTEGER NOT NULL, uid BIGINT, name VARCHAR, nation_id INTEGER, weather_id INTEGER
+    )""",
+
+    # The Player History screen's This Season panel (fmparser.tables.player_season_stats):
+    # one row per player attribute record (sid) and block (club_season, league, cup,
+    # continental, non_competitive, international) that has an appearance.
+    # natural key: (season, phase, sid, block)
+    """CREATE TABLE IF NOT EXISTS raw.player_season_stats (
+        season INTEGER NOT NULL, phase VARCHAR NOT NULL, sid VARCHAR NOT NULL,
+        block VARCHAR NOT NULL, apps INTEGER, goals INTEGER, assists INTEGER,
+        conceded INTEGER, rating_total INTEGER, yellows INTEGER, reds INTEGER,
+        player_of_match INTEGER
+    )""",
+
     # natural key: (season, phase, id)
     """CREATE TABLE IF NOT EXISTS raw.languages (
         season INTEGER NOT NULL, phase VARCHAR NOT NULL,
@@ -1132,6 +1150,25 @@ def load_core(con, d, season, phase):
                             "latitude", "longitude", "attraction", "region_id"], rows,
             dtypes={"uid": "int64"})
 
+    rg_path = os.path.join(d, "regions.json")
+    if os.path.exists(rg_path):
+        counts["regions"] = _insert(
+            con, "regions", ["season", "phase", "id", "uid", "name", "nation_id", "weather_id"],
+            [(season, phase, _int(v.get("id")), _int(v.get("uid")), v.get("name"),
+              _int(v.get("nation_id")), _int(v.get("weather_id")))
+             for v in _load_json(rg_path)],
+            dtypes={"uid": "int64"})
+
+    # --- the This Season panel ------------------------------------------------
+    ss_path = os.path.join(d, "player_season_stats.json")
+    if os.path.exists(ss_path):
+        stat_cols = ["apps", "goals", "assists", "conceded", "rating_total", "yellows",
+                     "reds", "player_of_match"]
+        counts["player_season_stats"] = _insert(
+            con, "player_season_stats", ["season", "phase", "sid", "block", *stat_cols],
+            [(season, phase, v["sid"], v["block"], *(_int(v.get(c)) for c in stat_cols))
+             for v in _load_json(ss_path)])
+
     # --- languages / currencies / nations -------------------------------------
     lang_path = os.path.join(d, "languages.json")
     if os.path.exists(lang_path):
@@ -1388,7 +1425,8 @@ def _clear_group(con, group, season, phase):
         for t in ("person_records", "attribute_records", "staff_records", "formations",
                   "name_strings", "name_ids", "player_scrapbook",
                   "player_history", "player_history_seasons", "player_progress",
-                  "clubs", "club_details", "club_squad", "club_staff", "stadiums", "cities", "languages", "currencies", "nations", "nation_ranking_history",
+                  "clubs", "club_details", "club_squad", "club_staff", "stadiums", "cities", "regions",
+                  "player_season_stats", "languages", "currencies", "nations", "nation_ranking_history",
                   "nation_coefficients", "nation_languages",
                   "club_affiliates", "competitions", "competition_team_counts", "matches",
                   "match_events", "match_player_stats", "club_records", "player_records",

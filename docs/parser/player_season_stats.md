@@ -80,6 +80,10 @@ Competitive.
 
 `tests/test_player_season_stats_evidence.py` pins all of this to the bytes.
 
+Loaded into `raw.player_season_stats` and on to
+`mart.fact_player_season_stats`, one row per person, snapshot and block (the sid resolved to
+the person record that names it).
+
 ## How it is found
 
 The nickname id-table's end is block 0's first row. The six blocks, sized by the

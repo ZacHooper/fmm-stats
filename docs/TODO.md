@@ -447,8 +447,8 @@ Bytes the parser reads but cannot name yet.
 **The players' half is read**: [player_season_stats](parser/player_season_stats.md), the
 Player History "This Season" panel for every player in the world, both games (apps, goals,
 assists, cards, PoM, rating total; league / cup / continental / non-competitive /
-international). **Load it** (parser only so far): league records and top-scorer lists for
-every league, not just the games we watched. Still missing: xG (not in those rows) and the
+international), loaded as `mart.fact_player_season_stats`. **Use it**: league records and
+top-scorer lists for every league, not just the games we watched. Still missing: xG (not in those rows) and the
 clubs' season stats. Use: xG in every league table and xG top-scorer lists.
 
 **xA per match is read** (slot +68, `xa_x100`, through to `site.match_players` and the
@@ -529,6 +529,27 @@ table:
 ---
 
 ## Stats
+
+### 13a. Regional strength: what is still open
+Built and on the World page's Regions tab ([`data-model/region.md`](data-model/region.md)).
+Open:
+- **Small counts are noisy**: the South West has 2 players at Premier League level, so one
+  player moves that index by half.
+- **Elo settings** (`var('region_elo')`) were chosen on four months of matches. On eight
+  (truro-2027-03-18) the fit is flat across 10-16 points per level point and k 16 edges k 20
+  (Brier 0.1780 against 0.1782, within noise). Revisit after the first full season, checking
+  that a club still never sits above one two tiers higher.
+- **The League Cup and the EFL Trophy are not in the store**: no match, and no row in the
+  world fixture list, even in March, so the Elo misses those ties. Find where the save keeps
+  them.
+- **Counties and population**: map each ground to a ceremonial county by point-in-polygon on
+  ONS boundaries (public data, safe in git; the club-to-county result stays local), with an
+  override list for clubs with no ground (Saltash, Torpoint); then per-head figures.
+- **Reserve leagues** are left out of the tiers; consider them once the scores settle.
+- **Season splits on another calendar**: `fact_player_season_split` labels each row with our
+  career's season; a player in a calendar-year league (Sweden, the USA) has his panel restart
+  inside it (`has_panel_reset`). Labelling those rows with the league's own season needs each
+  league's season, which the store reads only for the leagues the game plays out.
 
 ### 13. League tables outside Denmark
 `mart.standings` (and the old `mart.league_tables`) rebuild tables from the fixture list and

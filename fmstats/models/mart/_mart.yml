@@ -46,6 +46,42 @@ models:
         description: '{{ doc("region_id") }}'
       - name: last_seen_date
         description: '{{ doc("last_seen_date") }}'
+  - name: dim_region
+    description: >
+      Each region of each nation (the game's own subdivision: South-West, London), as its
+      latest snapshot gives it.
+    data_tests:
+      - unique_combination: {arguments: {columns: [region_id]}}
+    columns:
+      - name: region_id
+        description: '{{ doc("region_id") }}'
+      - name: uid
+        description: 'The region''s database id. {{ doc("uid") }}'
+      - name: name
+        description: 'The region''s name. {{ doc("name") }}'
+      - name: nation_id
+        description: 'The region''s nation. {{ doc("nation_id") }}'
+      - name: weather_id
+        description: '{{ doc("weather_id") }}'
+      - name: last_seen_date
+        description: '{{ doc("last_seen_date") }}'
+  - name: dim_home_region
+    description: >
+      The regions the regional scores group by: the home nation's regions, plus one row per
+      other nation whose clubs play in its leagues.
+    data_tests:
+      - unique_combination: {arguments: {columns: [home_region_id]}}
+    columns:
+      - name: home_region_id
+        description: '{{ doc("home_region_id") }}'
+      - name: name
+        description: 'The region''s name, or the nation''s for a nation group. {{ doc("name") }}'
+      - name: nation_id
+        description: '{{ doc("nation_id") }}'
+      - name: is_nation_group
+        description: '{{ doc("is_nation_group") }}'
+      - name: region_ids
+        description: '{{ doc("region_ids") }}'
   - name: dim_stadium
     description: >
       Each stadium and its city; name and capacity are on fact_stadium_snapshot.
@@ -1440,6 +1476,261 @@ models:
         description: '{{ doc("reds") }}'
       - name: last_seen_date
         description: '{{ doc("last_seen_date") }}'
+  - name: fact_player_season_stats
+    description: >
+      The This Season panel: each player's current-season figures on each snapshot, by kind
+      of competition. Earlier seasons are fact_player_season's career-history lines.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, person_id, block]}}
+      - relationship_combination:
+          arguments:
+            columns: [person_id]
+            to: ref('dim_person')
+            to_columns: [person_id]
+    columns:
+      - name: snapshot_date
+        description: '{{ doc("snapshot_date") }}'
+      - name: season
+        description: 'The career''s season of the snapshot. {{ doc("season") }}'
+      - name: person_id
+        description: '{{ doc("person_id") }}'
+      - name: tid
+        description: '{{ doc("tid") }}'
+      - name: block
+        description: '{{ doc("season_stats_block") }}'
+      - name: appearances
+        description: 'The panel''s Pld. {{ doc("appearances") }}'
+      - name: goals
+        description: '{{ doc("goals") }}'
+      - name: assists
+        description: '{{ doc("assists") }}'
+      - name: goals_conceded
+        description: 'The panel''s figure, stored on both games. {{ doc("goals_conceded") }}'
+      - name: rating_total
+        description: '{{ doc("rating_total") }}'
+      - name: average_rating
+        description: 'The panel''s Av R: rating_total over appearances, truncated to two places.
+          {{ doc("average_rating") }}'
+      - name: yellows
+        description: '{{ doc("yellows") }}'
+      - name: reds
+        description: '{{ doc("reds") }}'
+      - name: player_of_match_awards
+        description: '{{ doc("player_of_match_awards") }}'
+  - name: fact_player_season_split
+    description: >
+      Each player's season split by kind of competition, for every season a save covers: the
+      This Season panel as the season's last snapshot holds it.
+    data_tests:
+      - unique_combination: {arguments: {columns: [season, person_id, block]}}
+      - relationship_combination:
+          arguments:
+            columns: [person_id]
+            to: ref('dim_person')
+            to_columns: [person_id]
+    columns:
+      - name: season
+        description: 'The career''s season. {{ doc("season") }}'
+      - name: person_id
+        description: '{{ doc("person_id") }}'
+      - name: tid
+        description: '{{ doc("tid") }}'
+      - name: block
+        description: '{{ doc("season_stats_block") }}'
+      - name: through_date
+        description: 'The season''s last snapshot, which the figures are read from. {{ doc("through_date") }}'
+      - name: is_live
+        description: '{{ doc("is_live") }}'
+      - name: has_panel_reset
+        description: '{{ doc("has_panel_reset") }}'
+      - name: appearances
+        description: 'The panel''s Pld. {{ doc("appearances") }}'
+      - name: goals
+        description: '{{ doc("goals") }}'
+      - name: assists
+        description: '{{ doc("assists") }}'
+      - name: goals_conceded
+        description: 'The panel''s figure, stored on both games. {{ doc("goals_conceded") }}'
+      - name: rating_total
+        description: '{{ doc("rating_total") }}'
+      - name: average_rating
+        description: 'The panel''s Av R: rating_total over appearances, truncated to two places.
+          {{ doc("average_rating") }}'
+      - name: yellows
+        description: '{{ doc("yellows") }}'
+      - name: reds
+        description: '{{ doc("reds") }}'
+      - name: player_of_match_awards
+        description: '{{ doc("player_of_match_awards") }}'
+  - name: fact_tier_level_snapshot
+    description: >
+      Each tier of the home nation's men's leagues on each snapshot: how good its regulars are, whether the game plays it out, and its weight in the regional appearance score.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, tier]}}
+    columns:
+      - name: snapshot_date
+        description: '{{ doc("snapshot_date") }}'
+      - name: tier
+        description: '{{ doc("tier") }}'
+      - name: n_teams
+        description: '{{ doc("n_teams") }}'
+      - name: level_ca
+        description: '{{ doc("level_ca") }}'
+      - name: is_level_estimated
+        description: '{{ doc("is_level_estimated") }}'
+      - name: is_scored
+        description: '{{ doc("is_scored") }}'
+      - name: tier_weight
+        description: '{{ doc("tier_weight") }}'
+  - name: fact_club_elo
+    description: >
+      Every home-nation team's Elo rating, one row per rating event: its seed, then each rated match.
+    config:
+      elo_base: "{{ var('region_elo')['base'] }}"
+      elo_per_level_point: "{{ var('region_elo')['per_level_point'] }}"
+      elo_k: "{{ var('region_elo')['k'] }}"
+      elo_home_advantage: "{{ var('region_elo')['home_advantage'] }}"
+    data_tests:
+      - unique_combination: {arguments: {columns: [team_tid, event_order]}}
+    columns:
+      - name: team_tid
+        description: '{{ doc("team_tid") }}'
+      - name: rating_event
+        description: '{{ doc("rating_event") }}'
+      - name: match_id
+        description: 'The rated match; NULL on a seed. {{ doc("match_id") }}'
+      - name: rating_date
+        description: '{{ doc("rating_date") }}'
+      - name: opponent_tid
+        description: 'NULL on a seed. {{ doc("opponent_tid") }}'
+      - name: elo_before
+        description: '{{ doc("elo_before") }}'
+      - name: elo
+        description: '{{ doc("elo") }}'
+      - name: event_order
+        description: '{{ doc("event_order") }}'
+  - name: fact_club_region_snapshot
+    description: >
+      Each team in the home nation's men's leagues on each snapshot, with its region, tier, Elo and facilities.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, team_tid]}}
+    columns:
+      - name: snapshot_date
+        description: '{{ doc("snapshot_date") }}'
+      - name: team_tid
+        description: '{{ doc("team_tid") }}'
+      - name: club_tid
+        description: '{{ doc("club_tid") }}'
+      - name: home_region_id
+        description: '{{ doc("home_region_id") }}'
+      - name: tier
+        description: '{{ doc("tier") }}'
+      - name: is_scored
+        description: '{{ doc("is_scored") }}'
+      - name: elo
+        description: 'As of the snapshot. {{ doc("elo") }}'
+      - name: reputation
+        description: '{{ doc("reputation") }}'
+      - name: status
+        description: '{{ doc("status") }}'
+      - name: training_facilities
+        description: '{{ doc("training_facilities") }}'
+      - name: youth_facilities
+        description: '{{ doc("youth_facilities") }}'
+  - name: fact_region_snapshot
+    description: >
+      Each region's teams in the scored tiers on each snapshot: Elo four ways and facilities.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, home_region_id]}}
+    columns:
+      - name: snapshot_date
+        description: '{{ doc("snapshot_date") }}'
+      - name: home_region_id
+        description: '{{ doc("home_region_id") }}'
+      - name: n_teams
+        description: '{{ doc("n_teams") }}'
+      - name: elo_mean
+        description: '{{ doc("elo_mean") }}'
+      - name: elo_median
+        description: '{{ doc("elo_median") }}'
+      - name: elo_top3
+        description: '{{ doc("elo_top3") }}'
+      - name: elo_p75_share
+        description: '{{ doc("elo_p75_share") }}'
+      - name: youth_facilities_median
+        description: '{{ doc("youth_facilities_median") }}'
+      - name: n_good_youth_facilities
+        description: '{{ doc("n_good_youth_facilities") }}'
+      - name: training_facilities_median
+        description: '{{ doc("training_facilities_median") }}'
+      - name: n_good_training_facilities
+        description: '{{ doc("n_good_training_facilities") }}'
+  - name: fact_player_origin_snapshot
+    description: >
+      Each player from a youth system in the home nation's regions on each snapshot, with the region, his team's tier and the highest tier whose level he reaches.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, person_id]}}
+    columns:
+      - name: snapshot_date
+        description: '{{ doc("snapshot_date") }}'
+      - name: person_id
+        description: '{{ doc("person_id") }}'
+      - name: origin_club_tid
+        description: '{{ doc("origin_club_tid") }}'
+      - name: home_region_id
+        description: '{{ doc("home_region_id") }}'
+      - name: age
+        description: '{{ doc("age") }}'
+      - name: is_under_21
+        description: '{{ doc("is_under_21") }}'
+      - name: team_tid
+        description: '{{ doc("team_tid") }}'
+      - name: tier
+        description: 'His team''s tier; NULL outside the home nation''s men''s leagues. {{ doc("tier") }}'
+      - name: level_tier
+        description: '{{ doc("level_tier") }}'
+  - name: fact_region_level_snapshot
+    description: >
+      How many players each region has produced at each scored tier's level or better, all ages and under-21s, on each snapshot, and the region's share of the nation's.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, home_region_id, level_tier, age_group]}}
+    columns:
+      - name: snapshot_date
+        description: '{{ doc("snapshot_date") }}'
+      - name: home_region_id
+        description: '{{ doc("home_region_id") }}'
+      - name: level_tier
+        description: '{{ doc("level_tier") }}'
+      - name: age_group
+        description: '{{ doc("age_group") }}'
+      - name: n_players
+        description: '{{ doc("n_players") }}'
+      - name: nation_share
+        description: '{{ doc("nation_share") }}'
+      - name: nation_share_index
+        description: '{{ doc("nation_share_index") }}'
+  - name: fact_region_season
+    description: >
+      Each region's tier-weighted appearances in the home nation's scored tiers by season, and its share of the nation's.
+    data_tests:
+      - unique_combination: {arguments: {columns: [season, home_region_id]}}
+    columns:
+      - name: season
+        description: '{{ doc("season") }}'
+      - name: home_region_id
+        description: '{{ doc("home_region_id") }}'
+      - name: is_live
+        description: '{{ doc("is_live") }}'
+      - name: appearances
+        description: '{{ doc("appearances") }}'
+      - name: weighted_appearances
+        description: '{{ doc("weighted_appearances") }}'
+      - name: appearances_by_tier
+        description: '{{ doc("appearances_by_tier") }}'
+      - name: nation_share
+        description: '{{ doc("nation_share") }}'
+      - name: nation_share_index
+        description: '{{ doc("nation_share_index") }}'
   - name: fact_player_competition_season
     description: >
       Each player's season in each competition for each team, summed from our own matches.

@@ -953,6 +953,128 @@ models:
         description: '{{ doc("origin_nation") }}'
       - name: via_academy
         description: '{{ doc("is_academy_product") }}'
+  - name: site_regions
+    description: >
+      Each home region's clubs on each snapshot: Elo four ways and facilities.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, home_region_id]}}
+    columns:
+      - name: snapshot_date
+        description: '{{ doc("snapshot_date") }}'
+      - name: home_region_id
+        description: '{{ doc("home_region_id") }}'
+      - name: name
+        description: 'The region''s name, or the nation''s for a nation group. {{ doc("name") }}'
+      - name: is_nation_group
+        description: '{{ doc("is_nation_group") }}'
+      - name: is_managed_club
+        description: 'The managed club plays in the region. {{ doc("is_managed_club") }}'
+      - name: n_teams
+        description: '{{ doc("n_teams") }}'
+      - name: elo_mean
+        description: '{{ doc("elo_mean") }}'
+      - name: elo_median
+        description: '{{ doc("elo_median") }}'
+      - name: elo_top3
+        description: '{{ doc("elo_top3") }}'
+      - name: elo_p75_share
+        description: '{{ doc("elo_p75_share") }}'
+      - name: youth_facilities_median
+        description: '{{ doc("youth_facilities_median") }}'
+      - name: n_good_youth_facilities
+        description: '{{ doc("n_good_youth_facilities") }}'
+      - name: training_facilities_median
+        description: '{{ doc("training_facilities_median") }}'
+      - name: n_good_training_facilities
+        description: '{{ doc("n_good_training_facilities") }}'
+  - name: site_region_levels
+    description: >
+      Players produced by each region at each scored tier's level, on each snapshot.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, home_region_id, level_tier, age_group]}}
+    columns:
+      - name: snapshot_date
+        description: '{{ doc("snapshot_date") }}'
+      - name: home_region_id
+        description: '{{ doc("home_region_id") }}'
+      - name: level_tier
+        description: '{{ doc("level_tier") }}'
+      - name: age_group
+        description: '{{ doc("age_group") }}'
+      - name: n_players
+        description: '{{ doc("n_players") }}'
+      - name: nation_share
+        description: '{{ doc("nation_share") }}'
+      - name: nation_share_index
+        description: '{{ doc("nation_share_index") }}'
+  - name: site_region_seasons
+    description: >
+      Each region's tier-weighted appearances by season.
+    data_tests:
+      - unique_combination: {arguments: {columns: [season, home_region_id]}}
+    columns:
+      - name: season
+        description: '{{ doc("season") }}'
+      - name: home_region_id
+        description: '{{ doc("home_region_id") }}'
+      - name: is_live
+        description: '{{ doc("is_live") }}'
+      - name: appearances
+        description: '{{ doc("appearances") }}'
+      - name: weighted_appearances
+        description: '{{ doc("weighted_appearances") }}'
+      - name: appearances_by_tier
+        description: '{{ doc("appearances_by_tier") }}'
+      - name: nation_share
+        description: '{{ doc("nation_share") }}'
+      - name: nation_share_index
+        description: '{{ doc("nation_share_index") }}'
+  - name: site_region_clubs
+    description: >
+      Each team in the home nation's men's leagues on each snapshot, with its region, Elo and facilities.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, team_tid]}}
+    columns:
+      - name: snapshot_date
+        description: '{{ doc("snapshot_date") }}'
+      - name: team_tid
+        description: '{{ doc("team_tid") }}'
+      - name: name
+        description: 'The team''s name. {{ doc("name") }}'
+      - name: home_region_id
+        description: '{{ doc("home_region_id") }}'
+      - name: tier
+        description: '{{ doc("tier") }}'
+      - name: is_scored
+        description: '{{ doc("is_scored") }}'
+      - name: league_name
+        description: 'The name of the team''s league. {{ doc("name") }}'
+      - name: elo
+        description: '{{ doc("elo") }}'
+      - name: reputation
+        description: '{{ doc("reputation") }}'
+      - name: youth_facilities
+        description: '{{ doc("youth_facilities") }}'
+      - name: training_facilities
+        description: '{{ doc("training_facilities") }}'
+  - name: site_region_tiers
+    description: >
+      The home nation's league tiers on each snapshot: their leagues, whether scored and their weight.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, tier]}}
+    columns:
+      - name: snapshot_date
+        description: '{{ doc("snapshot_date") }}'
+      - name: tier
+        description: '{{ doc("tier") }}'
+      - name: n_teams
+        description: '{{ doc("n_teams") }}'
+      - name: is_scored
+        description: '{{ doc("is_scored") }}'
+      - name: tier_weight
+        description: '{{ doc("tier_weight") }}'
+      - name: league_names
+        description: '{{ doc("league_names") }}'
   - name: site_nations
     description: Every ranked nation on every snapshot.
     data_tests:

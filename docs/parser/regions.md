@@ -37,4 +37,5 @@ in that region's nation. Region 0 is South-East, England, on both games.
 
 ## Output
 
-`output/<label>/regions.json`: `[{id, uid, name, nation_id, weather_id}]`. Not loaded yet.
+`output/<label>/regions.json`: `[{id, uid, name, nation_id, weather_id}]`, loaded into
+`raw.regions` and on to `mart.dim_region`.
