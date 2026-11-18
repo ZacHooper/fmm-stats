@@ -144,8 +144,11 @@ Nothing derived is in git, and nothing drawn from the game's database is either.
 | derived | `fm-<career>.duckdb`, `output/`, `site/api/` | local only — rebuild, never commit |
 | published | the site's data, a compacted store copy | object store (`site-data/`), served by the Worker or `ATTACH`ed |
 
-- **The store is disposable.** Rebuild it: `uv run python scripts/rebuild.py --career <key>`
-  (~1 min per snapshot). `seeds/manifest.csv` is the recipe (which save produced which
+- **The store is disposable.** With none locally, pull the published copy:
+  `uv run python scripts/pull_store.py --career <key>` (~1 min, the store as last published).
+  Rebuild it from the saves only when there is no published copy or the parser changed:
+  `uv run python scripts/rebuild.py --career <key>` (~1 min per snapshot).
+  `seeds/manifest.csv` is the recipe (which save produced which
   snapshot); regenerate it with `scripts/export_manifest.py` after an import.
   `raw.extracts.save_path` holds a basename — an absolute path silently makes the recipe
   machine-specific.
@@ -182,6 +185,7 @@ uv run python tests/run_tests.py                          # parser/unit tests (m
 uv run python tests/test_boundary.py
 
 uv run python scripts/config_sync.py pull                 # canonical fmm.toml + notes from R2
+uv run python scripts/pull_store.py --career <key>       # no local store: the published one
 uv run python scripts/export_data.py [--career <key>] [--upload]  # -> site/api/<key>/ [-> R2]
 uv run python -m http.server -d site 8000                 # preview
 uv run python scripts/publish_duckdb.py --upload          # compacted store -> R2, for remote SQL

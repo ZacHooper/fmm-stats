@@ -146,12 +146,28 @@ def require_store_matches_config(con, car, store: str) -> None:
 
 
 # --------------------------------------------------------------------------- CLI
+def discover_remote() -> str | None:
+    """The one `<rclone remote>:<bucket>` holding a `config/fmm.toml`, for a fresh checkout
+    whose fmm.toml (the file that names the remote) is the thing being pulled."""
+    found = []
+    for name in _rclone("listremotes").stdout.split():
+        for bucket in _rclone("lsf", "--dirs-only", name).stdout.split():
+            candidate = name + bucket.rstrip("/")
+            if _rclone("lsf", f"{candidate}/config/fmm.toml").stdout.strip():
+                found.append(candidate)
+    return found[0] if len(found) == 1 else None
+
+
 def _sync(direction: str) -> int:
-    remote = fmconfig.r2_remote()
-    if not remote:
-        raise SystemExit("no R2 remote configured ([storage] r2_remote or FM_R2_REMOTE)")
     if shutil.which("rclone") is None:
         raise SystemExit("rclone not installed")
+    remote = fmconfig.r2_remote()
+    if not remote and direction == "pull":
+        remote = discover_remote()
+        if remote:
+            print(f"  no r2_remote configured; found config/fmm.toml in {remote}")
+    if not remote:
+        raise SystemExit("no R2 remote configured ([storage] r2_remote or FM_R2_REMOTE)")
     for local, name, is_dir in FILES:
         lp, rp = os.path.join(REPO, local), f"{remote}/config/{name}"
         src, dst = (rp, lp) if direction == "pull" else (lp, rp)
