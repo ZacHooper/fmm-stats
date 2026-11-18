@@ -1,9 +1,8 @@
 /**
  * Recruitment — find players, and keep the shortlist.
  *
- * Three things that belonged together and were on two different pages plus a tab: searching the
- * save for a player, the capital-region origin rule that decides who we're allowed to sign, and
- * the shortlist itself. The shortlist is also the only thing in this app that WRITES — it goes
+ * Two things that belong together: searching the save for a player and the shortlist itself.
+ * The capital-region origin rule is a column on both search and Squad, not a page of its own. The shortlist is also the only thing in this app that WRITES — it goes
  * to R2 through a Pages Function, because a player you spot in-game on the phone exists nowhere
  * until it's recorded.
  *
@@ -28,7 +27,6 @@ export async function view() {
   const TABS = [
     ["Shortlist", shortlistPanel],
     ["Search the save", searchPanel],
-    ["Capital region", capitalPanel],
   ];
   // Open on Search until a device token exists: the shortlist can't be read without one, so
   // landing there shows an empty table and looks broken rather than unconfigured.
@@ -136,9 +134,10 @@ async function shortlistPanel() {
       drawList();
       // Club/value aren't stored on the shortlist entry itself (it's just a player reference),
       // and a shortlisted target found outside the ladder/squad may never have been resolved
-      // into S.players this session — fetch exactly those tids (cheap: the Worker's ?tid=
+      // into S.players this session (or, at a ladder club, only with core.json's short row) —
+      // fetch exactly those tids (cheap: the Worker's ?tid=
       // filter, not the full 1.3 MB all.json) and redraw once they land.
-      await D.loadPlayersByTid(rows.map((r) => r.tid).filter((t) => t != null));
+      await D.loadProfiles(rows.map((r) => r.tid).filter((t) => t != null));
       drawList();
     } catch (e) { status.textContent = `offline (${e.message})`; drawList(); }
   }
@@ -379,48 +378,5 @@ async function searchPanel() {
   }
 
   go(false);
-  return wrap;
-}
-
-// --------------------------------------------------------------------------- capital rule
-async function capitalPanel() {
-  const wrap = el("div");
-  wrap.append(el("div.card", {}, [el("p.note", {
-    html: "The self-imposed rule: a new signing's <b>career-origin club</b> must be in Region "
-      + "Hovedstaden. Existing squad members are grandfathered and academy products always "
-      + "qualify. Origin is exact — a player's career-history chain head is a stored pointer in "
-      + "his attribute record, not a positional guess.",
-  })]));
-  const eligible = new Set(D.S.ours.capital_eligible || []);
-  const rows = [];
-  for (const p of D.ourPlayers()) {
-    const best = D.bestRole(p);
-    if (!best) continue;
-    rows.push({
-      tid: p.tid, player: p, r: best, age: D.age(p.dob),
-      origin: D.S.ours.origin?.[String(p.tid)] || null,
-      ok: eligible.has(p.tid),
-      _search: [p.name, D.S.ours.origin?.[String(p.tid)] || ""].join(" ").toLowerCase(),
-    });
-  }
-  wrap.append(playerTable({
-    key: "capital", rows,
-    catalogue: {
-      player: { label: "Player", group: "Identity", cls: "name", sort: (r) => r.player.name, get: (r) => r.player.name },
-      age: { label: "Age", group: "Identity", align: "num", get: (r) => r.age },
-      pos: { label: "Pos", group: "Identity", get: (r) => r.r.pos },
-      origin: { label: "Origin club", group: "Identity", get: (r) => r.origin },
-      ok: { label: "Capital", group: "Identity", sort: (r) => (r.ok ? 1 : 0), render: (r) => (r.ok ? pill("✓", "good") : pill("outside", "flat")) },
-      rating: { label: "Rating", group: "Rating", align: "num", sort: (r) => r.r.eff, render: (r) => num(r.r.eff) },
-      lvl: { label: "Level %ile", group: "Rating", align: "num", sort: (r) => r.r.lvlLeague, render: (r) => bar(r.r.lvlLeague) },
-    },
-    sticky: ["player"],
-    defaults: ["age", "pos", "origin", "ok", "rating", "lvl"],
-    sort: { by: "ok", dir: "desc" },
-    onRow: (r) => openProfile(r.tid),
-  }).node);
-  wrap.append(el("p.note", {
-    text: `${eligible.size} of our ${rows.length} rated players have a capital-region origin club.`,
-  }));
   return wrap;
 }

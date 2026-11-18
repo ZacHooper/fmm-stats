@@ -297,6 +297,28 @@ export async function loadPlayersByTid(tids) {
 }
 
 /**
+ * The full all.json row (origin/capital plus the profile tail) for the players named by `tids`,
+ * in one request. Unlike loadPlayersByTid this also refetches players ALREADY in `S.players`
+ * without that row — core.json resolves every division-ladder club's players but stops at
+ * `weight`, so a shortlisted rival would otherwise have no origin club, no capital verdict and
+ * no profile columns. An all.json row is a strict superset of a core.json row, so overwriting
+ * loses nothing. Silently gives up on failure, like loadPlayersByTid.
+ */
+export async function loadProfiles(tids) {
+  const need = [...new Set(tids)].filter((t) => t != null && !S.players.get(t)?.profileLoaded);
+  if (!need.length) return;
+  try {
+    const data = await j(`${api("all")}?tid=${need.join(",")}`);
+    for (const row of data.players) {
+      const p = mkPlayer(row, data.fields, data.attrs);
+      if (S.players.get(row[0])?.inCore) p.inCore = true;
+      if (p.profile) p.profileLoaded = true;
+      S.players.set(row[0], p);
+    }
+  } catch { /* offline or blocked — those rows keep what they had */ }
+}
+
+/**
  * The profile-popup-only bio/reputation/personality/hidden-attribute tail for ONE player —
  * fetched on demand when a profile sheet actually opens, not eagerly for every page view (same
  * reasoning as loadAll/loadPlayersByTid: reputation especially was previously left out of

@@ -16,7 +16,7 @@ and a browser-stored plan or pick that names players by tid through `lsCareerGet
 because a tid means a different player in another save. Its sections: **Squad** (one configurable
 table merging the squad list, Development + projections, Player Stats and Registration — the
 A/B lists as a column, the quotas as one hover/tap card, saved windows under the table; see
-below), **Builder**, **Recruitment** (search + shortlist + the capital rule), **Matches**,
+below), **Builder**, **Recruitment** (search + shortlist; the capital rule is a column), **Matches**,
 **History**, **World**. Every owned player's profile sheet ends in a **Loan outlook**
 (`site/js/loans.js`, data `api/loans.json`): his Level %ile in each division from ours down to
 3. Division, against each club's starter line at his position in its manager's preferred
