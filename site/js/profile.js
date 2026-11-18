@@ -209,7 +209,7 @@ function statBlock(agg) {
 /** Who sets him up and whom he sets up: his assisted goals for us in competitive matches, from
  *  the match events (matches.json `goals`; FMM27 saves record the assister). Null when there
  *  are none, so an FMM22 career shows nothing. */
-function partnersBlock(tid) {
+function partnersBlock(tid, season = null) {
   const M = D.S.matches;
   const f = M?.goal_fields || [];
   const ix = Object.fromEntries(f.map((n, i) => [n, i]));
@@ -218,7 +218,7 @@ function partnersBlock(tid) {
   const by = new Map(), to = new Map();
   for (const g of M.goals || []) {
     if (g[ix.team_tid] !== ourTid || g[ix.kind] === "own_goal" || g[ix.assist_tid] == null
-      || D.isFriendly(g[ix.competition])) continue;
+      || D.isFriendly(g[ix.competition]) || (season != null && g[ix.season] !== season)) continue;
     if (g[ix.tid] === tid) by.set(g[ix.assist_tid], (by.get(g[ix.assist_tid]) || 0) + 1);
     if (g[ix.assist_tid] === tid) to.set(g[ix.tid], (to.get(g[ix.tid]) || 0) + 1);
   }
@@ -241,8 +241,9 @@ function partnersBlock(tid) {
  * most — so "how does he do in Europe" or "against Brøndby" is answered from his own sheet.
  * The Matches page's Players tab answers the same question for the whole squad at once.
  */
-function splitBlock(tid) {
-  const rows = D.matchRows().filter((r) => r.tid === tid && !D.isFriendly(r.competition));
+function splitBlock(tid, season = null) {
+  const rows = D.matchRows().filter((r) => r.tid === tid && !D.isFriendly(r.competition)
+    && (season == null || r.season === season));
   if (!rows.length) return el("span");
   const M = D.S.matches;
   const fi = Object.fromEntries(M.match_fields.map((n, i) => [n, i]));
@@ -389,12 +390,12 @@ function playedAt(tid, season = null) {
   return out;
 }
 
-/** The seasons he has competitive starts for us in, newest first. */
-function startSeasons(tid) {
+/** The seasons he has competitive appearances for us in, newest first. */
+function appSeasons(tid) {
   if (!D.S.matches) return [];
   const s = new Set();
   for (const r of D.matchRows()) {
-    if (r.tid === tid && r.started && r.position && !D.isFriendly(r.competition)) s.add(r.season);
+    if (r.tid === tid && !D.isFriendly(r.competition)) s.add(r.season);
   }
   return [...s].sort((a, b) => b - a);
 }
@@ -402,9 +403,10 @@ function startSeasons(tid) {
 export function openProfile(tid, { role = null } = {}) {
   const p = D.S.players.get(tid);
   if (!p) return;
-  // The Stats tab's By position record (positionRecord): which season it covers (null = all
-  // time), whether it shows ▲/▼ against his own average, and whether the column picker is open.
-  let fitSeason = null;
+  // The Stats tab: which season every block on it covers (null = all time); and for its By
+  // position record, whether it shows ▲/▼ against his own average and whether the column
+  // picker is open.
+  let statSeason = null;
   let fitNorm = false;
   let fitPick = false;
   // The development chart, the attribute growth options and career history all read
@@ -655,17 +657,14 @@ export function openProfile(tid, { role = null } = {}) {
    * remembered per unit). The best rating with enough starts to mean something is marked; a
    * start somewhere he isn't listed is out of position and left out.
    *
-   * The chips pick the span — all time or one season, so a position switch can be judged on
-   * this season's games. "vs his norm" marks each figure against his average over EVERY
+   * The Stats tab's season bar picks the span — all time or one season, so a position switch
+   * can be judged on this season's games. "vs his norm" marks each figure against his average over EVERY
    * competitive start for us, all time and every position (the Matches page's norm): in one
    * season that says how each position went against his usual level, over all time it compares
    * the positions. Needs matches.json; the Stats tab loads it first.
    */
   function positionRecord() {
-    const seasons = startSeasons(tid);
-    if (fitSeason != null && !seasons.includes(fitSeason)) fitSeason = null;
     const redraw = () => showTab("stats", false);
-    const lbl = (y) => `${y - 1}/${String(y).slice(2)}`;
     const unit = D.unitOf(roles[0]?.pos || "MC");
     const STATS_KEY = `fm:fit:stats:${unit}`;
     const RATES = Object.keys(D.STAT_DEFS).filter((k) => /\/90$|%$/.test(k) && D.statOffered(k));
@@ -678,10 +677,6 @@ export function openProfile(tid, { role = null } = {}) {
     })();
     const setStats = (list) => { setPref(STATS_KEY, JSON.stringify(list)); redraw(); };
     const controls = el("div.prow.fitseason", {}, [
-      ...[null, ...seasons].map((y) => el(`button.chip${y === fitSeason ? ".on" : ""}`, {
-        text: y == null ? "All time" : lbl(y),
-        onclick: () => { fitSeason = y; redraw(); },
-      })),
       el(`button.btn${fitNorm ? ".on" : ""}`, {
         text: "vs his norm",
         title: "Mark each position's rating and stats against his own average over every start "
@@ -705,7 +700,7 @@ export function openProfile(tid, { role = null } = {}) {
           onclick: () => setStats(stats.includes(k) ? stats.filter((x) => x !== k) : [...stats, k]),
         }))])),
     ]) : null;
-    const played = playedAt(tid, fitSeason);
+    const played = playedAt(tid, statSeason);
     const whole = fitNorm ? playedAt(tid, null) : null;
     const norm = whole?.norm || null;
     const MIN_STARTS = 3;
@@ -734,12 +729,12 @@ export function openProfile(tid, { role = null } = {}) {
       ];
     };
     const heads = ["Pos", "Role", "Starts", "Rating (adj)", ...stats];
-    const oneNote = fitNorm && whole?.size === 1 && fitSeason == null ? el("p.note", {
+    const oneNote = fitNorm && whole?.size === 1 && statSeason == null ? el("p.note", {
       text: `Every start he has made for us is at ${[...whole.keys()][0]}, so over all time that `
         + "position is his norm. Pick a season to see how it went against his usual level.",
     }) : null;
     return el("div", {}, [
-      seasons.length ? controls : null, picker, oneNote,
+      controls, picker, oneNote,
       el("div.scroll.fit", {}, [el("table", {}, [
         el("thead", {}, [el("tr", {}, heads.map((h, i) => el(`th${i > 1 ? ".num" : ""}`, {
           text: h,
@@ -758,16 +753,35 @@ export function openProfile(tid, { role = null } = {}) {
     ]);
   }
 
+  /**
+   * His record for us, every block filtered by one season bar at the top: all time, or one
+   * season he has competitive appearances in. Career history is the game's own record, club
+   * by club, and stays whole.
+   */
   function statsTab() {
-    const box = el("div", {}, [el("h4", { text: "Match record for us (competitive, all seasons)" })]);
+    const box = el("div");
     const statsBox = el("div", {}, [el("p.note", { text: "Loading matches…" })]);
     box.append(statsBox);
-    const fill = () => clear(statsBox).append(
-      statBlock(D.S.matchAgg?.get(tid)),
-      el("h4", { text: "By position" }), positionRecord(),
-      splitBlock(tid),
-      partnersBlock(tid),
-    );
+    const lbl = (y) => `${y - 1}/${String(y).slice(2)}`;
+    const fill = () => {
+      const seasons = appSeasons(tid);
+      if (statSeason != null && !seasons.includes(statSeason)) statSeason = null;
+      const agg = statSeason == null ? D.S.matchAgg?.get(tid)
+        : D.aggregate(D.matchRows().filter((r) => r.tid === tid && r.season === statSeason
+          && !D.isFriendly(r.competition))).get(tid);
+      clear(statsBox).append(...[
+        seasons.length ? el("div.prow.fitseason", {}, [null, ...seasons].map((y) =>
+          el(`button.chip${y === statSeason ? ".on" : ""}`, {
+            text: y == null ? "All time" : lbl(y),
+            onclick: () => { statSeason = y; showTab("stats", false); },
+          }))) : null,
+        el("h4", { text: `Match record for us (competitive, ${statSeason == null ? "all seasons" : lbl(statSeason)})` }),
+        statBlock(agg),
+        el("h4", { text: "By position" }), positionRecord(),
+        splitBlock(tid, statSeason),
+        partnersBlock(tid, statSeason),
+      ].filter(Boolean));
+    };
     // Drawn straight away once matches are loaded, so the By position controls don't flash a
     // loading line each time they redraw the tab.
     if (D.S.matches) fill();
