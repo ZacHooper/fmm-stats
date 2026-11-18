@@ -535,8 +535,13 @@ Built and on the World page's Regions tab ([`data-model/region.md`](data-model/r
 Open:
 - **Small counts are noisy**: the South West has 2 players at Premier League level, so one
   player moves that index by half.
-- **Elo settings** (`var('region_elo')`) were chosen on four months of matches: revisit after
-  the first full season, checking that a club still never sits above one two tiers higher.
+- **Elo settings** (`var('region_elo')`) were chosen on four months of matches. On eight
+  (truro-2027-03-18) the fit is flat across 10-16 points per level point and k 16 edges k 20
+  (Brier 0.1780 against 0.1782, within noise). Revisit after the first full season, checking
+  that a club still never sits above one two tiers higher.
+- **The League Cup and the EFL Trophy are not in the store**: no match, and no row in the
+  world fixture list, even in March, so the Elo misses those ties. Find where the save keeps
+  them.
 - **Counties and population**: map each ground to a ceremonial county by point-in-polygon on
   ONS boundaries (public data, safe in git; the club-to-county result stays local), with an
   override list for clubs with no ground (Saltash, Torpoint); then per-head figures.

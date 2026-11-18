@@ -5,6 +5,8 @@
 --                            opposite amounts
 --   elo not chained          each match row starts from the team's previous
 --                            rating
+--   elo match unknown        each match row names a match the store holds
+--                            (a match id is ~2e17: one through a float is not)
 --   share not whole          a measure's regional shares sum to 1 across the
 --                            nation (where the nation has any)
 with weights as (
@@ -38,6 +40,16 @@ chain as (
             partition by team_tid order by event_order
         ) as previous_elo
     from {{ ref('fact_club_elo') }}
+),
+
+unknown_matches as (
+    select
+        elo.team_tid,
+        elo.match_id
+    from {{ ref('fact_club_elo') }} as elo
+    left join {{ ref('int_matches') }} as matches
+        on elo.match_id = matches.match_id
+    where elo.rating_event = 'match' and matches.match_id is null
 ),
 
 level_shares as (
@@ -78,6 +90,11 @@ select
     team_tid::varchar || ' #' || event_order::varchar as subject
 from chain
 where event_order > 0 and abs(elo_before - previous_elo) > 1e-6
+union all
+select
+    'elo match unknown' as "check",
+    team_tid::varchar || ' ' || match_id::varchar as subject
+from unknown_matches
 union all
 select
     'share not whole' as "check",

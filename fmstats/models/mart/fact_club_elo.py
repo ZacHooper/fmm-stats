@@ -71,8 +71,14 @@ def model(dbt, session):
             rows.append((team, "match", m.match_id, m.match_date, opponent, before,
                          rating[team]))
 
+    # dtype=object keeps the ids Python ints: a match id is ~2e17, past what a float holds
+    # exactly, and pandas would infer float64 for an int column holding a seed's None
     out = pd.DataFrame(rows, columns=["team_tid", "rating_event", "match_id", "rating_date",
-                                      "opponent_tid", "elo_before", "elo"])
+                                      "opponent_tid", "elo_before", "elo"], dtype=object)
+    for col in ("team_tid", "match_id", "opponent_tid"):
+        out[col] = out[col].astype("Int64")
+    for col in ("elo_before", "elo"):
+        out[col] = out[col].astype("float64")
     out["event_order"] = out.groupby("team_tid").cumcount()
     out["rating_date"] = pd.to_datetime(out["rating_date"])
     # fixed types, so an empty store builds the same table
