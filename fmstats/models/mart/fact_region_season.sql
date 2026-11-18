@@ -4,7 +4,8 @@
 -- season is its career-history lines (fact_player_season); the season of the
 -- latest snapshot adds the This Season panel's club_season line for the team
 -- he plays for now (the borrowing club's on a loan), which the history line
--- for that club does not yet hold (the larger of the two is kept). A team's tier for a season is its league on
+-- for that club does not yet hold (the larger of the two is kept). A team's
+-- tier for a season is its league on
 -- the season's latest snapshot or, for the season before the first snapshot,
 -- the league it finished in (last_league_cid). Weights are those of the
 -- season's first snapshot, or the next season's where it has none.
