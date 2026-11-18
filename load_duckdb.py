@@ -901,7 +901,7 @@ def load_history(con, season, phase, hist, heads):
     return {"player_history": n_players, "player_history_seasons": n_seasons}
 
 
-def load_core(con, d, season, phase):
+def load_core(con, d, season, phase, career=None):
     counts = {}
 
     # --- the person table and the two attribute tables it links, as stored ----
@@ -1238,7 +1238,7 @@ def load_core(con, d, season, phase):
     # matches.json is the match table as stored (fmparser/tables/matches.py); what the game
     # does not store -- a competition's name, play-off leg labels, a side's star and its
     # summed team stats, which starter stood where -- is derived here, in _match_derived.
-    season_matches = _load_json(os.path.join(d, "matches.json"))
+    season_matches = _season_matches(d, career)
     comp_names = {int(k): v.get("name") for k, v in (comps or {}).items()}
     labels = _match_competitions(season_matches, comp_names)
     m_cols = (["season", "phase", "anchor", "date", "competition", "comp_id",
@@ -1381,7 +1381,7 @@ def _backfill_competition(con, season, phase):
     """, [season, phase])
 
 
-def load_world(con, d, season, phase):
+def load_world(con, d, season, phase, career=None):
     out = {}
     path = os.path.join(d, "world_fixtures.json")
     data = _load_json(path) if os.path.exists(path) else []
@@ -1465,30 +1465,13 @@ def save_date(d):
     return (_load_json(path) if os.path.exists(path) else {}).get("save_date")
 
 
-def resolve_season_phase(label, d, career, override=(None, None)):
-    """(season, phase): the --season/--phase override, else the save's header date as phase
-    and, as season, the campaign that date falls in by the career's rollover
-    (`careers.campaign`). An extract with no header date cannot be placed and is refused."""
-    phase = override[1] or save_date(d)
-    if phase is None:
-        raise SystemExit(f"{label}: summary.json carries no save_date (an extract from "
-                         f"before header dates?); re-extract it or pass --season and --phase")
-    season = override[0]
-    if season is None:
-        season = career.campaign(phase, any(m["date"] for m in _matches(d)))
-    return int(season), phase
-
-
-def check_matches(d, career):
-    """The match table against the world fixture list: the same games, our two clubs'
-    fixtures played since the career's last rollover on or before the save date (the game
-    empties the table that day), and not before the career's first day. This is what tells an empty table after the rollover from a
-    table the locator missed. Raises `MatchTableError`; no fixture list, no check."""
-    path = os.path.join(d, "world_fixtures.json")
-    world = _load_json(path) if os.path.exists(path) else []
+def _match_window(d, career):
+    """The current campaign's match window (since, until] for our clubs: from the career's
+    last rollover on or before the save date (or the day before the career's start) up to
+    the save date."""
     until = save_date(d)
-    if not world or until is None:
-        return
+    if until is None:
+        return None, None
     year = int(until[:4])
     ro = getattr(career, "rollover_for", lambda y: career.rollover)(year)
     since = f"{until[:4]}-{ro[0]:02d}-{ro[1]:02d}"
@@ -1500,8 +1483,49 @@ def check_matches(d, career):
         # the day before the career's first: the check's lower bound is exclusive
         before = (datetime.date.fromisoformat(start) - datetime.timedelta(days=1)).isoformat()
         since = max(since, before)
-    check_against_fixtures(_matches(d), world, (career.managed_tid, career.reserve_tid),
-                           since, until)
+    return since, until
+
+
+def _season_matches(d, career):
+    """Our matches from the current campaign: on FMM27 the game keeps the prior season's
+    match table until the new season's first match is played, so any row dated on or before
+    the last rollover (`since`) belongs to the finished campaign and is excluded."""
+    matches = _matches(d)
+    if career is None:
+        return matches
+    since, _ = _match_window(d, career)
+    if since is None:
+        return matches
+    return [m for m in matches if m.get("date") and m["date"] > since]
+
+
+def resolve_season_phase(label, d, career, override=(None, None)):
+    """(season, phase): the --season/--phase override, else the save's header date as phase
+    and, as season, the campaign that date falls in by the career's rollover
+    (`careers.campaign`). An extract with no header date cannot be placed and is refused."""
+    phase = override[1] or save_date(d)
+    if phase is None:
+        raise SystemExit(f"{label}: summary.json carries no save_date (an extract from "
+                         f"before header dates?); re-extract it or pass --season and --phase")
+    season = override[0]
+    if season is None:
+        season = career.campaign(phase, any(m["date"] for m in _season_matches(d, career)))
+    return int(season), phase
+
+
+def check_matches(d, career):
+    """The match table against the world fixture list: the same games, our two clubs'
+    fixtures played since the career's last rollover on or before the save date (the game
+    empties the table that day, or on FMM27 when the first new match is played), and not
+    before the career's first day. This is what tells an empty table after the rollover from a
+    table the locator missed. Raises `MatchTableError`; no fixture list, no check."""
+    path = os.path.join(d, "world_fixtures.json")
+    world = _load_json(path) if os.path.exists(path) else []
+    since, until = _match_window(d, career)
+    if not world or since is None or until is None:
+        return
+    check_against_fixtures(_season_matches(d, career), world,
+                           (career.managed_tid, career.reserve_tid), since, until)
 
 
 def load_label(con, d, include, career, override=(None, None)):
@@ -1523,7 +1547,7 @@ def load_label(con, d, include, career, override=(None, None)):
         counts = {}
         for g in groups:
             _clear_group(con, g, season, phase)
-            counts.update(_GROUP_FN[g](con, d, season, phase))
+            counts.update(_GROUP_FN[g](con, d, season, phase, career))
         _backfill_competition(con, season, phase)
         _delete(con, "extracts", season, phase)
         # save_path is stored as a BASENAME, not the absolute path the extract recorded.

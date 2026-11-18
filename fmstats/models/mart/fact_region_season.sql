@@ -175,6 +175,7 @@ shares as (
         weighted_appearances
         / sum(weighted_appearances) over (partition by season) as nation_share
     from regions
+    where weighted_appearances > 0
 )
 
 select

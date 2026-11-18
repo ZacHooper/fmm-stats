@@ -62,9 +62,9 @@ where
             >= max(median) filter (where age = 24) as falls
         from curve
     ), false)
-    -- growth is measured between snapshots a season apart, so a store holding
-    -- one season (a career's first saves) has no curve yet
+    -- growth is measured between snapshots a season apart, so a store with no
+    -- pair var('forecast').gap_days apart yet has no curve
     and (
-        select count(distinct snapshots.season) as seasons
-        from {{ ref('site_snapshots') }} as snapshots
-    ) > 1
+        select count(*) as ages
+        from curve
+    ) > 0
