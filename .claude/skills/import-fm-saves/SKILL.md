@@ -29,8 +29,10 @@ and `load_duckdb.py`). Saves are read from wherever the user drops them (commonl
   label are one string with no `--label`. The header dates a 0-match save too.
 - **Refresh the rebuild recipe after loading** — `uv run python scripts/export_manifest.py`, then
   commit `seeds/manifest.csv`. Without this the new snapshot can't be rebuilt on another machine.
-- **The stores are NOT committed** (96 MiB, rewrites wholesale, near GitHub's file limit). They're
-  derived: `uv run python scripts/rebuild.py --career frem` rebuilds from saves + manifest.
+- **The stores are NOT committed** (96 MiB, rewrites wholesale, near GitHub's file limit). With no
+  local store, **pull the published one** (`scripts/pull_store.py`, step 0) and load only the new
+  save on top. `scripts/rebuild.py` (re-extract every save, ~1 min each) is for when R2 holds no
+  published copy, or after a parser change.
 - **Season = end-year of the campaign** (22/23 → 2023, Aus-financial-year style).
 - **`phase` is the save's in-game DATE** ('YYYY-MM-DD'), the header date `extract.py` writes into
   `summary.json` (`save_date`). **The loader derives both — pass NEITHER `--season` nor
@@ -98,6 +100,18 @@ Afterwards, verify rather than assume: row counts per slice, plus a ground-truth
 check against a screenshot.
 
 ## Steps
+
+0. **Get the config and the store, before touching any save.**
+   - **No `fmm.toml`?** `uv run python scripts/config_sync.py pull`. With no `r2_remote` set it
+     finds the bucket holding `config/fmm.toml` among the rclone remotes. Never hand-write one.
+   - **No local `fm-<key>.duckdb`?** `uv run python scripts/pull_store.py --career <key>`
+     (~1 min). It downloads the copy `publish_duckdb.py` last uploaded, expands its compacted
+     `raw` tables back into the loader's shape, and prints its snapshots. Do NOT run
+     `rebuild.py` for this: it re-extracts every save.
+   - **Check it's current:** the printed snapshots should cover every `active=1` row in
+     `seeds/manifest.csv` for the career. A missing one (published before its import) gets
+     loaded like a new save: fetch `<save>.fms.gz` from `<r2_remote>/saves/<key>/`, gunzip,
+     extract, load.
 
 1. **Locate the saves.** `ls -la ~/Downloads/*.fms` (or wherever the user says). If several
    exist, identify the *new* ones (recent mtime + descriptive names). Confirm the set with the
