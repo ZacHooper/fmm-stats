@@ -109,3 +109,22 @@ Appearances in the scored tiers, each weighted by its tier's tier_weight.
 {% docs appearances_by_tier %}
 The row's appearances split by tier: a list of `{tier, appearances}`, top tier first.
 {% enddocs %}
+
+{% docs home_region_id %}
+The region a regional score groups by (`dim_home_region`): a region of the career's home
+nation (its `region_id`), or the negated `nation_id` of another nation whose clubs play in the
+home nation's leagues (Wales, for Cardiff and Swansea in England).
+{% enddocs %}
+
+{% docs is_nation_group %}
+The row stands for a whole other nation's clubs in the home nation's leagues, not one of the
+home nation's regions.
+{% enddocs %}
+
+{% docs region_ids %}
+The game's regions (`dim_region`) the row covers.
+{% enddocs %}
+
+{% docs league_names %}
+The names of the tier's leagues (several where it has parallel divisions).
+{% enddocs %}

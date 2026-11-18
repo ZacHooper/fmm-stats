@@ -3,6 +3,7 @@
 -- history (fact_player_season) holds the seasons before this one.
 select
     snapshot_date,
+    season,
     person_id,
     tid,
     block,

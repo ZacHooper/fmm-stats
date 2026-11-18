@@ -761,8 +761,84 @@ def main():
                     if n["name"] in nation_hist},
     }
 
+    # The Regions tab: how good each region of our nation is, by its clubs (Elo, facilities),
+    # the players its youth systems produce (counts at each tier's level, all and under-21)
+    # and their appearances by tier. Counts, shares and weights only: the tier levels behind
+    # them are raw ability and stay in the store.
+    f3 = flt(3)
+    tiers_now = [{"tier": r["tier"], "scored": bool(r["is_scored"]),
+                  "weight": f3(r["tier_weight"]), "teams": num(r["n_teams"]),
+                  "leagues": list(r["league_names"] or [])}
+                 for r in s.rows("SELECT * FROM site.region_tiers WHERE snapshot_date = ? "
+                                 "ORDER BY tier", [d])]
+    levels = {}
+    for r in s.rows("SELECT * FROM site.region_levels WHERE snapshot_date = ? "
+                    "ORDER BY home_region_id, age_group, level_tier", [d]):
+        levels.setdefault(r["home_region_id"], {}).setdefault(r["age_group"], []).append(
+            [r["level_tier"], num(r["n_players"]), f3(r["nation_share"]),
+             f3(r["nation_share_index"])])
+    seasons = {}
+    for r in s.rows("SELECT * FROM site.region_seasons ORDER BY home_region_id, season"):
+        seasons.setdefault(r["home_region_id"], []).append({
+            "season": r["season"], "live": bool(r["is_live"]),
+            "appearances": num(r["appearances"]),
+            "weighted": flt(0)(r["weighted_appearances"]),
+            "share": f3(r["nation_share"]), "index": f3(r["nation_share_index"]),
+            "by_tier": {str(t["tier"]): num(t["appearances"])
+                        for t in r["appearances_by_tier"] or []}})
+    regions = [{"id": r["home_region_id"], "name": r["name"],
+                "nation_group": bool(r["is_nation_group"]), "ours": bool(r["is_managed_club"]),
+                "teams": num(r["n_teams"]), "elo_mean": flt(0)(r["elo_mean"]),
+                "elo_median": flt(0)(r["elo_median"]), "elo_top3": flt(0)(r["elo_top3"]),
+                "elo_p75_share": f3(r["elo_p75_share"]),
+                "youth_median": flt(1)(r["youth_facilities_median"]),
+                "youth_good": num(r["n_good_youth_facilities"]),
+                "training_median": flt(1)(r["training_facilities_median"]),
+                "training_good": num(r["n_good_training_facilities"]),
+                "levels": levels.get(r["home_region_id"], {}),
+                "seasons": seasons.get(r["home_region_id"], [])}
+               for r in s.rows("SELECT * FROM site.regions WHERE snapshot_date = ? "
+                               "ORDER BY elo_mean DESC", [d])]
+    region_clubs = [{"tid": r["team_tid"], "name": r["name"], "region": r["home_region_id"],
+                     "tier": r["tier"], "scored": bool(r["is_scored"]),
+                     "league": r["league_name"], "elo": flt(0)(r["elo"]),
+                     "reputation": num(r["reputation"]), "youth": num(r["youth_facilities"]),
+                     "training": num(r["training_facilities"])}
+                    for r in s.rows("SELECT * FROM site.region_clubs WHERE snapshot_date = ? "
+                                    "ORDER BY elo DESC NULLS LAST", [d])]
+    region_hist = series("""SELECT snapshot_date, home_region_id, elo_mean, elo_median,
+                                   elo_top3, elo_p75_share, youth_facilities_median
+                            FROM site.regions""", "home_region_id",
+                         {"elo_mean": flt(0), "elo_median": flt(0), "elo_top3": flt(0),
+                          "elo_p75_share": f3, "youth_facilities_median": flt(1)})
+    # each level's count and share, all ages and under-21s: "<tier>_<age group>_<measure>"
+    level_fields = {f"{t['tier']}_{g}_{m}": (f3 if m != "n" else num)
+                    for t in tiers_now if t["scored"] for g in ("all", "under_21")
+                    for m in ("n", "share", "index")}
+    level_rows = {}
+    for r in s.rows("SELECT * FROM site.region_levels"):
+        row = level_rows.setdefault((r["snapshot_date"], r["home_region_id"]),
+                                    {"snapshot_date": r["snapshot_date"],
+                                     "home_region_id": r["home_region_id"]})
+        base = f"{r['level_tier']}_{r['age_group']}"
+        row[f"{base}_n"], row[f"{base}_share"], row[f"{base}_index"] = (
+            r["n_players"], r["nation_share"], r["nation_share_index"])
+    for (_, rid), row in level_rows.items():
+        per = region_hist.setdefault(rid, {})
+        for f, conv in level_fields.items():
+            per.setdefault(f, {})[at[row["snapshot_date"]]] = conv(row.get(f))
+    for per in region_hist.values():
+        for f in level_fields:
+            if isinstance(per.get(f), dict):
+                per[f] = rle(per[f])
+    region_club_hist = series("SELECT snapshot_date, team_tid, elo FROM site.region_clubs",
+                              "team_tid", {"elo": flt(0)})
+    history["regions"] = {str(k): v for k, v in region_hist.items()}
+    history["region_clubs"] = {str(k): v["elo"] for k, v in region_club_hist.items()}
+
     emit("world.json", {
         "our_nation": our_nation,
+        "regions": {"tiers": tiers_now, "regions": regions, "clubs": region_clubs},
         "nations": nations,
         "history": history,
         "places": {"denmark": home,
@@ -781,7 +857,14 @@ def main():
                 "reason, not because they lack one). History: each listed league's reputation "
                 "and skill index, each club's reputation and each nation's rank, points, "
                 "coefficient, five-season coefficient and UEFA rank on every snapshot in `history.dates`, run-length encoded as flat "
-                "[index, value, ...] change points (a null value: absent from then on)."})
+                "[index, value, ...] change points (a null value: absent from then on). "
+                "Regions: each region of our nation (a foreign nation's clubs in its leagues "
+                "as one row, `nation_group`), by its clubs' Elo and facilities, the players "
+                "its youth systems produced at each scored tier's level or better "
+                "(`levels`: [tier, players, share of the nation's, share against day 1], all "
+                "and under_21) and their tier-weighted appearances by season (`seasons`); "
+                "`tiers` the weights; `clubs` each team's Elo. `history.regions` and "
+                "`history.region_clubs` chart them over the snapshots."})
 
     # ------------------------------------------------------------ transfers.json
     # Our own moves in full (the History page: signings and sales boards, the season ledger),

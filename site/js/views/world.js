@@ -1,8 +1,9 @@
 /**
  * World — the reputation ladders (leagues, clubs, nations), each a sortable table with a chart
  * of how the entities in it moved across every snapshot, the transfer market season by season
- * with the world record (transfers.js), plus two maps: our nation's clubs by division, and the
- * stadiums of our current squad's origin clubs.
+ * with the world record (transfers.js), two maps (our nation's clubs by division, and the
+ * stadiums of our current squad's origin clubs), and Regions: how good each region of our nation
+ * is at football, by its clubs and the players it produces.
  *
  * Leagues and clubs need no fetch of their own for the table: `D.S.leagues`/`D.S.clubs` are
  * already loaded from core.json. Nations, the maps and the history behind every chart come from
@@ -59,8 +60,9 @@ export async function view() {
     ["Clubs", () => clubsPanel(H)],
     ["Nations", () => nationsPanel(world, H)],
     ["Maps", () => mapsPanel(world)],
-    // last, so a remembered tab index (LS_TAB) still opens the tab it did
+    // new tabs go last, so a remembered tab index (LS_TAB) still opens the tab it did
     ["Transfers", () => worldTransfersPanel()],
+    ["Regions", () => regionsPanel(world, H)],
   ];
   let active = Math.min(Math.max(+lsGet(LS_TAB) || 0, 0), TABS.length - 1);
   const drawTabs = () => {
@@ -109,6 +111,11 @@ function history(world) {
       return { tier: r?.tier ?? null, reputation: expand(r?.reputation), skill_idx: expand(r?.skill_idx) };
     },
     club: (tid) => ({ reputation: expand(h?.clubs?.[tid]) }),
+    region: (id) => {
+      const r = h?.regions?.[id] || {};
+      return Object.fromEntries(Object.entries(r).map(([k, v]) => [k, expand(v)]));
+    },
+    regionClub: (tid) => ({ elo: expand(h?.region_clubs?.[tid]) }),
     nation: (name) => {
       const r = h?.nations?.[name];
       return { world_rank: expand(r?.world_rank), ranking_points: expand(r?.ranking_points),
@@ -493,6 +500,284 @@ function clubsPanel(H) {
   nationSel.addEventListener("change", () => { drawLeagueOptions(); node.redrawTable(); });
   leagueSel.addEventListener("change", () => node.redrawTable());
   return panelWrap(`Club reputation · ${clubs.length} clubs`, node);
+}
+
+// --------------------------------------------------------------------------- regions
+const LS_REGIONS = "fmworld:regions-view";
+const pctFmt = (v, dp = 0) => (v == null ? DASH : `${num(100 * v, dp)}%`);
+/** A share-against-day-1 index: 1.10 reads +10%, coloured by its direction. */
+function indexCell(v) {
+  if (v == null) return el("span.dim", { text: DASH });
+  const d = Math.round((v - 1) * 1000) / 10;
+  if (!d) return el("span.dim", { text: "±0%" });
+  return el(`span.${d > 0 ? "up" : "down"}`, { text: `${d > 0 ? "+" : "−"}${num(Math.abs(d), 1)}%` });
+}
+/** A tier's name for a column: its league, or its parallel divisions with the shared words once
+ *  ("Enterprise National League North / South"). */
+function tierLabel(t) {
+  const names = t?.leagues || [];
+  if (names.length === 1) return names[0];
+  if (!names.length) return `Tier ${t?.tier}`;
+  const words = names.map((n) => n.split(" "));
+  let k = 0;
+  while (words.every((w) => w[k] != null && w[k] === words[0][k])) k++;
+  return [words[0].slice(0, k).join(" "), words.map((w) => w.slice(k).join(" ")).join(" / ")].filter(Boolean).join(" ");
+}
+
+/**
+ * Regions: how good each region of our nation is at football — its clubs (Elo, facilities), the
+ * players its youth systems produce (counted at each tier's level or better) and their
+ * appearances by tier. A region of another nation whose clubs play in our leagues (Wales, in
+ * England) is one row. Progress reads as a region's share of the nation's, against day 1, so a
+ * big region's volume doesn't hide a small one's growth.
+ */
+function regionsPanel(world, H) {
+  const R = world?.regions;
+  if (!R?.regions?.length) return el("p.note", { text: "No regional data in this export." });
+  const scored = R.tiers.filter((t) => t.scored);
+  const views = [["clubs", "Clubs", () => regionClubsView(R, H)],
+                 ["players", "Players", () => regionPlayersView(R, H, scored)],
+                 ["apps", "Appearances", () => regionAppsView(R, scored)],
+                 ["elo", "Club Elo", () => clubEloView(R, H)]];
+  let view = views.find(([k]) => k === lsGet(LS_REGIONS)) || views[0];
+  const seg = el("span.seg");
+  const box = el("div");
+  const draw = () => {
+    seg.replaceChildren(...views.map((v) => el(`button${v === view ? ".on" : ""}`, {
+      type: "button", text: v[1], onclick: () => { view = v; lsSet(LS_REGIONS, v[0]); draw(); },
+    })));
+    box.replaceChildren(view[2]());
+  };
+  draw();
+  return el("div", {}, [regionTiles(R, scored), el("div.prow", {}, [seg]), box]);
+}
+
+/** Our region at a glance: its clubs' place, its players at a League Two-ish bar, its appearances. */
+function regionTiles(R, scored) {
+  const ours = R.regions.find((r) => r.ours);
+  if (!ours) return el("div");
+  const byElo = [...R.regions].sort((a, b) => (b.elo_mean ?? 0) - (a.elo_mean ?? 0));
+  // the bar for the players tile, the Players view's default: the fourth scored tier (League
+  // Two in England), or the lowest where there are fewer
+  const bar = scored[Math.min(3, scored.length - 1)];
+  const lv = (g) => (ours.levels[g] || []).find((x) => x[0] === bar?.tier);
+  const live = ours.seasons.at(-1);
+  const tile = (label, value, sub, d) => el("div.kpi.wkpi", {}, [
+    el("span", { text: label }), el("b", { text: value }), el("div.wsub", {}, [sub, d ? " · " : null, d]),
+  ]);
+  const all = lv("all"), u21 = lv("under_21");
+  return el("div.kpis", {}, [
+    tile(`${ours.name} · clubs`, `#${byElo.indexOf(ours) + 1}`, `of ${R.regions.length} · Elo ${num(ours.elo_mean)}`),
+    all ? tile(`Players at ${tierLabel(bar)} level+`, num(all[1]), `${pctFmt(all[2], 1)} of the nation's`, indexCell(all[3])) : null,
+    u21 ? tile("…of them under 21", num(u21[1]), `${pctFmt(u21[2], 1)} of the nation's`, indexCell(u21[3])) : null,
+    live ? tile(`Appearances ${live.season - 1}/${String(live.season).slice(2)}`, pctFmt(live.share, 1),
+      "of the nation's, tier-weighted", indexCell(live.index)) : null,
+  ]);
+}
+
+const regionName = (r) => el("span", {}, [r.name, r.ours ? pill(" us", "good") : null]);
+const regionRows = (R, H, extra) => R.regions.map((r) => ({
+  ...r, tid: String(r.id), hist: H.region(r.id), _search: r.name.toLowerCase(), ...extra?.(r),
+}));
+const oursSet = (R) => new Set(R.regions.filter((r) => r.ours).map((r) => String(r.id)));
+/** The first chart: our region, then the rest in the table's order. */
+const oursFirst = (R, rows) => {
+  const ours = oursSet(R);
+  return [...rows.filter((r) => ours.has(r.tid)), ...rows.filter((r) => !ours.has(r.tid))].map((r) => r.tid);
+};
+
+function regionClubsView(R, H) {
+  const rows = regionRows(R, H);
+  const byMean = (rs) => [...rs].sort((a, b) => (b.elo_mean ?? 0) - (a.elo_mean ?? 0));
+  const node = tableAndChart({
+    key: "regions-clubs", H, rows, ours: oursSet(R),
+    series: (r) => r.hist,
+    metrics: [{ id: "elo_mean", label: "Mean Elo" }, { id: "elo_median", label: "Median" },
+              { id: "elo_top3", label: "Best 3" }, { id: "elo_p75_share", label: "Share ≥ p75", dp: 2 },
+              { id: "youth_facilities_median", label: "Youth fac.", dp: 1 }],
+    catalogue: {
+      name: { label: "Region", get: (r) => r.name, render: regionName },
+      teams: { label: "Clubs", align: "num", get: (r) => r.teams, help: "Teams in the scored tiers" },
+      elo_mean: { label: "Mean Elo", align: "num", get: (r) => r.elo_mean, cls: "strong",
+                  help: "The average Elo of the region's clubs in the scored tiers" },
+      elo_median: { label: "Median", align: "num", get: (r) => r.elo_median, help: "The middle club's Elo" },
+      elo_top3: { label: "Best 3", align: "num", get: (r) => r.elo_top3, help: "The average Elo of the region's three best clubs" },
+      elo_p75_share: { label: "≥ p75", align: "num", get: (r) => r.elo_p75_share, render: (r) => pctFmt(r.elo_p75_share),
+                       help: "Share of the region's clubs rated in the nation's top quarter" },
+      trend: { label: "Trend", get: (r) => r.elo_mean, render: (r) => sparkline(r.hist.elo_mean || [], { w: 64, h: 16 }),
+               help: "Mean Elo across every snapshot" },
+      youth_median: { label: "Youth fac.", align: "num", get: (r) => r.youth_median, render: (r) => num(r.youth_median, 1),
+                      help: "Median youth facilities (1-20)" },
+      youth_good: { label: "Youth ★★★+", align: "num", get: (r) => r.youth_good, help: "Clubs with youth facilities of three stars or more" },
+      training_median: { label: "Training fac.", align: "num", get: (r) => r.training_median, render: (r) => num(r.training_median, 1),
+                         help: "Median training facilities (1-20)" },
+      training_good: { label: "Training ★★★+", align: "num", get: (r) => r.training_good, help: "Clubs with training facilities of three stars or more" },
+    },
+    defaults: ["name", "teams", "elo_mean", "elo_median", "elo_top3", "elo_p75_share", "trend", "youth_median", "youth_good", "training_median", "training_good"],
+    sort: { by: "elo_mean", dir: "desc" },
+    searchPlaceholder: "Search regions…",
+    initial: () => oursFirst(R, byMean(rows)),
+    quick: () => [],
+    note: "Each club's <b>Elo</b> starts from its division's level on the first save and moves with "
+      + "every league and cup match against another club in our nation's leagues; see Club Elo. "
+      + "A region's clubs are those in the divisions the game plays out, placed by their ground. "
+      + "<b>Mean</b> rewards depth, <b>Best 3</b> a region's top clubs (and its size), <b>≥ p75</b> "
+      + "how many of its clubs are among the nation's best quarter. Facilities don't score: they "
+      + "show what a region's clubs are built to produce.",
+  });
+  return panelWrap(`Regions by their clubs · ${rows.length}`, node);
+}
+
+const LS_LEVEL = "fmworld:regions-level";
+function regionPlayersView(R, H, scored) {
+  const saved = lsGet(LS_LEVEL) || {};
+  let group = saved.group === "under_21" ? "under_21" : "all";
+  let tier = scored.some((t) => t.tier === saved.tier) ? saved.tier : scored[Math.min(3, scored.length - 1)]?.tier;
+  const box = el("div");
+  const groupSeg = el("span.seg");
+  const tierSel = el("select.btn", { "aria-label": "Level" }, scored.map((t) => el("option", {
+    value: String(t.tier), text: `${tierLabel(t)} level+`,
+  })));
+  tierSel.value = String(tier);
+  const draw = () => {
+    lsSet(LS_LEVEL, { group, tier });
+    groupSeg.replaceChildren(...[["all", "All ages"], ["under_21", "Under 21"]].map(([k, label]) => el(`button${k === group ? ".on" : ""}`, {
+      type: "button", text: label, onclick: () => { group = k; draw(); },
+    })));
+    const lvl = (r, t) => (r.levels[group] || []).find((x) => x[0] === t) || [];
+    const rows = regionRows(R, H, (r) => ({ at: lvl(r, tier) }));
+    const counts = Object.fromEntries(scored.map((t) => [`t${t.tier}`, {
+      label: `${tierLabel(t)}+`, align: "num", get: (r) => lvl(r, t.tier)[1] ?? null,
+      help: `Players at ${tierLabel(t)} level or better`,
+    }]));
+    const key = `${tier}_${group}`;
+    const node = tableAndChart({
+      key: "regions-players", H, rows, ours: oursSet(R),
+      series: (r) => ({ share: r.hist[`${key}_share`] || [], n: r.hist[`${key}_n`] || [], index: r.hist[`${key}_index`] || [] }),
+      metrics: [{ id: "share", label: "Share", dp: 3 }, { id: "n", label: "Players" }, { id: "index", label: "vs day 1", dp: 3 }],
+      catalogue: {
+        name: { label: "Region", get: (r) => r.name, render: regionName },
+        share: { label: "Share", align: "num", get: (r) => r.at[2] ?? null, render: (r) => pctFmt(r.at[2], 1), cls: "strong",
+                 help: "The region's part of the nation's players at the chosen level" },
+        index: { label: "vs day 1", align: "num", get: (r) => r.at[3] ?? null, render: (r) => indexCell(r.at[3]),
+                 help: "The share against the region's own on the first save: +10% is a tenth more of the nation's players" },
+        ...counts,
+      },
+      defaults: ["name", "share", "index", ...Object.keys(counts)],
+      sort: { by: "share", dir: "desc" },
+      searchPlaceholder: "Search regions…",
+      initial: () => oursFirst(R, [...rows].sort((a, b) => (b.at[2] ?? 0) - (a.at[2] ?? 0))),
+      quick: () => [],
+      note: "A player belongs to the region of his <b>origin club</b>, the youth system he came "
+        + "through (an academy counts as its club), wherever he plays now. He counts at a "
+        + "division's level when he is at least as good as that division's typical regular (the "
+        + "middle of its teams' best 14, every nationality counted), so each column includes the "
+        + "ones before it. The levels are re-read on every save, so a rise is a region gaining "
+        + "ground on the rest, not the world getting better. Small counts move a lot: one player "
+        + "is a big share of a handful.",
+    });
+    box.replaceChildren(node);
+  };
+  tierSel.addEventListener("change", () => { tier = +tierSel.value; draw(); });
+  draw();
+  return el("div", {}, [el("h3", { text: "Regions by the players they produce" }),
+    el("div.prow", {}, [groupSeg, tierSel]), box]);
+}
+
+function regionAppsView(R, scored) {
+  const seasonsAll = [...new Set(R.regions.flatMap((r) => r.seasons.map((x) => x.season)))].sort();
+  const label = (y) => `${String(y - 1).slice(2)}/${String(y).slice(2)}`;
+  const live = seasonsAll.at(-1);
+  const at = (r, y) => r.seasons.find((x) => x.season === y) || {};
+  const rows = R.regions.map((r) => ({ ...r, tid: String(r.id), _search: r.name.toLowerCase(), now: at(r, live) }));
+  const seasonCols = Object.fromEntries(seasonsAll.map((y) => [`s${y}`, {
+    label: label(y), align: "num", get: (r) => at(r, y).share ?? null, render: (r) => pctFmt(at(r, y).share, 1),
+    help: `Share of the nation's tier-weighted appearances in ${label(y)}${at(rows[0], y).live ? " (in progress)" : ""}`,
+  }]));
+  const tierCols = Object.fromEntries(scored.map((t) => [`a${t.tier}`, {
+    label: tierLabel(t), align: "num", get: (r) => r.now.by_tier?.[t.tier] ?? null,
+    help: `Appearances in ${tierLabel(t)} in ${label(live)} (weight ${num(t.weight, 2)})`,
+  }]));
+  const table = playerTable({
+    key: "world-regions-apps", rows, sticky: ["name"],
+    catalogue: {
+      name: { label: "Region", get: (r) => r.name, render: regionName },
+      share: { label: "Share", align: "num", get: (r) => r.now.share ?? null, render: (r) => pctFmt(r.now.share, 1), cls: "strong",
+               help: `The region's part of the nation's tier-weighted appearances in ${label(live)}` },
+      index: { label: "vs first", align: "num", get: (r) => r.now.index ?? null, render: (r) => indexCell(r.now.index),
+               help: `That share against the region's in ${label(seasonsAll[0])}` },
+      weighted: { label: "Weighted", align: "num", get: (r) => r.now.weighted ?? null, help: "Appearances, each weighted by its division" },
+      appearances: { label: "Apps", align: "num", get: (r) => r.now.appearances ?? null, help: "Appearances in the scored divisions" },
+      ...seasonCols,
+      ...tierCols,
+    },
+    defaults: ["name", "share", "index", ...Object.keys(seasonCols), "weighted", "appearances", ...Object.keys(tierCols)],
+    sort: { by: "share", dir: "desc" },
+    searchPlaceholder: "Search regions…",
+  });
+  const weights = scored.map((t) => `${tierLabel(t)} ${num(t.weight, 1)}`).join(" · ");
+  return el("div", {}, [
+    el("h3", { text: `Regions by their players' appearances · ${label(live)}` }),
+    table.node,
+    el("p.note", { html: "Every appearance this season and before by a player from the region's "
+      + "youth systems, for a club in a division the game plays out, weighted by how good that "
+      + `division is: <b>${weights}</b>. The weights come from the gap between each division's `
+      + "typical regular and the first division below the ones played out. A finished season is "
+      + "its career-history lines; the season in progress grows with every save, so its share "
+      + "settles only when it ends." }),
+  ]);
+}
+
+function clubEloView(R, H) {
+  const regionOf = new Map(R.regions.map((r) => [r.id, r]));
+  const ourTids = new Set(D.S.ours.clubs || []);
+  const clubs = R.clubs.filter((c) => c.scored && c.elo != null).map((c, i) => ({
+    ...c, rank: i + 1, regionName: regionOf.get(c.region)?.name || DASH, hist: H.regionClub(c.tid),
+    sub: regionOf.get(c.region)?.name, _search: `${c.name} ${regionOf.get(c.region)?.name || ""} ${c.league || ""}`.toLowerCase(),
+  }));
+  const regionSel = el("select.btn", {}, [el("option", { value: "", text: "All regions" }),
+    ...R.regions.map((r) => el("option", { value: String(r.id), text: r.name }))]);
+  const ours = R.regions.find((r) => r.ours);
+  const tiers = [...new Set(clubs.map((c) => c.tier))].sort((a, b) => a - b);
+  const tierSel = el("select.btn", {}, [el("option", { value: "", text: "All divisions" }),
+    ...tiers.map((t) => el("option", { value: String(t), text: R.tiers.find((x) => x.tier === t) ? tierLabel(R.tiers.find((x) => x.tier === t)) : `Tier ${t}` }))]);
+  const filter = (c) => (!regionSel.value || String(c.region) === regionSel.value) && (!tierSel.value || String(c.tier) === tierSel.value);
+  const node = tableAndChart({
+    key: "regions-elo", H, rows: clubs, ours: ourTids,
+    series: (r) => r.hist,
+    metrics: [{ id: "elo", label: "Elo" }],
+    catalogue: {
+      rank: { label: "#", align: "num", get: (r) => r.rank, help: "Rank by Elo in the nation" },
+      name: { label: "Club", get: (r) => r.name,
+              render: (r) => el("span.cname", {}, [clubDot(r.tid, D.S), r.name, ourTids.has(r.tid) ? pill(" us", "good") : null]) },
+      region: { label: "Region", get: (r) => r.regionName },
+      league: { label: "League", get: (r) => r.league },
+      tier: { label: "Tier", align: "num", get: (r) => r.tier },
+      elo: { label: "Elo", align: "num", get: (r) => r.elo, cls: "strong" },
+      dElo: { label: "± season", align: "num", get: (r) => delta(H, r.hist.elo), render: (r) => deltaCell(delta(H, r.hist.elo)),
+              help: "Elo change over the last season" },
+      trend: { label: "Trend", get: (r) => r.elo, render: (r) => sparkline(r.hist.elo, { w: 64, h: 16 }), help: "Elo across every snapshot" },
+      youth: { label: "Youth fac.", align: "num", get: (r) => r.youth },
+      training: { label: "Training fac.", align: "num", get: (r) => r.training },
+    },
+    defaults: ["rank", "name", "region", "league", "elo", "dElo", "trend", "youth", "training"],
+    sort: { by: "elo", dir: "desc" },
+    searchPlaceholder: "Search clubs, regions or leagues…",
+    toolbar: [regionSel, tierSel], filter,
+    initial: () => {
+      const mine = ours ? clubs.filter((c) => c.region === ours.id).map((c) => c.tid) : [];
+      return mine.length ? mine : clubs.map((c) => c.tid);
+    },
+    quick: () => R.regions.map((r) => ({ group: "A region's clubs", label: r.name,
+      keys: () => clubs.filter((c) => c.region === r.id).map((c) => c.tid) })),
+    note: "Elo, as in chess: each club starts from its division's level on the first save (the "
+      + "gap between two divisions follows the gap between their typical regulars) and gains or "
+      + "loses points with every league and cup match against another club in our nation's "
+      + "leagues — more for a win it wasn't expected to get, and more for a bigger margin. "
+      + "A struggling club can sink below the best of the division under it, but not two below.",
+  });
+  [regionSel, tierSel].forEach((sel) => sel.addEventListener("change", () => node.redrawTable()));
+  return panelWrap(`Club Elo · ${clubs.length} clubs`, node);
 }
 
 // --------------------------------------------------------------------------- nations

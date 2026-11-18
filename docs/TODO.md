@@ -531,14 +531,8 @@ table:
 ## Stats
 
 ### 13a. Regional strength: what is still open
-The models are built ([`data-model/region.md`](data-model/region.md)); the site does not show
-them yet. Open:
-- **Welsh clubs in the English pyramid** sit in five Welsh regions of one club each
-  (Cardiff, Clwyd, ...), which swing the region tables. Decide: fold a foreign nation's
-  regions into one row per nation, or leave them out of the region scores (they still set the
-  nation's Elo bar).
-- **A part-season against a whole one.** `fact_region_season`'s live season is compared with
-  a finished season; its `nation_share_index` settles only at the season's end.
+Built and on the World page's Regions tab ([`data-model/region.md`](data-model/region.md)).
+Open:
 - **Small counts are noisy**: the South West has 2 players at Premier League level, so one
   player moves that index by half.
 - **Elo settings** (`var('region_elo')`) were chosen on four months of matches: revisit after
@@ -547,7 +541,10 @@ them yet. Open:
   ONS boundaries (public data, safe in git; the club-to-county result stays local), with an
   override list for clubs with no ground (Saltash, Torpoint); then per-head figures.
 - **Reserve leagues** are left out of the tiers; consider them once the scores settle.
-- **A site page** for the region scores.
+- **Season splits on another calendar**: `fact_player_season_split` labels each row with our
+  career's season; a player in a calendar-year league (Sweden, the USA) has his panel restart
+  inside it (`has_panel_reset`). Labelling those rows with the league's own season needs each
+  league's season, which the store reads only for the leagues the game plays out.
 
 ### 13. League tables outside Denmark
 `mart.standings` (and the old `mart.league_tables`) rebuild tables from the fixture list and

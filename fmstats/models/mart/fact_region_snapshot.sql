@@ -6,7 +6,7 @@
 with clubs as (
     select *
     from {{ ref('fact_club_region_snapshot') }}
-    where is_scored and region_id is not null
+    where is_scored and home_region_id is not null
 ),
 
 bar as (
@@ -22,7 +22,7 @@ ranked as (
         clubs.*,
         bar.elo_p75,
         row_number() over (
-            partition by clubs.snapshot_date, clubs.region_id
+            partition by clubs.snapshot_date, clubs.home_region_id
             order by clubs.elo desc
         ) as elo_rank
     from clubs
@@ -31,7 +31,7 @@ ranked as (
 
 select
     snapshot_date,
-    region_id,
+    home_region_id,
     count(*) as n_teams,
     avg(elo) as elo_mean,
     median(elo) as elo_median,
@@ -46,4 +46,4 @@ select
         where training_facilities >= {{ var('region_facilities_good_min') }}
     ) as n_good_training_facilities
 from ranked
-group by snapshot_date, region_id
+group by snapshot_date, home_region_id

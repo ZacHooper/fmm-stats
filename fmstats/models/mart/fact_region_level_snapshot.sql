@@ -7,14 +7,14 @@
 with regions as (
     select distinct
         snapshot_date,
-        region_id
+        home_region_id
     from {{ ref('fact_player_origin_snapshot') }}
 ),
 
 grid as (
     select
         regions.snapshot_date,
-        regions.region_id,
+        regions.home_region_id,
         tier_level.tier as level_tier,
         age_group.age_group
     from regions
@@ -27,7 +27,7 @@ grid as (
 counts as (
     select
         grid.snapshot_date,
-        grid.region_id,
+        grid.home_region_id,
         grid.level_tier,
         grid.age_group,
         count(player.person_id) as n_players
@@ -35,7 +35,7 @@ counts as (
     left join {{ ref('fact_player_origin_snapshot') }} as player
         on
             grid.snapshot_date = player.snapshot_date
-            and grid.region_id = player.region_id
+            and grid.home_region_id = player.home_region_id
             and grid.level_tier >= player.level_tier
             and (grid.age_group = 'all' or player.is_under_21)
     group by all
@@ -57,7 +57,7 @@ select
     *,
     nation_share / nullif(
         first_value(nation_share) over (
-            partition by region_id, level_tier, age_group
+            partition by home_region_id, level_tier, age_group
             order by snapshot_date
         ),
         0

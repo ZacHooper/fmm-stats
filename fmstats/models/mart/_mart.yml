@@ -65,6 +65,23 @@ models:
         description: '{{ doc("weather_id") }}'
       - name: last_seen_date
         description: '{{ doc("last_seen_date") }}'
+  - name: dim_home_region
+    description: >
+      The regions the regional scores group by: the home nation's regions, plus one row per
+      other nation whose clubs play in its leagues.
+    data_tests:
+      - unique_combination: {arguments: {columns: [home_region_id]}}
+    columns:
+      - name: home_region_id
+        description: '{{ doc("home_region_id") }}'
+      - name: name
+        description: 'The region''s name, or the nation''s for a nation group. {{ doc("name") }}'
+      - name: nation_id
+        description: '{{ doc("nation_id") }}'
+      - name: is_nation_group
+        description: '{{ doc("is_nation_group") }}'
+      - name: region_ids
+        description: '{{ doc("region_ids") }}'
   - name: dim_stadium
     description: >
       Each stadium and its city; name and capacity are on fact_stadium_snapshot.
@@ -1473,12 +1490,59 @@ models:
     columns:
       - name: snapshot_date
         description: '{{ doc("snapshot_date") }}'
+      - name: season
+        description: 'The career''s season of the snapshot. {{ doc("season") }}'
       - name: person_id
         description: '{{ doc("person_id") }}'
       - name: tid
         description: '{{ doc("tid") }}'
       - name: block
         description: '{{ doc("season_stats_block") }}'
+      - name: appearances
+        description: 'The panel''s Pld. {{ doc("appearances") }}'
+      - name: goals
+        description: '{{ doc("goals") }}'
+      - name: assists
+        description: '{{ doc("assists") }}'
+      - name: goals_conceded
+        description: 'The panel''s figure, stored on both games. {{ doc("goals_conceded") }}'
+      - name: rating_total
+        description: '{{ doc("rating_total") }}'
+      - name: average_rating
+        description: 'The panel''s Av R: rating_total over appearances, truncated to two places.
+          {{ doc("average_rating") }}'
+      - name: yellows
+        description: '{{ doc("yellows") }}'
+      - name: reds
+        description: '{{ doc("reds") }}'
+      - name: player_of_match_awards
+        description: '{{ doc("player_of_match_awards") }}'
+  - name: fact_player_season_split
+    description: >
+      Each player's season split by kind of competition, for every season a save covers: the
+      This Season panel as the season's last snapshot holds it.
+    data_tests:
+      - unique_combination: {arguments: {columns: [season, person_id, block]}}
+      - relationship_combination:
+          arguments:
+            columns: [person_id]
+            to: ref('dim_person')
+            to_columns: [person_id]
+    columns:
+      - name: season
+        description: 'The career''s season. {{ doc("season") }}'
+      - name: person_id
+        description: '{{ doc("person_id") }}'
+      - name: tid
+        description: '{{ doc("tid") }}'
+      - name: block
+        description: '{{ doc("season_stats_block") }}'
+      - name: through_date
+        description: 'The season''s last snapshot, which the figures are read from. {{ doc("through_date") }}'
+      - name: is_live
+        description: '{{ doc("is_live") }}'
+      - name: has_panel_reset
+        description: '{{ doc("has_panel_reset") }}'
       - name: appearances
         description: 'The panel''s Pld. {{ doc("appearances") }}'
       - name: goals
@@ -1555,8 +1619,8 @@ models:
         description: '{{ doc("team_tid") }}'
       - name: club_tid
         description: '{{ doc("club_tid") }}'
-      - name: region_id
-        description: 'The region of the club''s ground. {{ doc("region_id") }}'
+      - name: home_region_id
+        description: '{{ doc("home_region_id") }}'
       - name: tier
         description: '{{ doc("tier") }}'
       - name: is_scored
@@ -1575,12 +1639,12 @@ models:
     description: >
       Each region's teams in the scored tiers on each snapshot: Elo four ways and facilities.
     data_tests:
-      - unique_combination: {arguments: {columns: [snapshot_date, region_id]}}
+      - unique_combination: {arguments: {columns: [snapshot_date, home_region_id]}}
     columns:
       - name: snapshot_date
         description: '{{ doc("snapshot_date") }}'
-      - name: region_id
-        description: '{{ doc("region_id") }}'
+      - name: home_region_id
+        description: '{{ doc("home_region_id") }}'
       - name: n_teams
         description: '{{ doc("n_teams") }}'
       - name: elo_mean
@@ -1611,8 +1675,8 @@ models:
         description: '{{ doc("person_id") }}'
       - name: origin_club_tid
         description: '{{ doc("origin_club_tid") }}'
-      - name: region_id
-        description: 'The region of his origin club''s ground. {{ doc("region_id") }}'
+      - name: home_region_id
+        description: '{{ doc("home_region_id") }}'
       - name: age
         description: '{{ doc("age") }}'
       - name: is_under_21
@@ -1627,12 +1691,12 @@ models:
     description: >
       How many players each region has produced at each scored tier's level or better, all ages and under-21s, on each snapshot, and the region's share of the nation's.
     data_tests:
-      - unique_combination: {arguments: {columns: [snapshot_date, region_id, level_tier, age_group]}}
+      - unique_combination: {arguments: {columns: [snapshot_date, home_region_id, level_tier, age_group]}}
     columns:
       - name: snapshot_date
         description: '{{ doc("snapshot_date") }}'
-      - name: region_id
-        description: '{{ doc("region_id") }}'
+      - name: home_region_id
+        description: '{{ doc("home_region_id") }}'
       - name: level_tier
         description: '{{ doc("level_tier") }}'
       - name: age_group
@@ -1647,12 +1711,12 @@ models:
     description: >
       Each region's tier-weighted appearances in the home nation's scored tiers by season, and its share of the nation's.
     data_tests:
-      - unique_combination: {arguments: {columns: [season, region_id]}}
+      - unique_combination: {arguments: {columns: [season, home_region_id]}}
     columns:
       - name: season
         description: '{{ doc("season") }}'
-      - name: region_id
-        description: '{{ doc("region_id") }}'
+      - name: home_region_id
+        description: '{{ doc("home_region_id") }}'
       - name: is_live
         description: '{{ doc("is_live") }}'
       - name: appearances

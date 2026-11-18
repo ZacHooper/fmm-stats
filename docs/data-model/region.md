@@ -3,7 +3,9 @@
 How good each region of the career's home nation is at football, measured three ways so a
 career can watch one region grow (Truro: the South West). A region is the game's own
 (`dim_region`: South-West, London, ...); a club's region is its ground's city's, a player's is
-his origin club's. Counties are not in the save; they would replace the region key without
+his origin club's. The scores group by `dim_home_region`: the home nation's regions, plus one
+row per other nation whose clubs play in its leagues (Wales, for Cardiff, Swansea, Newport,
+Wrexham and Merthyr in England), keyed by the negated nation id. Counties are not in the save; they would replace the region key without
 changing anything below it.
 
 ## The ruler: tier levels
@@ -37,3 +39,9 @@ Every count carries the region's share of the nation's (`nation_share`) and that
 the region's first (`nation_share_index`): the size of a region cancels out, so London's volume
 does not hide the South West's growth. CA stays inside the warehouse; presentation carries the
 weights, counts and shares only.
+
+## On the site
+The World page's **Regions** tab (`site.region_*`, `world.json`'s `regions`): our region's
+tiles, then Clubs (Elo and facilities by region), Players (counts at each division's level,
+all ages or under-21s), Appearances (tier-weighted, by season) and Club Elo (every club, with
+its rating over time).

@@ -230,7 +230,7 @@ Which line of the This Season panel: `club_season` (the history list's current-s
 league, cup and continental, plus matches for a club's B team), `league`, `cup` (every
 domestic cup summed), `continental`, `non_competitive` (friendlies and reserve matches) or
 `international`. The parser's and the raw table's name for it.
-Synonyms: `fact_player_season_stats.block`.
+Synonyms: `fact_player_season_stats.block`, `fact_player_season_split.block`.
 {% enddocs %}
 
 {% docs rating_total %}
@@ -240,4 +240,10 @@ appearances.
 
 {% docs player_of_match_awards %}
 Player-of-the-match awards, the panel's PoM.
+{% enddocs %}
+
+{% docs has_panel_reset %}
+The player's This Season panel restarted inside the career's season (its club_season
+appearances fell between two snapshots): his league runs on another calendar, and the row
+covers only the part of the season after the restart.
 {% enddocs %}

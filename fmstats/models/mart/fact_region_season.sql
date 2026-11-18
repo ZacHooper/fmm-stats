@@ -86,7 +86,7 @@ weights as (
 origin as (
     select
         person_id,
-        region_id
+        home_region_id
     from {{ ref('fact_player_origin_snapshot') }}
     qualify row_number() over (
         partition by person_id order by snapshot_date desc
@@ -137,7 +137,7 @@ lines as (
 by_tier as (
     select
         lines.season,
-        origin.region_id,
+        origin.home_region_id,
         team_tiers.tier,
         sum(lines.appearances) as appearances,
         sum(lines.appearances * weights.tier_weight) as weighted_appearances
@@ -157,7 +157,7 @@ by_tier as (
 regions as (
     select
         season,
-        region_id,
+        home_region_id,
         sum(appearances) as appearances,
         sum(weighted_appearances) as weighted_appearances,
         list(
@@ -165,7 +165,7 @@ regions as (
             order by tier
         ) as appearances_by_tier
     from by_tier
-    group by season, region_id
+    group by season, home_region_id
 ),
 
 shares as (
@@ -178,7 +178,7 @@ shares as (
 
 select
     season,
-    region_id,
+    home_region_id,
     season = (
         select snapshots.season from snapshots
         inner join latest on snapshots.snapshot_date = latest.snapshot_date
@@ -189,7 +189,7 @@ select
     nation_share,
     nation_share / nullif(
         first_value(nation_share) over (
-            partition by region_id order by season
+            partition by home_region_id order by season
         ),
         0
     ) as nation_share_index

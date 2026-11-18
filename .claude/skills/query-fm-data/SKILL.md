@@ -55,13 +55,16 @@ ORDER BY tot.goals DESC LIMIT 5;
     `fact_team_snapshot` (league, reputation), `fact_nation_snapshot`,
     `fact_competition_outcome`, `fact_participation`.
   * **Regional strength** ([`docs/data-model/region.md`](../../../docs/data-model/region.md)):
-    `dim_region`, `fact_tier_level_snapshot` (each tier's level and weight; `level_ca` is
+    `dim_region`, `dim_home_region` (what the scores group by: Wales is one row),
+    `fact_tier_level_snapshot` (each tier's level and weight; `level_ca` is
     raw ability, never quote it), `fact_club_elo` (every home-nation team's Elo, match by
     match), `fact_club_region_snapshot`, `fact_region_snapshot` (Elo and facilities per region),
     `fact_player_origin_snapshot`, `fact_region_level_snapshot` (players at each tier's level by
     origin region) and `fact_region_season` (tier-weighted appearances).
-  * **This season**: `fact_player_season_stats`, the Player History screen's This Season
-    panel for every player, by block (`club_season`, `league`, `cup`, ...).
+  * **Season splits**: `fact_player_season_stats`, the Player History screen's This Season
+    panel for every player on every snapshot, by block (`club_season`, `league`, `cup`, ...),
+    and `fact_player_season_split`, each season's split as its last snapshot holds it (every
+    season a save covers; `fact_player_season` has the totals for every season).
 * **`site-data/fm-<career>.duckdb`** — the full store: `raw`, `stg`, `int`, `mart` (tables AND
   views) and `site`. Needed for the views — **`mart.squad_membership`**, `mart.standings`,
   `mart.tie_results`, every `site.*` model, `int.*`. dbt bakes the store's file name into each

@@ -1,12 +1,13 @@
 -- Each team in the home nation's men's leagues on each snapshot: its region
--- (its ground's), its tier, its Elo rating as of that day (the last rating
--- event on or before it, fact_club_elo) and its facilities and reputation.
+-- (its ground's, grouped as int_club_regions.home_region_id), its tier, its
+-- Elo rating as of that day (the last rating event on or before it,
+-- fact_club_elo) and its facilities and reputation.
 -- The unit the regional club scores (fact_region_snapshot) aggregate.
 select
     tiers.snapshot_date,
     tiers.team_tid,
     tiers.club_tid,
-    regions.region_id,
+    regions.home_region_id,
     tiers.tier,
     levels.is_scored,
     elo.elo,
