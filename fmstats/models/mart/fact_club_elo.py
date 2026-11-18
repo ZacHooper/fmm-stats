@@ -3,9 +3,11 @@
 One row per team per rating event: a `seed` row when the team first appears in the home
 nation's men's leagues (int_home_team_tiers), then one `match` row per match it plays in
 that nation's competitions (league and cup) against another rated team. A team's seed is
-var('region_elo').base + per_level_point x (its tier's level_ca - the lowest scored tier's)
-on the snapshot it first appears in (fact_tier_level_snapshot), so the gap between two
-tiers is the gap in their regulars' level. A match moves both sides by
+per_level_point x its tier's level_ca on the snapshot it first appears in
+(fact_tier_level_snapshot), so the gap between two tiers is the gap in their regulars'
+level, shifted so the average team in the scored tiers on the first snapshot starts at
+var('region_elo').base (1500, the usual Elo average). A team first seen later takes the
+same shift, so its seed is on the same scale. A match moves both sides by
 k x margin x (result - expected): result 1 / 0.5 / 0 (a shootout is a draw), expected
 from the rating gap with the home side home_advantage up (none at a neutral venue is not
 known to the save, so every match has a home side), margin 1 for one goal, 1.5 for two,
@@ -29,13 +31,13 @@ def model(dbt, session):
 
     # seeds: each team on the first snapshot it appears in
     first = tiers.sort_values("snapshot_date").drop_duplicates("team_tid")
-    lowest = (levels[levels["is_scored"]].groupby("snapshot_date")["level_ca"].min()
-              .rename("lowest_scored_ca").reset_index())
-    seeds = (first.merge(levels[["snapshot_date", "tier", "level_ca"]],
-                         on=["snapshot_date", "tier"], how="inner")
-             .merge(lowest, on="snapshot_date", how="inner"))
-    seeds["elo"] = (elo_vars["base"] + elo_vars["per_level_point"]
-                    * (seeds["level_ca"] - seeds["lowest_scored_ca"]))
+    seeds = first.merge(levels[["snapshot_date", "tier", "level_ca", "is_scored"]],
+                        on=["snapshot_date", "tier"], how="inner")
+    seeds["elo"] = elo_vars["per_level_point"] * seeds["level_ca"]
+    day_one = seeds[(seeds["snapshot_date"] == seeds["snapshot_date"].min())
+                    & seeds["is_scored"].astype(bool)]
+    if len(day_one):
+        seeds["elo"] += elo_vars["base"] - day_one["elo"].mean()
 
     nations = set(tiers["nation_id"].unique())
     home_cids = set(competitions[competitions["nation_id"].isin(nations)

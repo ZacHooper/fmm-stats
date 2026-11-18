@@ -770,7 +770,8 @@ function clubEloView(R, H) {
     },
     quick: () => R.regions.map((r) => ({ group: "A region's clubs", label: r.name,
       keys: () => clubs.filter((c) => c.region === r.id).map((c) => c.tid) })),
-    note: "Elo, as in chess: each club starts from its division's level on the first save (the "
+    note: "Elo, as in chess: 1500 is the average club on the first save, and each club starts "
+      + "from its division's level (the "
       + "gap between two divisions follows the gap between their typical regulars) and gains or "
       + "loses points with every league and cup match against another club in our nation's "
       + "leagues — more for a win it wasn't expected to get, and more for a bigger margin. "
