@@ -546,6 +546,10 @@ Open:
   ONS boundaries (public data, safe in git; the club-to-county result stays local), with an
   override list for clubs with no ground (Saltash, Torpoint); then per-head figures.
 - **Reserve leagues** are left out of the tiers; consider them once the scores settle.
+- **An older player's origin can be a later club.** The origin club is the earliest in the
+  career history the save keeps, which doesn't always reach back to the youth club: Dan Burn's
+  starts at Fulham (London), not Darlington (North East). Mostly older players who began in
+  non-league; check how far back the history goes before trusting a veteran's region.
 - **Season splits on another calendar**: `fact_player_season_split` labels each row with our
   career's season; a player in a calendar-year league (Sweden, the USA) has his panel restart
   inside it (`has_panel_reset`). Labelling those rows with the league's own season needs each

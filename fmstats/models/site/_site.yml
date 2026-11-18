@@ -1007,6 +1007,26 @@ models:
         description: '{{ doc("nation_share") }}'
       - name: nation_share_index
         description: '{{ doc("nation_share_index") }}'
+  - name: site_region_playing
+    description: >
+      Where each region's players play, per scored tier, on each snapshot.
+    data_tests:
+      - unique_combination: {arguments: {columns: [snapshot_date, home_region_id, tier, age_group]}}
+    columns:
+      - name: snapshot_date
+        description: '{{ doc("snapshot_date") }}'
+      - name: home_region_id
+        description: '{{ doc("home_region_id") }}'
+      - name: tier
+        description: '{{ doc("tier") }}'
+      - name: age_group
+        description: '{{ doc("age_group") }}'
+      - name: n_players
+        description: 'Players from the region playing for a team in the tier. {{ doc("n_players") }}'
+      - name: nation_share
+        description: '{{ doc("nation_share") }}'
+      - name: nation_share_index
+        description: '{{ doc("nation_share_index") }}'
   - name: site_region_seasons
     description: >
       Each region's tier-weighted appearances by season.

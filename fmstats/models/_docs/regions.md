@@ -135,3 +135,7 @@ The tier's level is extrapolated, not measured: below the scored tiers the save 
 players for most clubs, so the scored tiers' near-constant fall in level per tier is carried on
 down.
 {% enddocs %}
+
+{% docs is_on_loan %}
+He is on loan: the team he plays for is the borrowing club's, which lists him on its squad.
+{% enddocs %}

@@ -3,8 +3,8 @@
 -- scored tier that season, weighted by the tier's tier_weight. A finished
 -- season is its career-history lines (fact_player_season); the season of the
 -- latest snapshot adds the This Season panel's club_season line for the team
--- he is in now, which the history line for that club does not yet hold (the
--- larger of the two is kept). A team's tier for a season is its league on
+-- he plays for now (the borrowing club's on a loan), which the history line
+-- for that club does not yet hold (the larger of the two is kept). A team's tier for a season is its league on
 -- the season's latest snapshot or, for the season before the first snapshot,
 -- the league it finished in (last_league_cid). Weights are those of the
 -- season's first snapshot, or the next season's where it has none.
@@ -113,7 +113,7 @@ panel as (
     from {{ ref('fact_player_season_stats') }} as stats
     inner join latest on stats.snapshot_date = latest.snapshot_date
     inner join snapshots on stats.snapshot_date = snapshots.snapshot_date
-    inner join {{ ref('fact_player_snapshot') }} as player
+    inner join {{ ref('fact_player_origin_snapshot') }} as player
         on
             stats.snapshot_date = player.snapshot_date
             and stats.person_id = player.person_id

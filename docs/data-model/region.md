@@ -34,11 +34,15 @@ a club past the tier above in half a season.
 snapshot; `fact_region_snapshot` aggregates a region's scored-tier teams: mean, median, best
 three, and the share above the nation's 75th percentile, plus facilities.
 
-## Players: levels and appearances
+## Players: where they play, how good they are, and their appearances
 `fact_player_origin_snapshot` places every player from the nation's youth systems by region,
-with the highest scored tier whose level he reaches (`level_tier`).
-`fact_region_level_snapshot` counts them at each tier's level or better, all ages and
-under-21s. `fact_region_season` sums their appearances for scored-tier teams each season,
+two ways. **Where he plays**: the team he plays for (the borrowing club's on a loan, from the
+squad listings; a reserve side does not count) and its tier; `fact_region_playing_snapshot`
+counts them per tier. **How good he is (talent)**: the highest scored tier whose typical
+regular he matches (`level_tier`), wherever he plays; `fact_region_level_snapshot` counts them
+at each tier's level or better. Both cover all ages and under-21s. A tier's typical regular is
+its median regular, so half of a tier's own regulars fall below its talent bar: the talent
+count is players good enough for the top half of a division. `fact_region_season` sums their appearances for scored-tier teams each season,
 weighted by tier.
 
 ## Progress
@@ -49,6 +53,7 @@ weights, counts and shares only.
 
 ## On the site
 The World page's **Regions** tab (`site.region_*`, `world.json`'s `regions`): our region's
-tiles, then Clubs (Elo and facilities by region), Players (counts at each division's level,
+tiles, then Clubs (Elo and facilities by region), Players (Playing in: counts per division by
+first team, loans at the borrower; Talent: counts at each division's typical-regular level;
 all ages or under-21s), Appearances (tier-weighted, by season) and Club Elo (every club, with
 its rating over time).

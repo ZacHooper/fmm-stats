@@ -63,6 +63,17 @@ level_shares as (
     having sum(n_players) > 0
 ),
 
+playing_shares as (
+    select
+        snapshot_date,
+        tier,
+        age_group,
+        sum(nation_share) as total_share
+    from {{ ref('fact_region_playing_snapshot') }}
+    group by all
+    having sum(n_players) > 0
+),
+
 season_shares as (
     select
         season,
@@ -101,6 +112,13 @@ select
     snapshot_date::varchar || ' ' || level_tier::varchar || ' ' || age_group
         as subject
 from level_shares
+where abs(total_share - 1) > 1e-6
+union all
+select
+    'share not whole' as "check",
+    snapshot_date::varchar || ' playing ' || tier::varchar || ' ' || age_group
+        as subject
+from playing_shares
 where abs(total_share - 1) > 1e-6
 union all
 select

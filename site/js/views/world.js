@@ -553,7 +553,8 @@ function regionsPanel(world, H) {
   return el("div", {}, [regionTiles(R, scored), el("div.prow", {}, [seg]), box]);
 }
 
-/** Our region at a glance: its clubs' place, its players at a League Two-ish bar, its appearances. */
+/** Our region at a glance: its clubs' place, its players in and good enough for the fourth
+ *  division up (League Two in England), its appearances. */
 function regionTiles(R, scored) {
   const ours = R.regions.find((r) => r.ours);
   if (!ours) return el("div");
@@ -567,9 +568,11 @@ function regionTiles(R, scored) {
     el("span", { text: label }), el("b", { text: value }), el("div.wsub", {}, [sub, d ? " · " : null, d]),
   ]);
   const all = lv("all"), u21 = lv("under_21");
+  const inLeague = (ours.playing?.all || []).filter((x) => x[0] <= bar?.tier).reduce((a, x) => a + (x[1] || 0), 0);
   return el("div.kpis", {}, [
     tile(`${ours.name} · clubs`, `#${byElo.indexOf(ours) + 1}`, `of ${R.regions.length} · Elo ${num(ours.elo_mean)}`),
-    all ? tile(`Players at ${tierLabel(bar)} level+`, num(all[1]), `${pctFmt(all[2], 1)} of the nation's`, indexCell(all[3])) : null,
+    tile(`Playing in ${tierLabel(bar)} or above`, num(inLeague), "first teams, loans at the borrower"),
+    all ? tile(`Talent: ${tierLabel(bar)} standard+`, num(all[1]), `${pctFmt(all[2], 1)} of the nation's`, indexCell(all[3])) : null,
     u21 ? tile("…of them under 21", num(u21[1]), `${pctFmt(u21[2], 1)} of the nation's`, indexCell(u21[3])) : null,
     live ? tile(`Appearances ${live.season - 1}/${String(live.season).slice(2)}`, pctFmt(live.share, 1),
       "of the nation's, tier-weighted", indexCell(live.index)) : null,
@@ -630,59 +633,87 @@ function regionClubsView(R, H) {
 }
 
 const LS_LEVEL = "fmworld:regions-level";
+/**
+ * The players a region's youth systems produce, two ways: where they play now (Playing in: the
+ * division of the first team they play for, the borrowing club's on a loan) and how good they
+ * are (Talent: at least each division's typical regular, wherever they play).
+ */
 function regionPlayersView(R, H, scored) {
   const saved = lsGet(LS_LEVEL) || {};
+  let mode = saved.mode === "talent" ? "talent" : "playing";
   let group = saved.group === "under_21" ? "under_21" : "all";
   let tier = scored.some((t) => t.tier === saved.tier) ? saved.tier : scored[Math.min(3, scored.length - 1)]?.tier;
   const box = el("div");
+  const modeSeg = el("span.seg");
   const groupSeg = el("span.seg");
-  const tierSel = el("select.btn", { "aria-label": "Level" }, scored.map((t) => el("option", {
-    value: String(t.tier), text: `${tierLabel(t)} level+`,
-  })));
-  tierSel.value = String(tier);
-  const draw = () => {
-    lsSet(LS_LEVEL, { group, tier });
-    groupSeg.replaceChildren(...[["all", "All ages"], ["under_21", "Under 21"]].map(([k, label]) => el(`button${k === group ? ".on" : ""}`, {
-      type: "button", text: label, onclick: () => { group = k; draw(); },
+  const tierSel = el("select.btn", { "aria-label": "Division" });
+  const drawTierOptions = () => {
+    tierSel.replaceChildren(...scored.map((t) => el("option", {
+      value: String(t.tier), text: mode === "talent" ? `${tierLabel(t)} standard+` : `In ${tierLabel(t)}`,
     })));
-    const lvl = (r, t) => (r.levels[group] || []).find((x) => x[0] === t) || [];
+    tierSel.value = String(tier);
+  };
+  const seg = (node, opts, cur, set) => node.replaceChildren(...opts.map(([k, label]) => el(`button${k === cur ? ".on" : ""}`, {
+    type: "button", text: label, onclick: () => { set(k); draw(); },
+  })));
+  const draw = () => {
+    lsSet(LS_LEVEL, { mode, group, tier });
+    seg(modeSeg, [["playing", "Playing in"], ["talent", "Talent"]], mode, (k) => { mode = k; });
+    seg(groupSeg, [["all", "All ages"], ["under_21", "Under 21"]], group, (k) => { group = k; });
+    drawTierOptions();
+    const talent = mode === "talent";
+    const src = (r) => (talent ? r.levels : r.playing)?.[group] || [];
+    const lvl = (r, t) => src(r).find((x) => x[0] === t) || [];
     const rows = regionRows(R, H, (r) => ({ at: lvl(r, tier) }));
     const counts = Object.fromEntries(scored.map((t) => [`t${t.tier}`, {
-      label: `${tierLabel(t)}+`, align: "num", get: (r) => lvl(r, t.tier)[1] ?? null,
-      help: `Players at ${tierLabel(t)} level or better`,
+      label: talent ? `${tierLabel(t)}+` : tierLabel(t), align: "num", get: (r) => lvl(r, t.tier)[1] ?? null,
+      help: talent ? `Players at least as good as a typical ${tierLabel(t)} regular, wherever they play`
+        : `Players in a ${tierLabel(t)} first team (on loan there included)`,
     }]));
-    const key = `${tier}_${group}`;
+    const total = talent ? {} : { total: { label: "Total", align: "num", get: (r) => scored.reduce((a, t) => a + (lvl(r, t.tier)[1] || 0), 0),
+      help: "Players in a first team in any of these divisions" } };
+    const key = `${talent ? "" : "p"}${tier}_${group}`;
     const node = tableAndChart({
-      key: "regions-players", H, rows, ours: oursSet(R),
+      key: talent ? "regions-players" : "regions-playing", H, rows, ours: oursSet(R),
       series: (r) => ({ share: r.hist[`${key}_share`] || [], n: r.hist[`${key}_n`] || [], index: r.hist[`${key}_index`] || [] }),
       metrics: [{ id: "share", label: "Share", dp: 3 }, { id: "n", label: "Players" }, { id: "index", label: "vs day 1", dp: 3 }],
       catalogue: {
         name: { label: "Region", get: (r) => r.name, render: regionName },
         share: { label: "Share", align: "num", get: (r) => r.at[2] ?? null, render: (r) => pctFmt(r.at[2], 1), cls: "strong",
-                 help: "The region's part of the nation's players at the chosen level" },
+                 help: "The region's part of the nation's players at the chosen division" },
         index: { label: "vs day 1", align: "num", get: (r) => r.at[3] ?? null, render: (r) => indexCell(r.at[3]),
                  help: "The share against the region's own on the first save: +10% is a tenth more of the nation's players" },
         ...counts,
+        ...total,
       },
-      defaults: ["name", "share", "index", ...Object.keys(counts)],
+      defaults: ["name", "share", "index", ...Object.keys(counts), ...Object.keys(total)],
       sort: { by: "share", dir: "desc" },
       searchPlaceholder: "Search regions…",
       initial: () => oursFirst(R, [...rows].sort((a, b) => (b.at[2] ?? 0) - (a.at[2] ?? 0))),
       quick: () => [],
-      note: "A player belongs to the region of his <b>origin club</b>, the youth system he came "
-        + "through (an academy counts as its club), wherever he plays now. He counts at a "
-        + "division's level when he is at least as good as that division's typical regular (the "
-        + "middle of its teams' best 14, every nationality counted), so each column includes the "
-        + "ones before it. The levels are re-read on every save, so a rise is a region gaining "
-        + "ground on the rest, not the world getting better. Small counts move a lot: one player "
-        + "is a big share of a handful.",
+      note: (talent
+        ? "<b>Talent</b>: how good the region's players are, wherever they play — a reserve side, "
+          + "another nation or out of the leagues entirely. A player counts at a division when his "
+          + "ability is at least that of the division's <i>typical regular</i>: the middle player "
+          + "among its clubs' best 14, every nationality counted. That's a high bar — half of the "
+          + "division's own regulars fall short of it — so each column counts players good enough "
+          + "for the top half of that division or better, and includes the columns before it. The "
+          + "bars are re-read on every save, so a rise is the region gaining ground on the rest. "
+        : "<b>Playing in</b>: where the region's players play right now. Each counts in the "
+          + "division of the first team he plays for — the borrowing club's when he's on loan; a "
+          + "reserve side doesn't count. ")
+        + "A player belongs to the region of his <b>origin club</b>, the youth system he came "
+        + "through (an academy counts as its club), not where he was born or plays. That is the "
+        + "earliest club in the career history the save keeps, so an older player who started in "
+        + "non-league can be placed at a later club. Small counts move a lot: one player is a big "
+        + "share of a handful.",
     });
     box.replaceChildren(node);
   };
   tierSel.addEventListener("change", () => { tier = +tierSel.value; draw(); });
   draw();
   return el("div", {}, [el("h3", { text: "Regions by the players they produce" }),
-    el("div.prow", {}, [groupSeg, tierSel]), box]);
+    el("div.prow", {}, [modeSeg, groupSeg, tierSel]), box]);
 }
 
 function regionAppsView(R, scored) {
