@@ -21,8 +21,11 @@ step is the widest).
 `fact_club_elo` (a Python model) rates every team in the home nation's leagues match by
 match, league and cup. A team is seeded on its first snapshot at
 `base + per_level_point x (its tier's level - the lowest scored tier's)`; a match moves both
-sides by `k x margin x (result - expected)`. Settings are `var('region_elo')`, chosen so no
-club ends up rated above a club two tiers higher while adjacent tiers overlap.
+sides by `k x margin x (result - expected)`. Settings are `var('region_elo')`, chosen by how
+well the ratings predict results (Brier score): wider starting gaps between tiers predict
+better up to 14-16 points per level point, and a smaller k predicts worse, so a club's form
+moves its rating fast but the tiers start far enough apart that a run of wins doesn't carry
+a club past the tier above in half a season.
 `fact_club_region_snapshot` gives each team's rating, tier, facilities and region on each
 snapshot; `fact_region_snapshot` aggregates a region's scored-tier teams: mean, median, best
 three, and the share above the nation's 75th percentile, plus facilities.

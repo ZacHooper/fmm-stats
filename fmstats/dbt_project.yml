@@ -194,9 +194,12 @@ vars:
   # median CA of its teams' best `region_regulars` players; a club's Elo starts at
   # base + per_level_point x (its tier's level - the lowest scored tier's level) and moves by
   # k x a goal-margin multiplier x (result - expected), the home side `home_advantage` up.
+  # Chosen by how well the ratings predict results (Brier score over the matches after a
+  # warm-up third, truro-2026-11-16): the fit is best at 14-16 per level point and gets
+  # worse either side; a k below 20 predicts worse, above it barely better.
   region_regulars: 14
   region_u21_age: 21
-  region_elo: {base: 1500, per_level_point: 10, k: 20, home_advantage: 60}
+  region_elo: {base: 1500, per_level_point: 16, k: 20, home_advantage: 60}
   region_facilities_good_min: 12   # three stars or more on the Club Information screen
   value_terms: [ca, pa, lcrep, llrp, yrs_left, youth_years, decline_years]
   value_youth_age: 21
